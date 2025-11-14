@@ -172,14 +172,127 @@
                         </div>
 
                         <div class="analysis-section">
-                            <h3>📊 Summary</h3>
-                            <div class="info-row">
-                                <span class="info-label">Total Skills:</span>
-                                <span class="info-value" id="skillsCount">0</span>
+                            <h3>📊 Enhanced Summary</h3>
+                            
+                            <!-- Resume Summary Paragraph -->
+                            <div id="resumeSummaryContainer" style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #64B5F6;">
+                                <h4 style="font-size: 16px; font-weight: 600; color: var(--text-secondary); margin-bottom: 10px;">Clear Resume Summary</h4>
+                                <p id="resumeSummary" style="color: var(--text-primary); line-height: 1.6; margin: 0;">Loading...</p>
                             </div>
-                            <div class="info-row">
-                                <span class="info-label">Text Extracted:</span>
-                                <span class="info-value" id="textLength">0 characters</span>
+                            
+                            <!-- Skills Summary by Category -->
+                            <div id="skillsSummaryContainer" style="margin-bottom: 20px;">
+                                <h4 style="font-size: 16px; font-weight: 600; color: var(--text-secondary); margin-bottom: 15px;">Extracted Skills Summary</h4>
+                                <div id="skillsSummary" style="display: grid; gap: 15px;">
+                                    <!-- Will be populated by JavaScript -->
+                                </div>
+                            </div>
+                            
+                            <!-- Projects Summary -->
+                            <div id="projectsSummaryContainer" style="margin-bottom: 20px;">
+                                <h4 style="font-size: 16px; font-weight: 600; color: var(--text-secondary); margin-bottom: 15px;">Projects Summary</h4>
+                                <div id="projectsSummary" style="display: grid; gap: 12px;">
+                                    <!-- Will be populated by JavaScript -->
+                                </div>
+                            </div>
+                            
+                            <!-- Insights -->
+                            <div id="insightsContainer" style="margin-bottom: 20px; padding: 15px; background: #f0f7ff; border-radius: 8px; border-left: 4px solid #64B5F6;">
+                                <h4 style="font-size: 16px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">Key Insights</h4>
+                                <div id="insights" style="font-size: 14px; color: var(--text-primary); line-height: 1.6;">
+                                    <!-- Will be populated by JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Interview Modules Overview Section -->
+                        <div class="analysis-section">
+                            <h3>🎯 Interview Modules Overview</h3>
+                            
+                            <div id="interviewModulesContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 20px;">
+                                <!-- Technical Interview Module -->
+                                <div class="module-card" style="background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 12px; padding: 20px; border-left: 4px solid #2196F3;">
+                                    <h4 style="font-size: 18px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                        <span>💻</span> Technical Interview
+                                    </h4>
+                                    <p id="technicalDescription" style="font-size: 14px; color: var(--text-primary); line-height: 1.6; margin-bottom: 15px;">Loading...</p>
+                                    <div style="margin-top: 15px;">
+                                        <div style="font-weight: 600; color: var(--text-secondary); font-size: 13px; margin-bottom: 8px;">Core Technical & Domain Skills:</div>
+                                        <div id="technicalTopics" class="skills-list"></div>
+                                    </div>
+                                    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
+                                        <button class="btn btn-primary" onclick="startInterviewFromModule('technical')" style="width: 100%; padding: 10px; font-size: 14px;">Start Interview</button>
+                                    </div>
+                                </div>
+
+                                <!-- Coding / Online Test Module -->
+                                <div class="module-card" style="background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 12px; padding: 20px; border-left: 4px solid #4CAF50;">
+                                    <h4 style="font-size: 18px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                        <span>⌨️</span> Coding / Online Test
+                                    </h4>
+                                    <div style="margin-bottom: 15px;">
+                                        <div style="font-weight: 600; color: var(--text-secondary); font-size: 13px; margin-bottom: 6px;">Difficulty Level:</div>
+                                        <div id="codingDifficulty" style="display: inline-block; padding: 6px 12px; background: #e8f5e9; color: #2e7d32; border-radius: 6px; font-weight: 600; font-size: 13px;">—</div>
+                                    </div>
+                                    <div style="margin-bottom: 15px;">
+                                        <div style="font-weight: 600; color: var(--text-secondary); font-size: 13px; margin-bottom: 8px;">Recommended Platforms:</div>
+                                        <div id="codingPlatforms" class="skills-list"></div>
+                                    </div>
+                                    <div>
+                                        <div style="font-weight: 600; color: var(--text-secondary); font-size: 13px; margin-bottom: 8px;">Programming & DSA Topics:</div>
+                                        <div id="codingTopics" class="skills-list"></div>
+                                    </div>
+                                    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
+                                        <button class="btn btn-primary" onclick="startInterviewFromModule('coding')" style="width: 100%; padding: 10px; font-size: 14px;">Start Interview</button>
+                                    </div>
+                                </div>
+
+                                <!-- HR Interview Module -->
+                                <div class="module-card" style="background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 12px; padding: 20px; border-left: 4px solid #FF9800;">
+                                    <h4 style="font-size: 18px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                        <span>👔</span> HR Interview
+                                    </h4>
+                                    <div style="margin-bottom: 15px;">
+                                        <div style="font-weight: 600; color: var(--text-secondary); font-size: 13px; margin-bottom: 8px;">Evaluation Points:</div>
+                                        <ul id="hrEvaluationPoints" style="font-size: 13px; color: var(--text-primary); line-height: 1.8; margin: 0; padding-left: 20px;">
+                                            <li>Loading...</li>
+                                        </ul>
+                                    </div>
+                                    <div>
+                                        <div style="font-weight: 600; color: var(--text-secondary); font-size: 13px; margin-bottom: 8px;">Communication & Leadership Skills:</div>
+                                        <ul id="hrSuggestions" style="font-size: 13px; color: var(--text-primary); line-height: 1.8; margin: 0; padding-left: 20px;">
+                                            <li>Loading...</li>
+                                        </ul>
+                                    </div>
+                                    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
+                                        <button class="btn btn-primary" onclick="startInterviewFromModule('hr')" style="width: 100%; padding: 10px; font-size: 14px;">Start Interview</button>
+                                    </div>
+                                </div>
+
+                                <!-- Behavioral Interview Module -->
+                                <div class="module-card" style="background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 12px; padding: 20px; border-left: 4px solid #9C27B0;">
+                                    <h4 style="font-size: 18px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                        <span>🌟</span> Behavioral Interview
+                                    </h4>
+                                    <div style="margin-bottom: 15px;">
+                                        <div style="font-weight: 600; color: var(--text-secondary); font-size: 13px; margin-bottom: 8px;">STAR Method:</div>
+                                        <div id="starGuidance" style="font-size: 13px; color: var(--text-primary); line-height: 1.6;">
+                                            <div style="margin-bottom: 8px;"><strong>S:</strong> <span id="starSituation">—</span></div>
+                                            <div style="margin-bottom: 8px;"><strong>T:</strong> <span id="starTask">—</span></div>
+                                            <div style="margin-bottom: 8px;"><strong>A:</strong> <span id="starAction">—</span></div>
+                                            <div><strong>R:</strong> <span id="starResult">—</span></div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div style="font-weight: 600; color: var(--text-secondary); font-size: 13px; margin-bottom: 8px;">STAR Method Points from Resume:</div>
+                                        <ul id="behavioralTips" style="font-size: 13px; color: var(--text-primary); line-height: 1.8; margin: 0; padding-left: 20px;">
+                                            <li>Loading...</li>
+                                        </ul>
+                                    </div>
+                                    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
+                                        <button class="btn btn-primary" onclick="startInterviewFromModule('behavioral')" style="width: 100%; padding: 10px; font-size: 14px;">Start Interview</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -318,9 +431,165 @@
                 skillsContainer.innerHTML = '<p style="color: #999; font-size: 13px; padding: 10px;">No skills detected</p>';
             }
 
-            // Display summary
-            document.getElementById('skillsCount').textContent = skills.length;
-            document.getElementById('textLength').textContent = (data.text_length || 0) + ' characters';
+            // Display enhanced summary
+            const summary = data.summary || {};
+            
+            // Display resume summary paragraph
+            const resumeSummary = summary.resume_summary || 'Summary not available.';
+            document.getElementById('resumeSummary').textContent = resumeSummary;
+            
+            // Display categorized skills
+            const skillsSummary = summary.skills_summary || {};
+            const skillsSummaryContainer = document.getElementById('skillsSummary');
+            const categories = ['Programming', 'AI/ML', 'Tools', 'Soft Skills'];
+            let skillsSummaryHtml = '';
+            
+            categories.forEach(category => {
+                const categorySkills = skillsSummary[category] || [];
+                if (categorySkills.length > 0) {
+                    skillsSummaryHtml += `
+                        <div style="padding: 12px; background: #f8f9fa; border-radius: 8px; border-left: 3px solid #64B5F6;">
+                            <div style="font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">${category}</div>
+                            <div class="skills-list">
+                                ${categorySkills.map(skill => `<span class="skill-tag">${skill}</span>`).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+            
+            if (skillsSummaryHtml) {
+                skillsSummaryContainer.innerHTML = skillsSummaryHtml;
+            } else {
+                skillsSummaryContainer.innerHTML = '<p style="color: #999; font-size: 13px; padding: 10px;">No categorized skills available.</p>';
+            }
+            
+            // Display projects summary
+            const projects = summary.projects_summary || [];
+            const projectsContainer = document.getElementById('projectsSummary');
+            if (projects.length > 0) {
+                projectsContainer.innerHTML = projects.map(project => `
+                    <div style="padding: 12px; background: #f8f9fa; border-radius: 8px; border-left: 3px solid #4CAF50;">
+                        <div style="font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">${project.name || 'Untitled Project'}</div>
+                        <div style="font-size: 13px; color: var(--text-primary); line-height: 1.5;">
+                            ${project.summary || 'No description available.'}
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                projectsContainer.innerHTML = '<p style="color: #999; font-size: 13px; padding: 10px;">No projects detected in resume.</p>';
+            }
+            
+            // Display insights
+            const insights = generateInsights(data, summary);
+            document.getElementById('insights').innerHTML = insights;
+            
+            // Display Interview Modules Overview
+            const interviewModules = data.interview_modules || {};
+            
+            // Technical Interview Module
+            const technicalInterview = interviewModules.technical_interview || {};
+            document.getElementById('technicalDescription').textContent = technicalInterview.description || 'Prepare for technical questions covering your core skills and technologies.';
+            const technicalSkills = technicalInterview.skills || [];
+            const technicalTopicsContainer = document.getElementById('technicalTopics');
+            if (technicalSkills.length > 0) {
+                technicalTopicsContainer.innerHTML = technicalSkills.map(skill => `<span class="skill-tag">${skill}</span>`).join('');
+            } else {
+                technicalTopicsContainer.innerHTML = '<p style="color: #999; font-size: 12px;">No technical skills found</p>';
+            }
+            
+            // Coding / Online Test Module
+            const codingTest = interviewModules.coding_test || {};
+            document.getElementById('codingDifficulty').textContent = codingTest.difficulty_level || '—';
+            const codingPlatforms = codingTest.platforms || [];
+            const codingPlatformsContainer = document.getElementById('codingPlatforms');
+            if (codingPlatforms.length > 0) {
+                codingPlatformsContainer.innerHTML = codingPlatforms.map(platform => `<span class="skill-tag">${platform}</span>`).join('');
+            } else {
+                codingPlatformsContainer.innerHTML = '<p style="color: #999; font-size: 12px;">No platforms available</p>';
+            }
+            const codingTopics = codingTest.topics || [];
+            const codingTopicsContainer = document.getElementById('codingTopics');
+            if (codingTopics.length > 0) {
+                codingTopicsContainer.innerHTML = codingTopics.map(topic => `<span class="skill-tag">${topic}</span>`).join('');
+            } else {
+                codingTopicsContainer.innerHTML = '<p style="color: #999; font-size: 12px;">No topics available</p>';
+            }
+            
+            // HR Interview Module
+            const hrInterview = interviewModules.hr_interview || {};
+            const hrEvaluationPoints = hrInterview.evaluation_points || [];
+            const hrEvaluationPointsContainer = document.getElementById('hrEvaluationPoints');
+            if (hrEvaluationPoints.length > 0) {
+                hrEvaluationPointsContainer.innerHTML = hrEvaluationPoints.map(point => `<li>${point}</li>`).join('');
+            } else {
+                hrEvaluationPointsContainer.innerHTML = '<li style="color: #999;">No evaluation points available</li>';
+            }
+            const hrSkills = hrInterview.skills || [];
+            const hrSuggestionsContainer = document.getElementById('hrSuggestions');
+            if (hrSkills.length > 0) {
+                hrSuggestionsContainer.innerHTML = hrSkills.map(skill => `<li>${skill}</li>`).join('');
+            } else {
+                hrSuggestionsContainer.innerHTML = '<li style="color: #999;">No skills found</li>';
+            }
+            
+            // Behavioral Interview Module
+            const behavioralInterview = interviewModules.behavioral_interview || {};
+            const starGuidance = behavioralInterview.star_guidance || {};
+            document.getElementById('starSituation').textContent = starGuidance.Situation || '—';
+            document.getElementById('starTask').textContent = starGuidance.Task || '—';
+            document.getElementById('starAction').textContent = starGuidance.Action || '—';
+            document.getElementById('starResult').textContent = starGuidance.Result || '—';
+            const starPoints = behavioralInterview.star_points || [];
+            const behavioralTipsContainer = document.getElementById('behavioralTips');
+            if (starPoints.length > 0) {
+                behavioralTipsContainer.innerHTML = starPoints.map(point => `<li>${point}</li>`).join('');
+            } else {
+                behavioralTipsContainer.innerHTML = '<li style="color: #999;">No STAR points extracted</li>';
+            }
+        }
+
+        function generateInsights(data, summary) {
+            const insights = [];
+            const skills = data.skills || [];
+            const projects = summary.projects_summary || [];
+            const experience = data.experience_level || 'Not specified';
+            const rating = summary.resume_rating || 0;
+            
+            // Skills insight
+            if (skills.length > 0) {
+                insights.push(`<strong>Skills:</strong> ${skills.length} technical skills identified, showing ${skills.length >= 10 ? 'strong' : 'moderate'} technical breadth.`);
+            }
+            
+            // Projects insight
+            if (projects.length > 0) {
+                insights.push(`<strong>Projects:</strong> ${projects.length} project${projects.length > 1 ? 's' : ''} detected, demonstrating practical experience and problem-solving ability.`);
+            } else {
+                insights.push(`<strong>Projects:</strong> Consider adding project details to showcase your hands-on experience.`);
+            }
+            
+            // Experience insight
+            if (experience && experience !== 'Not specified' && experience !== 'Unknown') {
+                insights.push(`<strong>Experience:</strong> ${experience} of professional experience, indicating ${experience.includes('Fresher') || experience.includes('1') ? 'entry-level' : 'experienced'} candidate profile.`);
+            }
+            
+            // Rating insight
+            if (rating >= 4.0) {
+                insights.push(`<strong>Resume Quality:</strong> Strong resume (${rating.toFixed(2)}/5.0) with good structure, skills, and completeness.`);
+            } else if (rating >= 3.0) {
+                insights.push(`<strong>Resume Quality:</strong> Good resume (${rating.toFixed(2)}/5.0) with room for improvement in formatting or detail.`);
+            } else {
+                insights.push(`<strong>Resume Quality:</strong> Resume needs enhancement (${rating.toFixed(2)}/5.0). Consider adding more skills, projects, or experience details.`);
+            }
+            
+            return insights.map(insight => `<div style="margin-bottom: 8px;">${insight}</div>`).join('');
+        }
+
+        function startInterviewFromModule(moduleType) {
+            // Redirect to main page where interviews can be started
+            // Store the module type in sessionStorage for reference
+            sessionStorage.setItem('selectedInterviewModule', moduleType);
+            window.location.href = '/';
         }
 
         // Handle manual experience input

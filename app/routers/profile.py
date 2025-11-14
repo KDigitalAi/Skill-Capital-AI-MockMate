@@ -12,6 +12,7 @@ from supabase import Client
 from app.db.client import get_supabase_client
 from app.schemas.user import UserProfileCreate, UserProfileUpdate, UserProfileResponse
 from app.utils.resume_parser_util import parse_pdf, parse_docx
+from app.services.resume_parser import resume_parser
 from app.config.settings import settings
 from app.utils.database import get_user_profile
 from app.utils.file_utils import validate_file_type, extract_file_extension, save_temp_file, cleanup_temp_file
@@ -488,6 +489,26 @@ async def upload_resume(
                 "text_length": parsed_data.get("text_length", 0)
             }
             
+            # Extract text for enhanced summary generation
+            try:
+                text = resume_parser.extract_text(temp_file_path, file_extension)
+                # Generate enhanced summary using resume_parser
+                enhanced_summary = resume_parser.generate_enhanced_summary(mapped_data, text)
+                mapped_data["summary"] = enhanced_summary
+                # Also extract keywords for better summary
+                mapped_data["keywords"] = resume_parser.extract_keywords(text)
+                # Generate interview modules
+                try:
+                    interview_modules = resume_parser.generate_interview_modules(mapped_data, text)
+                    mapped_data["interview_modules"] = interview_modules
+                except Exception as modules_error:
+                    logger.warning(f"[UPLOAD] Failed to generate interview modules: {str(modules_error)}")
+                    mapped_data["interview_modules"] = None
+            except Exception as summary_error:
+                logger.warning(f"[UPLOAD] Failed to generate enhanced summary: {str(summary_error)}")
+                mapped_data["summary"] = None
+                mapped_data["interview_modules"] = None
+            
             parsed_data = mapped_data
             
         except ImportError as import_error:
@@ -662,6 +683,8 @@ async def upload_resume(
                 "experience_level": parsed_data.get("experience_level", "Not specified"),
                 "keywords": parsed_data.get("keywords", {}),
                 "text_length": parsed_data.get("text_length", 0),
+                "summary": parsed_data.get("summary"),
+                "interview_modules": parsed_data.get("interview_modules"),
                 "created_at": datetime.now().isoformat()
             }
             
@@ -677,6 +700,8 @@ async def upload_resume(
                     "experience_level": parsed_data.get("experience_level", "Unknown"),
                     "keywords": parsed_data.get("keywords", {}),
                     "text_length": parsed_data.get("text_length", 0),
+                    "summary": parsed_data.get("summary"),
+                    "interview_modules": parsed_data.get("interview_modules"),
                     "resume_url": resume_url
                 }
             )
@@ -692,6 +717,8 @@ async def upload_resume(
                 "experience_level": parsed_data.get("experience_level", "Unknown"),
                 "keywords": parsed_data.get("keywords", {}),
                 "text_length": parsed_data.get("text_length", 0),
+                "summary": parsed_data.get("summary"),
+                "interview_modules": parsed_data.get("interview_modules"),
                 "created_at": datetime.now().isoformat()
             }
             
@@ -703,10 +730,12 @@ async def upload_resume(
                     "session_id": analysis_session_id,
                     "name": parsed_data.get("name"),
                     "email": parsed_data.get("email"),
-                    "skills": parsed_data["skills"],
-                    "experience_level": parsed_data["experience_level"],
+                    "skills": parsed_data.get("skills", []),
+                    "experience_level": parsed_data.get("experience_level", "Unknown"),
                     "keywords": parsed_data.get("keywords", {}),
                     "text_length": parsed_data.get("text_length", 0),
+                    "summary": parsed_data.get("summary"),
+                    "interview_modules": parsed_data.get("interview_modules"),
                     "resume_url": resume_url,
                     "warning": f"Profile update failed: {str(db_error)}"
                 }
