@@ -1,118 +1,189 @@
-# Skill Capital AI MockMate
+# 🎯 Skill Capital AI MockMate
 
-A comprehensive full-stack application for AI-powered interview preparation using FastAPI, HTML/CSS/JavaScript, Supabase, and OpenAI. Practice mock interviews with AI-generated questions, get real-time feedback, and track your performance over time.
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-orange.svg)](https://supabase.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--3.5--turbo-purple.svg)](https://openai.com/)
 
-## 🎯 Features
+> **An AI-Powered Interview Preparation Platform** - Practice mock interviews with personalized questions, get real-time AI feedback, and track your performance over time.
+
+---
+
+## 📋 Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [System Architecture](#system-architecture)
+- [Technology Stack](#technology-stack)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [API Documentation](#api-documentation)
+- [Database Schema](#database-schema)
+- [Project Structure](#project-structure)
+- [Development Guide](#development-guide)
+- [Deployment](#deployment)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## 🎯 Overview
+
+**Skill Capital AI MockMate** is a full-stack interview preparation platform that uses AI to provide personalized mock interviews. The system analyzes user resumes, generates context-aware interview questions, and provides detailed feedback on answers.
+
+### Key Capabilities
+
+- 📄 **Resume Analysis** - Automatic skill extraction, experience level detection, and keyword extraction
+- 🤖 **AI Question Generation** - Context-aware questions based on resume and role using OpenAI GPT models
+- 💬 **Real-time Evaluation** - Multi-dimensional scoring with detailed feedback
+- 📊 **Performance Analytics** - Track progress with comprehensive dashboards
+- 🎤 **Voice Interaction** - Speech-to-text and text-to-speech for technical interviews
+- 💻 **Coding Challenges** - Execute and evaluate code submissions with test cases
+
+---
+
+## ✨ Features
 
 ### Core Features
+
 - ✅ **FastAPI Backend** - RESTful API with automatic OpenAPI documentation
 - ✅ **Unified Frontend/Backend** - FastAPI serves both API and static frontend files
 - ✅ **Supabase Integration** - PostgreSQL database with Row Level Security (RLS)
 - ✅ **Resume Upload & Parsing** - Support for PDF and DOCX files with OCR fallback
-- ✅ **AI-Powered Question Generation** - Context-aware questions using OpenAI GPT models
-- ✅ **Multiple Interview Modes** - Text-based, Timed, and Technical interviews
+- ✅ **AI-Powered Question Generation** - Context-aware questions using OpenAI GPT models via LangChain
+- ✅ **Multiple Interview Modes** - Technical, Coding, HR, and STAR (behavioral) interviews
 - ✅ **Real-time Answer Evaluation** - AI-powered scoring with detailed feedback
 - ✅ **Performance Dashboard** - Track progress with charts and analytics
 - ✅ **Voice Support** - Speech-to-text and text-to-speech for technical interviews
 
 ### Resume Analysis
+
 - ✅ **Automatic Skill Extraction** - Extracts technologies, tools, and skills from resumes
 - ✅ **Experience Level Detection** - Identifies experience level from resume content
 - ✅ **Resume Keyword Extraction** - Extracts technologies, job titles, and projects
-- ✅ **Enhanced Summary Generation** - AI-generated resume summaries
-- ✅ **Interview Module Suggestions** - Recommends interview topics based on resume
 - ✅ **OCR Support** - Tesseract OCR for LaTeX-generated and scanned PDFs
 
 ### Interview Features
-- ✅ **Dynamic Topic Generation** - Based on role, experience, and user skills
+
+- ✅ **Dynamic Topic Generation** - Rule-based topic generation based on role and experience
 - ✅ **Context-Aware Questions** - Questions reference specific resume content
-- ✅ **Multiple Question Types** - HR, Technical, and Problem-solving questions
+- ✅ **Multiple Question Types** - HR, Technical, Problem-solving, and Coding questions
 - ✅ **Timed Interview Mode** - 60 seconds per question with automatic timeout
 - ✅ **Response Time Tracking** - Included in AI evaluation
 - ✅ **Question-by-Question Scoring** - Immediate feedback after each answer
 - ✅ **Comprehensive Evaluation** - Post-interview analysis with recommendations
 
 ### Technical Interview
+
 - ✅ **Conversational AI Interview** - Dynamic follow-up questions based on answers
 - ✅ **Speech-to-Text** - Voice input using OpenAI Whisper API
 - ✅ **Text-to-Speech** - Audio output for questions and feedback
 - ✅ **Real-time Evaluation** - AI evaluates answers and provides feedback
 - ✅ **Session Management** - Track conversation history and scores
 
+### Coding Interview
+
+- ✅ **Code Execution** - Run Python code in secure environment
+- ✅ **Test Case Validation** - Automatic test case checking
+- ✅ **SQL Support** - SQL coding questions with table setup
+- ✅ **Difficulty Adaptation** - Adjusts difficulty based on performance
+- ✅ **Performance Metrics** - Execution time and test case results
+
 ### Dashboard & Analytics
+
 - ✅ **Performance Metrics** - Total interviews, average score, completion rate
 - ✅ **Score Trend Charts** - Visualize performance over time
 - ✅ **Skills Analysis** - Identify top 3 strong skills and weak areas
 - ✅ **Resume Summary** - Quick view of profile and skills
 - ✅ **Interview History** - View all past interviews with scores
 
-### Admin Features (Available but not active in main router)
-- ✅ **Student Management** - View all students' interview results
-- ✅ **Analytics Dashboard** - Score distribution, weaknesses, role statistics
-- ✅ **Question Template Management** - Add, edit, and delete question templates
+---
 
-## 📁 Project Structure
+## 🏗️ System Architecture
+
+### High-Level Architecture
+
+The system follows a clean architecture with clear separation of concerns:
 
 ```
-Skill-Capital-AI-MockMate/
-├── app/                          # Backend application
-│   ├── __init__.py
-│   ├── main.py                   # FastAPI application entry point
-│   ├── requirements.txt          # Python dependencies
-│   ├── config/                   # Configuration
-│   │   ├── __init__.py
-│   │   └── settings.py           # Environment settings and CORS config
-│   ├── database/                 # Database schema
-│   │   ├── __init__.py
-│   │   └── schema.sql            # Supabase database schema
-│   ├── db/                       # Database client
-│   │   ├── __init__.py
-│   │   └── client.py             # Supabase client singleton
-│   ├── routers/                  # API route handlers
-│   │   ├── __init__.py
-│   │   ├── profile.py            # User profile and resume upload
-│   │   ├── interview.py          # Interview endpoints
-│   │   ├── dashboard.py          # Performance dashboard
-│   │   ├── admin.py              # Admin panel (not active)
-│   │   ├── auth.py               # Authentication (not active)
-│   │   └── test_parser.py        # Resume parser testing
-│   ├── schemas/                  # Pydantic models
-│   │   ├── __init__.py
-│   │   ├── user.py               # User profile schemas
-│   │   ├── interview.py          # Interview schemas
-│   │   ├── dashboard.py          # Dashboard schemas
-│   │   └── admin.py              # Admin schemas
-│   ├── services/                 # Business logic
-│   │   ├── __init__.py
-│   │   ├── resume_parser.py      # Resume parsing service
-│   │   ├── question_generator.py # AI question generation
-│   │   ├── answer_evaluator.py   # Answer evaluation
-│   │   ├── interview_evaluator.py # Interview evaluation
-│   │   ├── topic_generator.py    # Topic generation
-│   │   └── technical_interview_engine.py # Technical interview engine
-│   └── utils/                    # Utility functions
-│       ├── __init__.py
-│       ├── database.py           # Database utilities
-│       ├── datetime_utils.py     # Date/time helpers
-│       ├── exceptions.py         # Custom exceptions
-│       ├── file_utils.py         # File handling
-│       └── resume_parser_util.py # Resume parser utilities
-├── frontend/                     # Frontend files (served by FastAPI)
-│   ├── index.html                # Main application page
-│   ├── resume-analysis.html      # Resume analysis page
-│   ├── technical-interview.html  # Technical interview page
-│   ├── styles.css                # CSS styles
-│   ├── app.js                    # Main JavaScript
-│   ├── technical-interview.js    # Technical interview JavaScript
-│   └── logo.png                  # Logo image
-├── .env                          # Environment variables (create this)
-├── railway.json                  # Railway deployment config
-├── render.yaml                   # Render deployment config
-├── vercel.json                   # Vercel deployment config
-└── README.md                     # This file
+┌─────────────────────────────────────────────────────────────┐
+│                    Frontend Client (Browser)                 │
+│              HTML/CSS/JavaScript + Chart.js                 │
+└───────────────────────┬─────────────────────────────────────┘
+                         │
+                         │ HTTP/REST API
+                         │
+┌────────────────────────▼─────────────────────────────────────┐
+│                    FastAPI Backend                           │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │ Profile Router│  │Interview Router│ │Dashboard Router│   │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
+└────────────────────────┬─────────────────────────────────────┘
+                         │
+         ┌───────────────┼───────────────┐
+         │               │               │
+┌────────▼────┐  ┌───────▼──────┐  ┌─────▼──────┐
+│   Services   │  │   Services   │  │  Services  │
+│ Resume Parser│  │  Question    │  │  Answer   │
+│              │  │  Generator    │  │ Evaluator  │
+└────────┬─────┘  └───────┬──────┘  └─────┬──────┘
+         │                │               │
+         └───────────────┬────────────────┘
+                         │
+         ┌───────────────┼───────────────┐
+         │               │               │
+┌────────▼────┐  ┌───────▼──────┐  ┌─────▼──────┐
+│   OpenAI    │  │   LangChain   │  │  Supabase  │
+│    API      │  │   Framework   │  │ PostgreSQL │
+└─────────────┘  └───────────────┘  └────────────┘
 ```
 
-## 🚀 Setup Instructions
+### Data Flow
+
+1. **Resume Upload**: User uploads resume → Backend parses → Skills extracted → Stored in database
+2. **Interview Setup**: User selects role/type → Topics generated → Questions generated (AI) → Session created
+3. **Answer Submission**: User submits answer → Evaluated by AI → Scores calculated → Stored in database
+4. **Interview Completion**: All answers aggregated → Final evaluation generated → Dashboard updated
+
+For detailed architecture diagrams, see [`architecture.tex`](architecture.tex) (LaTeX document with TikZ diagrams).
+
+---
+
+## 🛠️ Technology Stack
+
+### Backend
+
+- **Python 3.11+** - Core programming language
+- **FastAPI** - Modern async web framework
+- **Uvicorn** - ASGI server
+- **Pydantic** - Data validation and settings
+- **LangChain** - LLM orchestration framework
+- **OpenAI API** - GPT models for question generation and evaluation
+
+### Database & Storage
+
+- **Supabase (PostgreSQL)** - Primary database
+- **Row Level Security (RLS)** - Data access control
+- **Supabase Storage** - File storage for resumes
+
+### Frontend
+
+- **HTML5/CSS3** - Structure and styling
+- **Vanilla JavaScript (ES6+)** - Application logic
+- **Chart.js** - Performance visualization
+- **Web Speech API** - Voice interaction
+
+### PDF Processing
+
+- **PyMuPDF (fitz)** - Primary PDF text extraction
+- **pdfplumber** - Advanced PDF parsing
+- **python-docx** - DOCX parsing
+- **Tesseract OCR** - Image-based PDF parsing
+
+---
+
+## 📦 Installation
 
 ### Prerequisites
 
@@ -124,7 +195,7 @@ Skill-Capital-AI-MockMate/
 
 ### Backend Setup
 
-1. **Clone the repository** (if not already done):
+1. **Clone the repository**:
 ```bash
 git clone <repository-url>
 cd Skill-Capital-AI-MockMate
@@ -159,7 +230,6 @@ pip install -r app/requirements.txt
    **Windows:**
    - Download from: https://github.com/UB-Mannheim/tesseract/wiki
    - Install to default location: `C:\Program Files\Tesseract-OCR\`
-   - The app will auto-detect it
 
    **Linux (Ubuntu/Debian):**
    ```bash
@@ -171,8 +241,6 @@ pip install -r app/requirements.txt
    ```bash
    brew install tesseract
    ```
-
-   **Note:** Tesseract is required for parsing LaTeX-generated PDFs (like Overleaf) or scanned/image-based resumes.
 
 6. **Set up Supabase Database**:
    - Create a new Supabase project at https://supabase.com
@@ -192,8 +260,6 @@ SUPABASE_SERVICE_KEY=your_supabase_service_role_key
 # Backend Configuration
 BACKEND_PORT=8000
 ENVIRONMENT=development
-
-# Test User (for testing without authentication)
 
 # CORS Origins (comma-separated, optional)
 CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:8000
@@ -217,66 +283,11 @@ The frontend is automatically served by FastAPI. No separate setup is required!
 - **Main Application**: `http://127.0.0.1:8000/`
 - **Resume Analysis**: `http://127.0.0.1:8000/resume-analysis.html`
 - **Technical Interview**: `http://127.0.0.1:8000/technical-interview.html`
+- **Coding Interview**: `http://127.0.0.1:8000/coding-interview.html`
 
-## 📡 API Endpoints
+---
 
-### Health & Configuration
-- `GET /api/health` - Health check endpoint
-- `GET /api/config` - Get frontend configuration (Supabase credentials)
-
-### Profile Management
-- `GET /api/profile/{user_id}` - Get user profile
-- `POST /api/profile/` - Create user profile
-- `PUT /api/profile/{user_id}` - Update user profile
-- `POST /api/profile/{user_id}/upload-resume` - Upload and parse resume
-- `GET /api/profile/resume-analysis/{session_id}` - Get resume analysis data
-- `PUT /api/profile/resume-analysis/{session_id}/experience` - Update experience level
-
-### Interview Management
-- `GET /api/interview/roles` - Get available roles
-- `GET /api/interview/experience-levels` - Get experience levels
-- `POST /api/interview/setup` - Setup interview and generate topics
-- `POST /api/interview/generate` - Generate interview questions using AI
-- `POST /api/interview/start` - Start mock interview session
-- `GET /api/interview/session/{session_id}/questions` - Get all questions for a session
-- `GET /api/interview/session/{session_id}/question/{question_number}` - Get specific question
-- `GET /api/interview/session/{session_id}/next-question/{current_question_number}` - Get next question
-- `POST /api/interview/submit-answer` - Submit answer and get AI evaluation
-- `POST /api/interview/evaluate` - Generate comprehensive evaluation report
-
-### Technical Interview
-- `POST /api/interview/technical` - Start technical interview session
-- `POST /api/interview/technical/{session_id}/next-question` - Get next technical question
-- `POST /api/interview/technical/{session_id}/submit-answer` - Submit technical answer
-- `GET /api/interview/technical/{session_id}/feedback` - Get final feedback
-- `POST /api/interview/technical/{session_id}/end` - End technical interview
-- `POST /api/interview/speech-to-text` - Convert speech audio to text (Whisper)
-- `GET /api/interview/text-to-speech` - Convert text to speech (TTS)
-
-### Dashboard
-- `GET /api/dashboard/performance/{user_id}` - Get performance dashboard data
-- `GET /api/dashboard/trends/{user_id}` - Get trends and score progression data
-
-### Testing
-- `POST /api/test-resume-parse` - Test resume parser (development only)
-
-### API Documentation
-- `GET /docs` - Interactive Swagger UI documentation
-- `GET /redoc` - ReDoc documentation
-
-## 🗄️ Database Schema
-
-The application uses Supabase (PostgreSQL) with the following main tables:
-
-- **user_profiles** - User profile information and skills
-- **interview_sessions** - Interview session metadata
-- **interview_questions** - Generated interview questions
-- **interview_answers** - User answers with AI evaluation scores
-- **question_templates** - Admin-managed question templates
-
-See `app/database/schema.sql` for the complete schema with Row Level Security policies.
-
-## 🔧 Configuration
+## ⚙️ Configuration
 
 ### Environment Variables
 
@@ -292,72 +303,191 @@ All configuration is done through environment variables in the `.env` file:
 | `ENVIRONMENT` | Environment (development/production) | No (default: development) |
 | `CORS_ORIGINS` | Comma-separated CORS origins | No |
 
-### CORS Configuration
+### Supabase Setup
 
-CORS is automatically configured based on the `ENVIRONMENT` variable:
-- **Development**: Allows all origins (`*`)
-- **Production**: Uses `CORS_ORIGINS` from environment or defaults
+1. **Create a Supabase Project**:
+   - Go to https://supabase.com
+   - Create a new project
+   - Note your project URL and API keys
 
-## 🚢 Deployment
+2. **Run Database Schema**:
+   - Go to SQL Editor in Supabase Dashboard
+   - Copy and paste the entire content of `app/database/schema.sql`
+   - Execute the SQL script
+   - Verify tables are created (8 tables total)
 
-### Railway
+3. **Create Storage Bucket**:
+   - Go to Storage in Supabase Dashboard
+   - Create a new bucket named `resumes`
+   - Set it to public access (or configure RLS policies)
 
-1. Connect your GitHub repository to Railway
-2. Railway will auto-detect the `railway.json` configuration
-3. Set environment variables in Railway dashboard
-4. Deploy!
+4. **Get API Keys**:
+   - Go to Settings → API
+   - Copy `URL` → `SUPABASE_URL`
+   - Copy `anon public` key → `SUPABASE_KEY`
+   - Copy `service_role` key → `SUPABASE_SERVICE_KEY`
 
-### Render
+### LangChain + OpenAI Setup
 
-1. Create a new Web Service on Render
-2. Connect your repository
-3. Render will use `render.yaml` for configuration
-4. Set environment variables in Render dashboard
-5. Deploy!
+1. **Get OpenAI API Key**:
+   - Go to https://platform.openai.com/api-keys
+   - Create a new API key
+   - Add it to `.env` as `OPENAI_API_KEY`
 
-### Manual Deployment
+2. **LangChain Configuration** (Optional):
+   - Set `LANGCHAIN_TRACING_V2=true` for tracing (optional)
+   - Set `LANGCHAIN_PROJECT` for project name (optional)
 
-```bash
-# Install dependencies
-pip install -r app/requirements.txt
+---
 
-# Set environment variables
-export OPENAI_API_KEY=your_key
-export SUPABASE_URL=your_url
-# ... etc
+## 📡 API Documentation
 
-# Run with uvicorn
-uvicorn app.main:app --host 0.0.0.0 --port $PORT
+### Health & Configuration
+
+- `GET /api/health` - Health check endpoint
+- `GET /api/health/database` - Database connection health check
+- `GET /api/config` - Get frontend configuration (Supabase credentials)
+
+### Profile Management
+
+- `GET /api/profile/{user_id}` - Get user profile
+- `POST /api/profile/` - Create user profile
+- `PUT /api/profile/{user_id}` - Update user profile
+- `POST /api/profile/{user_id}/upload-resume` - Upload and parse resume
+- `GET /api/profile/resume-analysis/{session_id}` - Get resume analysis data
+- `PUT /api/profile/resume-analysis/{session_id}/experience` - Update experience level
+
+### Interview Management
+
+- `GET /api/interview/roles` - Get available roles
+- `GET /api/interview/experience-levels` - Get experience levels
+- `POST /api/interview/setup` - Setup interview and generate topics
+- `POST /api/interview/generate` - Generate interview questions using AI
+- `POST /api/interview/start` - Start mock interview session
+- `GET /api/interview/session/{session_id}/questions` - Get all questions for a session
+- `GET /api/interview/session/{session_id}/question/{question_number}` - Get specific question
+- `GET /api/interview/session/{session_id}/next-question/{current_question_number}` - Get next question
+- `POST /api/interview/submit-answer` - Submit answer and get AI evaluation
+- `POST /api/interview/evaluate` - Generate comprehensive evaluation report
+
+### Technical Interview
+
+- `POST /api/interview/technical/start` - Start technical interview session
+- `POST /api/interview/technical/{session_id}/next-question` - Get next technical question
+- `POST /api/interview/technical/{session_id}/submit-answer` - Submit technical answer
+- `GET /api/interview/technical/{session_id}/feedback` - Get final feedback
+- `POST /api/interview/technical/{session_id}/end` - End technical interview
+- `POST /api/interview/speech-to-text` - Convert speech audio to text (Whisper)
+- `GET /api/interview/text-to-speech` - Convert text to speech (TTS)
+
+### Coding Interview
+
+- `POST /api/interview/coding/start` - Start coding interview session
+- `POST /api/interview/coding/{session_id}/question` - Get coding question
+- `POST /api/interview/coding/{session_id}/submit` - Submit code solution
+- `GET /api/interview/coding/{session_id}/results` - Get coding results
+
+### Dashboard
+
+- `GET /api/dashboard/performance/{user_id}` - Get performance dashboard data
+- `GET /api/dashboard/trends/{user_id}` - Get trends and score progression data
+
+### API Documentation
+
+- `GET /docs` - Interactive Swagger UI documentation
+- `GET /redoc` - ReDoc documentation
+
+---
+
+## 🗄️ Database Schema
+
+The application uses Supabase (PostgreSQL) with the following main tables:
+
+### Core Tables
+
+- **user_profiles** - User profile information, skills, resume data
+- **interview_sessions** - Interview session metadata
+- **technical_round** - Technical interview questions and answers
+- **coding_round** - Coding interview questions and solutions
+- **hr_round** - HR interview questions and answers
+- **star_round** - STAR method behavioral interview data
+- **question_templates** - Admin-managed question templates
+- **interview_transcripts** - Interview transcripts for analytics
+
+### Schema Details
+
+See `app/database/schema.sql` for the complete schema with:
+- Table definitions
+- Row Level Security (RLS) policies
+- Indexes for performance
+- Foreign key constraints
+- Triggers for automatic timestamp updates
+
+---
+
+## 📁 Project Structure
+
+```
+Skill-Capital-AI-MockMate/
+├── app/                          # Backend application
+│   ├── __init__.py
+│   ├── main.py                   # FastAPI application entry point
+│   ├── requirements.txt          # Python dependencies
+│   ├── config/                   # Configuration
+│   │   ├── __init__.py
+│   │   └── settings.py           # Environment settings and CORS config
+│   ├── database/                 # Database schema
+│   │   ├── __init__.py
+│   │   └── schema.sql            # Supabase database schema
+│   ├── db/                       # Database client
+│   │   ├── __init__.py
+│   │   └── client.py             # Supabase client singleton
+│   ├── routers/                  # API route handlers
+│   │   ├── __init__.py
+│   │   ├── profile.py            # User profile and resume upload
+│   │   ├── interview.py           # Interview endpoints
+│   │   └── dashboard.py          # Performance dashboard
+│   ├── schemas/                  # Pydantic models
+│   │   ├── __init__.py
+│   │   ├── user.py               # User profile schemas
+│   │   ├── interview.py          # Interview schemas
+│   │   └── dashboard.py          # Dashboard schemas
+│   ├── services/                 # Business logic
+│   │   ├── __init__.py
+│   │   ├── resume_parser.py      # Resume parsing service
+│   │   ├── question_generator.py # AI question generation
+│   │   ├── answer_evaluator.py   # Answer evaluation
+│   │   ├── interview_evaluator.py # Interview evaluation
+│   │   ├── topic_generator.py    # Topic generation
+│   │   ├── coding_interview_engine.py # Coding interview engine
+│   │   └── technical_interview_engine.py # Technical interview engine
+│   └── utils/                    # Utility functions
+│       ├── __init__.py
+│       ├── database.py           # Database utilities
+│       ├── datetime_utils.py     # Date/time helpers
+│       ├── exceptions.py         # Custom exceptions
+│       ├── file_utils.py         # File handling
+│       └── resume_parser_util.py # Resume parser utilities
+├── frontend/                     # Frontend files (served by FastAPI)
+│   ├── index.html                # Main application page
+│   ├── resume-analysis.html      # Resume analysis page
+│   ├── technical-interview.html  # Technical interview page
+│   ├── coding-interview.html     # Coding interview page
+│   ├── styles.css                # CSS styles
+│   ├── app.js                    # Main JavaScript
+│   ├── technical-interview.js    # Technical interview JavaScript
+│   └── logo.png                  # Logo image
+├── architecture.tex             # LaTeX architecture document
+├── .env                          # Environment variables (create this)
+├── railway.json                  # Railway deployment config
+├── render.yaml                   # Render deployment config
+├── vercel.json                   # Vercel deployment config
+└── README.md                     # This file
 ```
 
-## 🛠️ Technologies Used
+---
 
-### Backend
-- **FastAPI** - Modern Python web framework
-- **Uvicorn** - ASGI server
-- **Pydantic** - Data validation and settings
-- **Supabase** - Database and storage
-- **OpenAI** - AI question generation and evaluation
-- **LangChain** - AI orchestration framework
-
-### Frontend
-- **HTML5/CSS3** - Structure and styling
-- **Vanilla JavaScript (ES6+)** - Application logic
-- **Chart.js** - Performance charts and analytics
-
-### Resume Parsing
-- **PyMuPDF (fitz)** - PDF text extraction
-- **python-docx** - DOCX parsing
-- **pdfplumber** - Advanced PDF parsing
-- **pdfminer.six** - PDF text extraction fallback
-- **pytesseract** - OCR for scanned/LaTeX PDFs
-- **Pillow** - Image processing for OCR
-
-### Database
-- **Supabase (PostgreSQL)** - Primary database
-- **Row Level Security (RLS)** - Data access control
-
-## 📝 Development
+## 🚀 Development Guide
 
 ### Project Architecture
 
@@ -385,6 +515,56 @@ uvicorn app.main:app --host 0.0.0.0 --port $PORT
    - Run SQL in Supabase SQL Editor
    - Update Pydantic models if needed
 
+### Code Style
+
+- Follow PEP 8 Python style guide
+- Use type hints for all functions
+- Add docstrings for all classes and functions
+- Use Pydantic models for data validation
+
+---
+
+## 🚢 Deployment
+
+### Railway
+
+1. Connect your GitHub repository to Railway
+2. Railway will auto-detect the `railway.json` configuration
+3. Set environment variables in Railway dashboard
+4. Deploy!
+
+### Render
+
+1. Create a new Web Service on Render
+2. Connect your repository
+3. Render will use `render.yaml` for configuration
+4. Set environment variables in Render dashboard
+5. Deploy!
+
+### Vercel
+
+1. Connect your GitHub repository to Vercel
+2. Vercel will auto-detect the `vercel.json` configuration
+3. Set environment variables in Vercel dashboard
+4. Deploy!
+
+### Manual Deployment
+
+```bash
+# Install dependencies
+pip install -r app/requirements.txt
+
+# Set environment variables
+export OPENAI_API_KEY=your_key
+export SUPABASE_URL=your_url
+# ... etc
+
+# Run with uvicorn
+uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+---
+
 ## 🐛 Troubleshooting
 
 ### Common Issues
@@ -410,13 +590,27 @@ uvicorn app.main:app --host 0.0.0.0 --port $PORT
    - Check that database schema is set up correctly
    - Ensure RLS policies allow service role access
 
-## 📄 License
-
-This project is for educational purposes.
+---
 
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+### Contribution Guidelines
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+This project is for educational purposes.
+
+---
 
 ## 📧 Support
 
@@ -424,4 +618,18 @@ For issues and questions, please open an issue on the repository.
 
 ---
 
-**Built with ❤️ using FastAPI, OpenAI, and Supabase**
+**Built with ❤️ using FastAPI, OpenAI, LangChain, and Supabase**
+
+---
+
+## 📚 Additional Resources
+
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+- [Supabase Documentation](https://supabase.com/docs)
+- [OpenAI API Documentation](https://platform.openai.com/docs)
+- [LangChain Documentation](https://python.langchain.com/)
+- [Architecture Document](architecture.tex) - Complete LaTeX architecture document with diagrams
+
+---
+
+*Last Updated: 2024*
