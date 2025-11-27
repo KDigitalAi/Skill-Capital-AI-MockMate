@@ -24,14 +24,36 @@ def get_supabase_client() -> Client:
     global _supabase_client
     
     if _supabase_client is None:
-        if not settings.supabase_url or not settings.supabase_service_key:
+        # Validate configuration
+        if not settings.supabase_url:
             raise ValueError(
-                "Supabase URL and Service Key must be set in environment variables"
+                "SUPABASE_URL environment variable is not set. "
+                "Please add it to your .env file: SUPABASE_URL=https://your-project.supabase.co"
             )
-        _supabase_client = create_client(
-            settings.supabase_url, 
-            settings.supabase_service_key
-        )
+        if not settings.supabase_service_key:
+            raise ValueError(
+                "SUPABASE_SERVICE_KEY environment variable is not set. "
+                "Please add it to your .env file. "
+                "You can find it in Supabase Dashboard → Settings → API → service_role key"
+            )
+        
+        # Validate URL format
+        if not settings.supabase_url.startswith("http"):
+            raise ValueError(
+                f"Invalid SUPABASE_URL format: {settings.supabase_url}. "
+                "URL should start with https://"
+            )
+        
+        try:
+            _supabase_client = create_client(
+                settings.supabase_url, 
+                settings.supabase_service_key
+            )
+        except Exception as e:
+            raise ValueError(
+                f"Failed to create Supabase client: {str(e)}. "
+                "Please verify your SUPABASE_URL and SUPABASE_SERVICE_KEY are correct."
+            ) from e
     
     return _supabase_client
 
@@ -46,13 +68,35 @@ def get_supabase_client_anon() -> Client:
     global _supabase_anon_client
     
     if _supabase_anon_client is None:
-        if not settings.supabase_url or not settings.supabase_key:
+        # Validate configuration
+        if not settings.supabase_url:
             raise ValueError(
-                "Supabase URL and Anon Key must be set in environment variables"
+                "SUPABASE_URL environment variable is not set. "
+                "Please add it to your .env file: SUPABASE_URL=https://your-project.supabase.co"
             )
-        _supabase_anon_client = create_client(
-            settings.supabase_url, 
-            settings.supabase_key
-        )
+        if not settings.supabase_key:
+            raise ValueError(
+                "SUPABASE_KEY environment variable is not set. "
+                "Please add it to your .env file. "
+                "You can find it in Supabase Dashboard → Settings → API → anon/public key"
+            )
+        
+        # Validate URL format
+        if not settings.supabase_url.startswith("http"):
+            raise ValueError(
+                f"Invalid SUPABASE_URL format: {settings.supabase_url}. "
+                "URL should start with https://"
+            )
+        
+        try:
+            _supabase_anon_client = create_client(
+                settings.supabase_url, 
+                settings.supabase_key
+            )
+        except Exception as e:
+            raise ValueError(
+                f"Failed to create Supabase anon client: {str(e)}. "
+                "Please verify your SUPABASE_URL and SUPABASE_KEY are correct."
+            ) from e
     
     return _supabase_anon_client

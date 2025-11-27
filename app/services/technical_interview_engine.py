@@ -40,7 +40,7 @@ class TechnicalInterviewEngine:
             try:
                 self.client = OpenAI(api_key=settings.openai_api_key)
             except Exception as e:
-                print(f"Warning: Could not initialize OpenAI client: {str(e)}")
+                pass  # OpenAI not available, will use fallback
                 self.openai_available = False
                 self.client = None
         else:
@@ -115,54 +115,112 @@ class TechnicalInterviewEngine:
             # Build context for question generation
             skills_context = ", ".join(technical_skills[:10]) if technical_skills else "general technical skills"
             
-            # Build conversation context
+            # Build full conversation context for natural flow
+            # CRITICAL: Use ALL conversation history to maintain memory across all 15-20 questions
+            # For 20 questions with Q&A pairs, that's 40 messages - we'll include all of them
             conversation_context = ""
             if conversation_history:
-                recent_messages = conversation_history[-6:]  # Last 6 messages
-                conversation_context = "\n".join([
-                    f"{msg.get('role', 'unknown')}: {msg.get('content', '')[:200]}"
-                    for msg in recent_messages
-                ])
+                # Include ALL conversation history to maintain full memory
+                # For very long conversations (>50 messages), use last 50 to avoid token limits
+                # But for 15-20 questions (30-40 messages), include everything
+                if len(conversation_history) > 50:
+                    # Only truncate if conversation is extremely long
+                    recent_messages = conversation_history[-50:]
+                    conversation_context = "\n".join([
+                        f"{msg.get('role', 'unknown').upper()}: {msg.get('content', '')[:300]}"
+                        for msg in recent_messages
+                    ])
+                else:
+                    # Include ALL messages for full memory
+                    conversation_context = "\n".join([
+                        f"{msg.get('role', 'unknown').upper()}: {msg.get('content', '')[:300]}"
+                        for msg in conversation_history
+                    ])
             
-            # Generate question using OpenAI
-            system_prompt = """You are a technical interviewer conducting a voice-based technical interview.
-Your role is to ask relevant technical questions based on the candidate's resume skills and previous answers.
-Questions should be:
-1. Technical and domain-specific
-2. Based on the skills mentioned in the resume
-3. Progressive (start with basics, move to advanced)
-4. Conversational and natural for voice interaction
-5. One question at a time
+            # Build list of ALL previously asked questions to avoid repeats
+            # CRITICAL: Include ALL questions, not just recent ones, to prevent duplicates
+            questions_list = ""
+            if questions_asked:
+                # Include ALL questions asked so far to maintain complete memory
+                questions_list = "\n".join([f"{i+1}. {q[:150]}" for i, q in enumerate(questions_asked)])
+            
+            # Generate question using OpenAI with improved prompts
+            system_prompt = """You are an experienced, friendly technical interviewer conducting a natural, conversational voice-based interview.
 
-Keep questions concise (1-2 sentences) suitable for voice interaction.
-Do not repeat questions that have already been asked."""
+Your interview style:
+- Speak naturally and conversationally, as if talking to a colleague
+- Build on previous answers - ask follow-up questions when appropriate
+- Show genuine interest in the candidate's responses
+- Progress logically: start with fundamentals, then dive deeper
+- Reference what the candidate mentioned in previous answers
+- Avoid awkward pauses - keep the conversation flowing smoothly
+- Never repeat questions that have already been asked
 
-            user_prompt = f"""Generate the next technical interview question.
+Question guidelines:
+- Keep questions concise (1-2 sentences) for voice interaction
+- Make questions feel natural and conversational
+- Build on previous answers to create a cohesive interview flow
+- Test technical knowledge progressively (basic → advanced)
+- Reference specific technologies/skills from the resume when relevant"""
 
-Candidate's Technical Skills: {skills_context}
+            user_prompt = f"""Generate the next technical interview question for a smooth, natural conversation flow.
 
-Previous Questions Asked: {len(questions_asked)} questions
-Previous Answers: {len(answers_received)} answers
+CANDIDATE'S TECHNICAL SKILLS (from resume):
+{skills_context}
 
-Recent Conversation:
-{conversation_context if conversation_context else "This is the first question."}
+CONVERSATION HISTORY (full context):
+{conversation_context if conversation_context else "This is the first question. Start with a friendly introduction and a foundational question."}
 
-Generate ONE technical question that:
-- Is relevant to the candidate's skills: {skills_context}
-- Hasn't been asked before
-- Is appropriate for a voice interview
-- Tests technical knowledge and problem-solving
+PREVIOUSLY ASKED QUESTIONS (do NOT repeat these):
+{questions_list if questions_list else "None - this is the first question"}
 
-Return ONLY the question text, nothing else."""
+INTERVIEW PROGRESS:
+- Questions asked so far: {len(questions_asked)}
+- Answers received: {len(answers_received)}
+
+Generate ONE natural, conversational technical question that:
+1. Flows naturally from the conversation (builds on previous answers if any)
+2. Is relevant to the candidate's skills: {skills_context}
+3. Has NOT been asked before (check the list above)
+4. Feels like a natural next question in a human interview
+5. Is appropriate for voice interaction (concise, clear)
+6. Tests technical knowledge at an appropriate level
+
+IMPORTANT:
+- If this is early in the interview, start with foundational questions
+- If the candidate mentioned something interesting, ask a follow-up
+- Make it feel like a real conversation, not a scripted Q&A
+- Reference specific technologies from their resume when relevant
+
+Return ONLY the question text, nothing else. Make it sound natural and conversational."""
+
+            # CRITICAL: Build messages with full conversation history for memory
+            # Include the full conversation history as context so the AI remembers everything
+            messages = [
+                {"role": "system", "content": system_prompt}
+            ]
+            
+            # Add conversation history as context messages (if available)
+            # This ensures the AI has full memory of the entire interview
+            # Limit to last 30 messages to fit within token limits while maintaining good memory
+            if conversation_history and len(conversation_history) > 0:
+                history_messages = conversation_history[-30:] if len(conversation_history) > 30 else conversation_history
+                for msg in history_messages:
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    if role == "ai" or role == "assistant":
+                        messages.append({"role": "assistant", "content": content[:500]})  # Limit length
+                    elif role == "user":
+                        messages.append({"role": "user", "content": content[:500]})  # Limit length
+            
+            # Add the current prompt
+            messages.append({"role": "user", "content": user_prompt})
 
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=0.7,
-                max_tokens=150
+                messages=messages,
+                temperature=0.8,  # Slightly higher for more natural variation
+                max_tokens=200  # Increased for more natural questions
             )
             
             question = response.choices[0].message.content.strip()
@@ -178,8 +236,194 @@ Return ONLY the question text, nothing else."""
             }
             
         except Exception as e:
-            print(f"Error generating question with AI: {str(e)}")
             return self._get_fallback_question(session_data, questions_asked)
+    
+    def should_generate_followup(
+        self,
+        question: str,
+        answer: str,
+        conversation_history: List[Dict[str, str]],
+        questions_asked: List[str]
+    ) -> bool:
+        """
+        Determine if a follow-up question should be generated based on the answer
+        """
+        if not self.openai_available or self.client is None:
+            # Simple heuristic: follow-up if answer is short or mentions interesting points
+            answer_length = len(answer.strip())
+            if answer_length < 50:  # Very short answer might need clarification
+                return True
+            if answer_length > 200 and any(keyword in answer.lower() for keyword in ["because", "when", "example", "project", "experience"]):
+                # Long answer with details might warrant deeper dive
+                return True
+            return False
+        
+        try:
+            system_prompt = """You are a technical interviewer analyzing whether a follow-up question is needed.
+A follow-up question should be asked when:
+1. The answer is vague or incomplete and needs clarification
+2. The answer mentions something interesting that deserves deeper exploration
+3. The answer shows expertise that can be tested further
+4. The answer raises new questions or topics worth exploring
+
+Do NOT ask follow-up if:
+- The answer is complete and satisfactory
+- We've already asked too many follow-ups on this topic
+- The answer is clearly wrong and we should move on
+
+Return ONLY "YES" or "NO", nothing else."""
+            
+            # Count how many follow-ups we've asked recently (last 3 questions)
+            recent_questions = questions_asked[-3:] if len(questions_asked) >= 3 else questions_asked
+            followup_count = sum(1 for q in recent_questions if "follow-up" in q.lower() or "based on" in q.lower() or "you mentioned" in q.lower())
+            
+            user_prompt = f"""Question: {question}
+
+Answer: {answer}
+
+Recent follow-ups asked: {followup_count}
+
+Should we ask a follow-up question? Consider:
+- Is the answer complete and clear?
+- Does it mention something worth exploring deeper?
+- Have we already asked too many follow-ups recently?
+
+Return ONLY "YES" or "NO"."""
+            
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.3,  # Lower temperature for more consistent decisions
+                max_tokens=10
+            )
+            
+            decision = response.choices[0].message.content.strip().upper()
+            return "YES" in decision
+            
+        except Exception as e:
+            # Fallback to simple heuristic
+            answer_length = len(answer.strip())
+            return answer_length < 100 or (answer_length > 150 and len(answer.split()) > 20)
+    
+    def generate_followup_question(
+        self,
+        question: str,
+        answer: str,
+        conversation_history: List[Dict[str, str]],
+        session_data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Generate a nested follow-up question based on the user's answer
+        Uses memory of previous answers to create contextual follow-ups
+        """
+        if not self.openai_available or self.client is None:
+            # Fallback: simple follow-up based on answer content
+            answer_lower = answer.lower()
+            if "python" in answer_lower:
+                return {
+                    "question": "Can you give me a specific example of how you used Python in that project?",
+                    "question_type": "Technical",
+                    "is_followup": True,
+                    "audio_url": None
+                }
+            elif "django" in answer_lower:
+                return {
+                    "question": "What challenges did you face when working with Django?",
+                    "question_type": "Technical",
+                    "is_followup": True,
+                    "audio_url": None
+                }
+            return None
+        
+        try:
+            # Build context from conversation history
+            context_summary = ""
+            if conversation_history:
+                # Get last 6 messages for context
+                recent_context = conversation_history[-6:]
+                context_summary = "\n".join([
+                    f"{msg.get('role', 'user').upper()}: {msg.get('content', '')[:200]}"
+                    for msg in recent_context
+                ])
+            
+            technical_skills = session_data.get("technical_skills", [])
+            skills_context = ", ".join(technical_skills[:10]) if technical_skills else "general technical skills"
+            
+            system_prompt = """You are a technical interviewer generating a nested follow-up question.
+Your goal is to dive deeper into what the candidate just said.
+
+Follow-up questions should:
+1. Be directly related to what the candidate mentioned in their answer
+2. Reference specific details from their answer
+3. Probe deeper into their experience or knowledge
+4. Feel natural and conversational (not scripted)
+5. Build on the conversation naturally
+
+Keep questions:
+- Concise (1-2 sentences) for voice interaction
+- Contextual (reference what they said)
+- Relevant to their technical background
+- Progressive (go deeper, not sideways)
+
+Return ONLY the follow-up question text, nothing else."""
+            
+            user_prompt = f"""Original Question: {question}
+
+Candidate's Answer: {answer}
+
+Candidate's Technical Skills: {skills_context}
+
+Recent Conversation Context:
+{context_summary if context_summary else "This is early in the interview."}
+
+Generate ONE nested follow-up question that:
+- MUST directly reference specific details from their answer above
+- Uses their exact words, technologies, or concepts when possible
+- Dives deeper into a technical aspect they mentioned
+- Feels like a natural next question in a real interview
+- References what they just said (e.g., "You mentioned X, can you tell me more about Y?")
+
+CRITICAL: The follow-up MUST explicitly reference something from their answer.
+Examples:
+- If they said "Django REST API", ask: "You mentioned building a Django REST API. Can you explain how you handled authentication in that API?"
+- If they said "I optimized performance", ask: "You mentioned optimizing performance. What specific techniques did you use?"
+- If they said "PostgreSQL and Redis", ask: "You mentioned using PostgreSQL and Redis. How did you decide when to use each?"
+
+IMPORTANT: Start with "You mentioned..." or "You said..." or reference their specific words to make it clear you're following up on their answer.
+
+Return ONLY the question text, nothing else."""
+            
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.8,
+                max_tokens=150
+            )
+            
+            followup_question = response.choices[0].message.content.strip()
+            
+            # Remove quotes if present
+            if followup_question.startswith('"') and followup_question.endswith('"'):
+                followup_question = followup_question[1:-1]
+            
+            if not followup_question:
+                return None
+            
+            return {
+                "question": followup_question,
+                "question_type": "Technical",
+                "is_followup": True,
+                "audio_url": None  # Will be generated by TTS endpoint
+            }
+            
+        except Exception as e:
+            return None
     
     def evaluate_answer(
         self,
@@ -241,7 +485,6 @@ Keep it conversational and suitable for voice interaction."""
                 ai_response = response.choices[0].message.content.strip()
                 
             except Exception as e:
-                print(f"Error generating AI response: {str(e)}")
                 ai_response = "Thank you for your answer. Let's move to the next question."
         
         if not ai_response:
@@ -342,7 +585,6 @@ Generate a professional, constructive feedback summary (3-4 sentences)."""
                 feedback_summary = response.choices[0].message.content.strip()
                 
             except Exception as e:
-                print(f"Error generating feedback summary: {str(e)}")
                 feedback_summary = f"Overall performance score: {avg_score:.1f}/100. "
                 if strengths:
                     feedback_summary += f"Strengths include: {', '.join(strengths[:2])}. "

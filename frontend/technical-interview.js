@@ -1,13 +1,13 @@
 /**
  * Technical Interview - Frontend JavaScript
  * Handles voice recording, audio playback, and interview flow
+ * 
+ * NOTE: This file requires api-config.js to be loaded first
+ * api-config.js provides: getApiBase(), ensureApiBaseReady(), API_BASE
  */
 
-// Configuration
-const API_BASE = 'http://127.0.0.1:8000';
-const TEST_USER_ID = 'test_user_001';
-
 // State
+let currentUserId = null;
 let interviewSessionId = null;
 let conversationHistory = [];
 let isRecording = false;
@@ -16,25 +16,66 @@ let audioChunks = [];
 let currentQuestion = null;
 let interviewActive = false;
 
+// Get current authenticated user from user_profiles
+async function getCurrentUser() {
+    try {
+        // First, try to get from localStorage (persistent) or sessionStorage
+        const storedUserId = localStorage.getItem('user_id') || 
+                            sessionStorage.getItem('resume_user_id') || 
+                            window.CURRENT_USER_ID;
+        if (storedUserId) {
+            currentUserId = storedUserId;
+            window.CURRENT_USER_ID = storedUserId;
+            return { user_id: storedUserId };
+        }
+        
+        // If not in storage, fetch from API
+        const res = await fetch(`${getApiBase()}/api/profile/current`);
+        if (!res.ok) {
+            throw new Error(`Failed to get current user: ${res.status}`);
+        }
+        const user = await res.json();
+        currentUserId = user.user_id;
+        
+        // Store in both localStorage (persistent) and sessionStorage
+        if (currentUserId) {
+            localStorage.setItem('user_id', currentUserId);
+            sessionStorage.setItem('resume_user_id', currentUserId);
+            window.CURRENT_USER_ID = currentUserId;
+        }
+        
+        return user;
+    } catch (e) {
+        console.error('Error getting current user:', e);
+        // Try one more fallback: check storage
+        const fallbackUserId = localStorage.getItem('user_id') || 
+                               sessionStorage.getItem('resume_user_id') || 
+                               window.CURRENT_USER_ID;
+        if (fallbackUserId) {
+            currentUserId = fallbackUserId;
+            window.CURRENT_USER_ID = fallbackUserId;
+            return { user_id: fallbackUserId };
+        }
+        throw new Error('No authenticated user found. Please ensure you have uploaded a resume and have a valid user profile.');
+    }
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     init();
 });
 
 async function init() {
-    // Load config from backend
     try {
-        const res = await fetch(`${API_BASE}/api/config`);
-        const config = await res.json();
-        if (config.test_user_id) {
-            window.TEST_USER_ID = config.test_user_id;
-        }
+        // Get current user first
+        await getCurrentUser();
+        
+        // Setup event listeners
+        setupEventListeners();
     } catch (e) {
-        console.warn('Config load failed, using default');
+        console.error('Initialization failed:', e);
+        alert(`Error: ${e.message}`);
     }
-
-    // Setup event listeners
-    setupEventListeners();
 }
 
 function setupEventListeners() {
@@ -47,9 +88,18 @@ function setupEventListeners() {
 }
 
 async function startInterview() {
-    const userId = window.TEST_USER_ID || TEST_USER_ID;
+    // Ensure we have current user
+    if (!currentUserId) {
+        await getCurrentUser();
+    }
     
-    console.log('[INTERVIEW] Starting interview for user:', userId);
+    // Validate userId is available
+    if (!currentUserId) {
+        throw new Error('userId is not defined. Please ensure you have uploaded a resume and have a valid user profile.');
+    }
+    
+    const userId = currentUserId;
+    
     
     // Show loading
     document.getElementById('setupSection').classList.add('hidden');
@@ -64,14 +114,13 @@ async function startInterview() {
 
     try {
         // Start technical interview session
-        console.log('[INTERVIEW] Calling API:', `${API_BASE}/api/interview/technical`);
-        const response = await fetch(`${API_BASE}/api/interview/technical`, {
+        // Use correct endpoint: /api/interview/technical/start
+        const response = await fetch(`${getApiBase()}/api/interview/technical/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: userId })
         });
 
-        console.log('[INTERVIEW] Response status:', response.status);
         
         if (!response.ok) {
             const errorText = await response.text();
@@ -80,7 +129,6 @@ async function startInterview() {
         }
 
         const data = await response.json();
-        console.log('[INTERVIEW] Session data:', data);
         
         interviewSessionId = data.session_id;
         interviewActive = true;
@@ -113,7 +161,6 @@ async function startInterview() {
 
         // Get first question from AI
         // If this fails, show error but keep interview section visible
-        console.log('[INTERVIEW] Getting first question...');
         try {
             await getNextQuestion();
         } catch (questionError) {
@@ -157,7 +204,6 @@ async function getNextQuestion() {
     }
 
     try {
-        console.log('[INTERVIEW] Getting next question for session:', interviewSessionId);
         
         // Hide loading message if still visible
         const loadingMsg = document.getElementById('loadingMessage');
@@ -166,12 +212,11 @@ async function getNextQuestion() {
         }
         
         // Get next question from AI
-        const response = await fetch(`${API_BASE}/api/interview/technical/${interviewSessionId}/next-question`, {
+        const response = await fetch(`${getApiBase()}/api/interview/technical/${interviewSessionId}/next-question`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });
 
-        console.log('[INTERVIEW] Next question response status:', response.status);
         
         if (!response.ok) {
             const errorText = await response.text();
@@ -180,11 +225,9 @@ async function getNextQuestion() {
         }
 
         const data = await response.json();
-        console.log('[INTERVIEW] Question data:', data);
         
         if (data.interview_completed) {
             // Interview is complete
-            console.log('[INTERVIEW] Interview completed');
             await completeInterview();
             return;
         }
@@ -285,7 +328,7 @@ async function processAudioAnswer(audioBlob) {
         const formData = new FormData();
         formData.append('audio', audioBlob, 'recording.webm');
 
-        const sttResponse = await fetch(`${API_BASE}/api/interview/speech-to-text`, {
+        const sttResponse = await fetch(`${getApiBase()}/api/interview/speech-to-text`, {
             method: 'POST',
             body: formData
         });
@@ -316,7 +359,8 @@ async function submitAnswer(answer) {
     if (!interviewSessionId || !currentQuestion) return;
 
     try {
-        const response = await fetch(`${API_BASE}/api/interview/technical/${interviewSessionId}/submit-answer`, {
+        console.log('[SUBMIT ANSWER] Submitting answer to backend...');
+        const response = await fetch(`${getApiBase()}/api/interview/technical/${interviewSessionId}/submit-answer`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -326,10 +370,27 @@ async function submitAnswer(answer) {
         });
 
         if (!response.ok) {
-            throw new Error('Failed to submit answer');
+            // CRITICAL FIX: Get error details from backend
+            let errorDetail = 'Failed to submit answer';
+            try {
+                const errorData = await response.json();
+                errorDetail = errorData.detail || errorData.message || errorDetail;
+            } catch (e) {
+                const errorText = await response.text();
+                errorDetail = errorText || errorDetail;
+            }
+            console.error('[SUBMIT ANSWER] Backend error:', response.status, errorDetail);
+            throw new Error(`Failed to submit answer: ${errorDetail}`);
         }
 
         const data = await response.json();
+        
+        // CRITICAL FIX: Validate response has expected data
+        if (!data) {
+            throw new Error('Empty response from server. Answer may not have been saved.');
+        }
+        
+        console.log('[SUBMIT ANSWER] Answer submitted successfully');
         
         // Update conversation history
         conversationHistory.push({
@@ -364,10 +425,11 @@ async function submitAnswer(answer) {
         document.getElementById('voiceStatus').textContent = 'Click the microphone to record your answer';
 
     } catch (error) {
-        console.error('Submit answer error:', error);
-        const errorMsg = 'Failed to submit answer. Please try again.';
+        console.error('[SUBMIT ANSWER] Submit answer error:', error);
+        const errorMsg = error.message || 'Failed to submit answer. Please try again.';
         showError(errorMsg);
-        document.getElementById('voiceStatus').textContent = 'Error submitting answer. You can try recording again.';
+        alert(`Error: ${errorMsg}\n\nYour answer may not have been saved. Please try recording again.`);
+        document.getElementById('voiceStatus').textContent = 'Error submitting answer. Click the microphone to try again.';
         // Don't redirect - keep interview active
     }
 }
@@ -388,15 +450,33 @@ async function generateFeedback() {
     if (!interviewSessionId) return;
 
     try {
-        const response = await fetch(`${API_BASE}/api/interview/technical/${interviewSessionId}/feedback`, {
+        console.log('[FEEDBACK] Requesting feedback from backend...');
+        const response = await fetch(`${getApiBase()}/api/interview/technical/${interviewSessionId}/feedback`, {
             method: 'GET'
         });
 
         if (!response.ok) {
-            throw new Error('Failed to generate feedback');
+            // CRITICAL FIX: Get error details from backend
+            let errorDetail = 'Failed to generate feedback';
+            try {
+                const errorData = await response.json();
+                errorDetail = errorData.detail || errorData.message || errorDetail;
+            } catch (e) {
+                const errorText = await response.text();
+                errorDetail = errorText || errorDetail;
+            }
+            console.error('[FEEDBACK] Backend error:', response.status, errorDetail);
+            throw new Error(errorDetail);
         }
 
         const feedback = await response.json();
+
+        // CRITICAL FIX: Validate feedback data exists
+        if (!feedback) {
+            throw new Error('Empty feedback response from server');
+        }
+
+        console.log('[FEEDBACK] Feedback received successfully');
 
         // Display feedback
         document.getElementById('overallScore').textContent = Math.round(feedback.overall_score || 0);
@@ -416,8 +496,9 @@ async function generateFeedback() {
         document.getElementById('feedbackContent').classList.remove('hidden');
 
     } catch (error) {
-        console.error('Generate feedback error:', error);
-        document.getElementById('feedbackLoading').textContent = 'Failed to generate feedback.';
+        console.error('[FEEDBACK] Generate feedback error:', error);
+        const errorMsg = error.message || 'Failed to generate feedback.';
+        document.getElementById('feedbackLoading').innerHTML = `<div class="error-message">${errorMsg}<br><br>This may happen if answers were not saved properly. Please check the backend logs.</div>`;
     }
 }
 
@@ -441,19 +522,84 @@ function displayMessage(role, content, audioUrl = null) {
     container.appendChild(messageDiv);
     container.scrollTop = container.scrollHeight;
     
-    console.log('[INTERVIEW] Message displayed:', role, content.substring(0, 50) + '...');
 }
 
-function playAudio(audioUrl) {
-    if (!audioUrl) return;
+async function playAudio(audioUrl, retryCount = 0) {
+    const MAX_RETRIES = 2;
+    if (!audioUrl) {
+        console.warn('[TTS] No audio URL provided');
+        return;
+    }
     
-    // Construct full URL if relative
-    const fullUrl = audioUrl.startsWith('http') ? audioUrl : `${API_BASE}${audioUrl}`;
-    
-    const audio = new Audio(fullUrl);
-    audio.play().catch(error => {
-        console.error('Error playing audio:', error);
-    });
+    try {
+        // Construct full URL if relative
+        let fullUrl = audioUrl.startsWith('http') ? audioUrl : `${getApiBase()}${audioUrl}`;
+        
+        // If URL contains text parameter, we need to fetch it via POST instead
+        if (fullUrl.includes('text=')) {
+            try {
+                const url = new URL(fullUrl);
+                const textParam = url.searchParams.get('text');
+                if (textParam) {
+                    const text = decodeURIComponent(textParam);
+                    
+                    // Use POST endpoint instead
+                    const response = await fetch(`${getApiBase()}/api/interview/text-to-speech`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ text: text.trim() })
+                    });
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`TTS failed: ${response.status} - ${errorText}`);
+                    }
+                    
+                    const audioBlob = await response.blob();
+                    if (audioBlob.size === 0) {
+                        throw new Error('Empty audio blob received');
+                    }
+                    
+                    fullUrl = URL.createObjectURL(audioBlob);
+                }
+            } catch (e) {
+                console.warn('[TTS] Could not extract text from URL, trying direct playback:', e);
+            }
+        }
+        
+        const audio = new Audio(fullUrl);
+        
+        // Set up event handlers
+        audio.onerror = (error) => {
+            console.error('[TTS] Audio playback error:', error);
+            if (fullUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(fullUrl);
+            }
+            
+            // Retry on error
+            if (retryCount < MAX_RETRIES) {
+                setTimeout(() => playAudio(audioUrl, retryCount + 1), 1000 * (retryCount + 1));
+            }
+        };
+        
+        audio.onended = () => {
+            if (fullUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(fullUrl);
+            }
+        };
+        
+        await audio.play();
+        
+    } catch (error) {
+        console.error('[TTS] Error playing audio:', error);
+        
+        // Retry on network/loading errors
+        if (retryCount < MAX_RETRIES && (error.message.includes('fetch') || error.message.includes('network') || error.message.includes('Failed to load'))) {
+            setTimeout(() => playAudio(audioUrl, retryCount + 1), 1000 * (retryCount + 1));
+        }
+    }
 }
 
 function showError(message) {
@@ -475,7 +621,7 @@ async function endInterview() {
 
         if (interviewSessionId) {
             try {
-                await fetch(`${API_BASE}/api/interview/technical/${interviewSessionId}/end`, {
+                await fetch(`${getApiBase()}/api/interview/technical/${interviewSessionId}/end`, {
                     method: 'POST'
                 });
             } catch (error) {

@@ -1,5 +1,5 @@
 """
-User profile and authentication schemas
+User profile schemas
 Pydantic models for request/response validation
 """
 
@@ -42,34 +42,23 @@ class UserProfileResponse(BaseModel):
     """
     id: str
     user_id: str
-    name: Optional[str]
+    name: Optional[str] = None
     email: str
-    skills: List[str]
-    experience_level: Optional[str]
-    resume_url: Optional[str]
+    skills: Optional[List[str]] = []  # Default to empty list if null from DB
+    experience_level: Optional[str] = None
+    resume_url: Optional[str] = None
     access_role: Optional[str] = "Student"  # Default to "Student"
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None  # Make optional in case of missing data
+    updated_at: Optional[datetime] = None  # Make optional in case of missing data
+    
+    class Config:
+        """Pydantic configuration"""
+        # Allow population by field name or alias
+        populate_by_name = True
+        # Validate assignment
+        validate_assignment = True
+        # Allow extra fields from database that aren't in schema
+        extra = "ignore"
 
 
-class AuthRequest(BaseModel):
-    """
-    Schema for authentication requests
-    Time Complexity: O(1)
-    Space Complexity: O(1)
-    """
-    email: EmailStr
-    password: str
-
-
-class AuthResponse(BaseModel):
-    """
-    Schema for authentication response
-    Time Complexity: O(1)
-    Space Complexity: O(1)
-    """
-    access_token: str
-    refresh_token: Optional[str] = None
-    user: dict
-    message: str
 

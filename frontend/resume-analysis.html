@@ -325,6 +325,8 @@
         </footer>
     </div>
 
+    <!-- Load API configuration first -->
+    <script src="api-config.js"></script>
     <script>
         // Get resume data from URL parameters or sessionStorage
         async function loadResumeAnalysis() {
@@ -355,18 +357,59 @@
             }
 
             try {
-                // Fetch analysis data from backend
-                const API_BASE = 'http://127.0.0.1:8000';
-                const res = await fetch(`${API_BASE}/api/profile/resume-analysis/${sessionId}`);
-                
-                if (!res.ok) {
-                    // Fallback to sessionStorage if backend fails
+                // Check if session_id starts with "error_" - this means it's an error session
+                if (sessionId && sessionId.startsWith('error_')) {
+                    console.warn('Error session detected, using cached data from sessionStorage');
                     if (cachedData) {
-                        const data = JSON.parse(cachedData);
-                        displayAnalysis(data);
+                        try {
+                            const data = JSON.parse(cachedData);
+                            if (data.success === false && data.error) {
+                                showError(data.error || 'Failed to parse resume. Please try again with another file.');
+                                return;
+                            }
+                            displayAnalysis(data);
+                            return;
+                        } catch (parseError) {
+                            console.error('Failed to parse cached error data:', parseError);
+                            showError('Failed to parse resume. Please try uploading again.');
+                            return;
+                        }
+                    } else {
+                        showError('No resume analysis data found. Please upload a resume first.');
                         return;
                     }
-                    throw new Error('Failed to fetch analysis data');
+                }
+                
+                // Fetch analysis data from backend
+                const res = await fetch(`${getApiBase()}/api/profile/resume-analysis/${sessionId}`);
+                
+                if (!res.ok) {
+                    // If 404 and we have cached data, use it
+                    if (res.status === 404 && cachedData) {
+                        console.warn('Backend returned 404, using cached data from sessionStorage');
+                        try {
+                            const data = JSON.parse(cachedData);
+                            if (data.success === false && data.error) {
+                                showError(data.error || 'Failed to parse resume. Please try again with another file.');
+                                return;
+                            }
+                            displayAnalysis(data);
+                            return;
+                        } catch (parseError) {
+                            console.error('Failed to parse cached data:', parseError);
+                            showError('Session expired. Please upload your resume again.');
+                            return;
+                        }
+                    }
+                    // For other errors, try to get error message from response
+                    let errorMessage = 'Failed to fetch analysis data';
+                    try {
+                        const errorData = await res.json();
+                        errorMessage = errorData.detail || errorData.error || errorMessage;
+                    } catch (e) {
+                        errorMessage = `Server error: ${res.status} ${res.statusText}`;
+                    }
+                    throw new Error(errorMessage);
                 }
 
                 const data = await res.json();
@@ -384,13 +427,29 @@
                 if (cachedData) {
                     try {
                         const data = JSON.parse(cachedData);
+                        if (data.success === false && data.error) {
+                            showError(data.error || 'Failed to parse resume. Please try again with another file.');
+                            return;
+                        }
                         displayAnalysis(data);
                         return;
                     } catch (parseError) {
                         console.error('Failed to parse cached data:', parseError);
                     }
                 }
-                showError('Failed to load resume analysis. Please try uploading again.');
+                // Show the actual error message if available
+                let errorMsg = e.message || 'Failed to load resume analysis.';
+                
+                // Provide more helpful error messages
+                if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
+                    errorMsg = 'Network error: Could not connect to the server. Please check your internet connection and try again.';
+                } else if (errorMsg.includes('404')) {
+                    errorMsg = 'Session expired or not found. Please upload your resume again.';
+                } else if (errorMsg.includes('500')) {
+                    errorMsg = 'Server error occurred. Please try again in a moment.';
+                }
+                
+                showError(errorMsg);
             }
         }
 
@@ -622,20 +681,31 @@
             }
             
             try {
-                const API_BASE = 'http://127.0.0.1:8000';
-                
-                // Get user_id from sessionStorage or window (fallback)
-                const userId = sessionStorage.getItem('resume_user_id') || window.TEST_USER_ID || null;
+                // Get user_id from localStorage (persistent) or sessionStorage
+                let userId = localStorage.getItem('user_id') || sessionStorage.getItem('resume_user_id');
+                if (!userId) {
+                    try {
+                        const userRes = await fetch(`${getApiBase()}/api/profile/current`);
+                        if (userRes.ok) {
+                            const user = await userRes.json();
+                            userId = user.user_id;
+                            // Store in localStorage for persistence
+                            if (userId) {
+                                localStorage.setItem('user_id', userId);
+                                sessionStorage.setItem('resume_user_id', userId);
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Could not get current user:', e);
+                    }
+                }
                 
                 // Build URL with experience and optional user_id
-                let url = `${API_BASE}/api/profile/resume-analysis/${sessionId}/experience?experience=${encodeURIComponent(experience)}`;
+                let url = `${getApiBase()}/api/profile/resume-analysis/${sessionId}/experience?experience=${encodeURIComponent(experience)}`;
                 if (userId) {
                     url += `&user_id=${encodeURIComponent(userId)}`;
                 }
                 
-                console.log('[EXPERIENCE_UPDATE] Sending request to:', url);
-                console.log('[EXPERIENCE_UPDATE] Session ID:', sessionId);
-                console.log('[EXPERIENCE_UPDATE] User ID:', userId);
                 
                 const response = await fetch(url, {
                     method: 'PUT',
@@ -644,7 +714,6 @@
                     }
                 });
                 
-                console.log('[EXPERIENCE_UPDATE] Response status:', response.status);
                 
                 if (!response.ok) {
                     // Try to get error message from response
@@ -660,7 +729,6 @@
                 }
                 
                 const result = await response.json();
-                console.log('[EXPERIENCE_UPDATE] Success response:', result);
                 
                 // Verify success
                 if (result.status === 'success' || result.success === true) {

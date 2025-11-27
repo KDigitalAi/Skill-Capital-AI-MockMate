@@ -77,14 +77,12 @@ class ResumeParser:
         if file_size == 0:
             raise Exception("PDF file is empty (0 bytes)")
         
-        print(f"[DEBUG] Attempting to parse PDF: {file_path} (size: {file_size} bytes)")
         
         # Try PyMuPDF first if available
         if PYMUPDF_AVAILABLE:
             try:
                 # Open PDF in binary mode
                 doc = fitz.open(file_path)
-                print(f"[DEBUG] PDF opened successfully with PyMuPDF, pages: {len(doc)}")
                 
                 text = ""
                 for page_num, page in enumerate(doc):
@@ -92,13 +90,10 @@ class ResumeParser:
                         page_text = page.get_text()
                         if page_text:
                             text += page_text + "\n"
-                            print(f"[DEBUG] Extracted {len(page_text)} chars from page {page_num + 1}")
                     except Exception as page_error:
-                        print(f"[WARNING] Error extracting text from page {page_num + 1}: {str(page_error)}")
                         continue
                 
                 doc.close()
-                print(f"[DEBUG] Total text extracted: {len(text)} characters")
                 
                 if not text or len(text.strip()) < 10:
                     raise Exception("PDF file appears to be empty or contains no extractable text. The file might be image-based or corrupted.")
@@ -106,55 +101,42 @@ class ResumeParser:
                 return text
             except Exception as e:
                 error_msg = str(e)
-                print(f"[WARNING] PyMuPDF parsing failed: {error_msg}")
-                print(f"[DEBUG] Falling back to PyPDF2...")
                 # Continue to fallback below
         
         # Fallback: Try using PyPDF2 or pdfplumber if available
         try:
             import PyPDF2
-            print("[DEBUG] Using PyPDF2 for PDF parsing")
             with open(file_path, 'rb') as pdf_file:
                 pdf_reader = PyPDF2.PdfReader(pdf_file)
-                print(f"[DEBUG] PDF opened with PyPDF2, pages: {len(pdf_reader.pages)}")
                 text = ""
                 for page_num, page in enumerate(pdf_reader.pages):
                     try:
                         page_text = page.extract_text() or ""
                         if page_text:
                             text += page_text + "\n"
-                            print(f"[DEBUG] Extracted {len(page_text)} chars from page {page_num + 1} using PyPDF2")
                     except Exception as page_error:
-                        print(f"[WARNING] Error extracting text from page {page_num + 1}: {str(page_error)}")
                         continue
                 
                 if not text or len(text.strip()) < 10:
                     raise Exception("PDF file appears to be empty or contains no extractable text.")
                 
-                print(f"[DEBUG] Total text extracted with PyPDF2: {len(text)} characters")
                 return text
         except ImportError:
-            print("[DEBUG] PyPDF2 not available, trying pdfplumber...")
             try:
                 import pdfplumber
-                print("[DEBUG] Using pdfplumber for PDF parsing")
                 with pdfplumber.open(file_path) as pdf:
-                    print(f"[DEBUG] PDF opened with pdfplumber, pages: {len(pdf.pages)}")
                     text = ""
                     for page_num, page in enumerate(pdf.pages):
                         try:
                             page_text = page.extract_text() or ""
                             if page_text:
                                 text += page_text + "\n"
-                                print(f"[DEBUG] Extracted {len(page_text)} chars from page {page_num + 1} using pdfplumber")
                         except Exception as page_error:
-                            print(f"[WARNING] Error extracting text from page {page_num + 1}: {str(page_error)}")
                             continue
                         
                         if not text or len(text.strip()) < 10:
                             raise Exception("PDF file appears to be empty or contains no extractable text.")
                         
-                        print(f"[DEBUG] Total text extracted with pdfplumber: {len(text)} characters")
                         return text
             except ImportError:
                 raise Exception(
@@ -164,7 +146,6 @@ class ResumeParser:
         except Exception as e:
             error_msg = str(e)
             error_msg_lower = error_msg.lower()  # Cache lowercased string
-            print(f"[ERROR] Fallback PDF parsing error: {error_msg}")
             # Optimized: use cached lowercased string instead of multiple .lower() calls
             if "not a pdf" in error_msg_lower or "invalid" in error_msg_lower or "cannot read" in error_msg_lower:
                 raise Exception("The file is not a valid PDF document. Please upload a valid PDF file.")
@@ -180,14 +161,12 @@ class ResumeParser:
         if file_size == 0:
             raise Exception("DOCX file is empty (0 bytes)")
         
-        print(f"[DEBUG] Attempting to parse DOCX: {file_path} (size: {file_size} bytes)")
         
         if not DOCX_AVAILABLE:
             raise Exception("python-docx is not available. Please install it with: pip install python-docx")
         
         try:
             doc = Document(file_path)
-            print(f"[DEBUG] DOCX opened successfully")
             
             text_parts = []
             for paragraph in doc.paragraphs:
@@ -202,7 +181,6 @@ class ResumeParser:
                             text_parts.append(cell.text)
             
             text = "\n".join(text_parts)
-            print(f"[DEBUG] Total text extracted: {len(text)} characters")
             
             if not text or len(text.strip()) < 10:
                 raise Exception("DOCX file appears to be empty or contains no extractable text.")
@@ -211,7 +189,6 @@ class ResumeParser:
         except Exception as e:
             error_msg = str(e)
             error_msg_lower = error_msg.lower()  # Cache lowercased string
-            print(f"[ERROR] DOCX parsing error: {error_msg}")
             # Optimized: use cached lowercased string instead of multiple .lower() calls
             if "not a docx" in error_msg_lower or "invalid" in error_msg_lower or "corrupt" in error_msg_lower or "cannot open" in error_msg_lower:
                 raise Exception("The file is not a valid DOCX document. Please upload a valid DOCX file.")
@@ -259,32 +236,60 @@ class ResumeParser:
     def extract_experience_level(self, text: str) -> Optional[str]:
         """
         Extract experience level from resume text
+        ONLY counts actual work experience, NOT projects, internships, or academic work.
         Time Complexity: O(n) where n = text length (single pass through patterns)
         Space Complexity: O(1)
         Optimization: Cache lowercased text, no IGNORECASE flag needed
         """
         text_lower = text.lower()  # Cache once
         
-        # Patterns to match experience
-        experience_patterns = [
-            (r'\b(\d+)\s*(?:years?|yrs?|y\.?)\s*(?:of\s*)?experience', 'years'),
-            (r'experience[:\s]+(\d+)\s*(?:years?|yrs?)', 'years'),
-            (r'(\d+)\s*(?:years?|yrs?)\s*(?:in|of)', 'years'),
-            (r'fresher|fresh\s*graduate|no\s*experience|entry\s*level', 'fresher'),
-        ]
-        
-        # Check for fresher first (optimized: single pattern check)
-        fresher_pattern = r'fresher|fresh\s*graduate|no\s*experience|entry\s*level'
+        # First, check for explicit fresher indicators
+        fresher_pattern = r'\b(fresher|fresh\s*graduate|no\s*experience|entry\s*level|recent\s*graduate|new\s*graduate)\b'
         if re.search(fresher_pattern, text_lower):
             return "Fresher"
         
-        # Check for years of experience
-        # Optimized: compile patterns once and reuse
+        # Look for work experience section headers
+        # These keywords indicate actual work experience sections
+        work_experience_section_keywords = [
+            r'\b(work\s*experience|professional\s*experience|employment\s*history|work\s*history|career\s*history|experience\s*section)\b',
+            r'\b(experience|employment|work\s*history)\s*:',
+        ]
+        
+        # Check if there's a work experience section
+        has_work_experience_section = False
+        for pattern in work_experience_section_keywords:
+            if re.search(pattern, text_lower):
+                has_work_experience_section = True
+                break
+        
+        # If no work experience section found, check for company/role patterns
+        # These patterns indicate actual employment
+        employment_indicators = [
+            r'\b(company|employer|organization|corporation|firm|organization)\s*:',
+            r'\b(worked\s*at|employed\s*at|position\s*at|role\s*at|job\s*at)\b',
+            r'\b(software\s*engineer|developer|analyst|manager|engineer|consultant)\s*(?:at|in|with)\b',
+        ]
+        
+        has_employment_indicators = False
+        for pattern in employment_indicators:
+            if re.search(pattern, text_lower):
+                has_employment_indicators = True
+                break
+        
+        # If no work experience section or employment indicators found, return Fresher
+        if not has_work_experience_section and not has_employment_indicators:
+            return "Fresher"
+        
+        # Now look for years of experience ONLY in work experience context
+        # Patterns that explicitly mention work/professional experience
+        work_experience_patterns = [
+            r'\b(\d+)\s*(?:years?|yrs?|y\.?)\s*(?:of\s*)?(?:work|professional|industry|relevant)\s*experience',
+            r'(?:work|professional|industry|relevant)\s*experience[:\s]+(\d+)\s*(?:years?|yrs?)',
+            r'\b(\d+)\s*(?:years?|yrs?)\s*(?:of\s*)?experience\s*(?:in|with|at)\s*(?:software|development|engineering|technology)',
+        ]
+        
         max_years = 0
-        for pattern, _ in experience_patterns:
-            if pattern.startswith('fresher'):
-                continue
-            # Optimized: text is already lowercased, no IGNORECASE flag needed
+        for pattern in work_experience_patterns:
             matches = re.finditer(pattern, text_lower)
             for match in matches:
                 try:
@@ -293,19 +298,23 @@ class ResumeParser:
                 except (IndexError, ValueError):
                     continue
         
+        # If we found years in work experience context, return it
         if max_years > 0:
             return f"{max_years}yrs"
         
-        # Check for keywords that might indicate experience level
-        # Optimized: single regex with alternation instead of multiple searches
-        if re.search(r'senior|lead|principal|architect', text_lower):
-            return "5yrs+"
-        elif re.search(r'mid|middle|intermediate', text_lower):
-            return "2-4yrs"
-        elif re.search(r'junior|entry|associate', text_lower):
-            return "1yrs"
+        # If work experience section exists but no years found, check for job titles that indicate experience
+        # BUT only if we're in a work experience section context
+        if has_work_experience_section or has_employment_indicators:
+            # Look for senior/lead roles in work context (not project context)
+            # Check if "senior" or "lead" appears near employment indicators
+            senior_pattern = r'\b(senior|lead|principal|architect|manager|director)\s+(?:software|engineer|developer|analyst|consultant)'
+            if re.search(senior_pattern, text_lower):
+                # Verify it's in work context by checking proximity to company/employment keywords
+                # This is a simplified check - if senior appears, assume 5+ years
+                return "5yrs+"
         
-        return "Fresher"  # Default
+        # Default: No valid work experience found
+        return "Fresher"
     
     def extract_keywords(self, text: str) -> Dict[str, List[str]]:
         """Extract keywords including tools, technologies, and job titles"""

@@ -162,12 +162,17 @@ except ImportError:
     logger.warning("[RESUME_PARSER] Install with: pip install pytesseract pdf2image pillow")
 
 
-def is_text_meaningful(text: str, min_length: int = 50) -> bool:
+def is_text_meaningful(text: str, min_length: int = 20) -> bool:
     """
     Check if extracted text is meaningful (not just metadata/page numbers).
     LaTeX PDFs often extract only page numbers or metadata, which we want to treat as 'no text'.
     
     Returns True if text appears to be meaningful resume content, False otherwise.
+    
+    Made less strict to avoid false positives for valid PDFs:
+    - Reduced min_length from 50 to 20 characters
+    - Reduced alphanumeric ratio threshold from 30% to 20%
+    - Reduced keyword requirement from 2 to 1
     """
     if not text or len(text.strip()) < min_length:
         return False
@@ -182,9 +187,9 @@ def is_text_meaningful(text: str, min_length: int = 50) -> bool:
     if total_chars == 0:
         return False
     
-    # If less than 30% of text is alphanumeric, it's probably not meaningful
+    # If less than 20% of text is alphanumeric, it's probably not meaningful (reduced from 30%)
     alphanumeric_ratio = alphanumeric_count / total_chars
-    if alphanumeric_ratio < 0.3:
+    if alphanumeric_ratio < 0.2:
         return False
     
     # Check for common resume keywords (if present, text is likely meaningful)
@@ -192,17 +197,23 @@ def is_text_meaningful(text: str, min_length: int = 50) -> bool:
         'experience', 'education', 'skills', 'project', 'work', 'job',
         'university', 'college', 'degree', 'email', 'phone', 'address',
         'python', 'java', 'javascript', 'react', 'developer', 'engineer',
-        'software', 'programming', 'technology', 'certification', 'achievement'
+        'software', 'programming', 'technology', 'certification', 'achievement',
+        'resume', 'name', 'contact', 'summary', 'objective', 'profile'
     ]
     text_lower = text.lower()
     keyword_count = sum(1 for keyword in resume_keywords if keyword in text_lower)
     
-    # If we have at least 2 resume keywords, text is likely meaningful
-    if keyword_count >= 2:
+    # If we have at least 1 resume keyword, text is likely meaningful (reduced from 2)
+    if keyword_count >= 1:
         return True
     
     # If text is long enough and has reasonable alphanumeric ratio, consider it meaningful
-    if len(text_stripped) >= min_length and alphanumeric_ratio >= 0.5:
+    # Reduced threshold from 50% to 40% for alphanumeric ratio
+    if len(text_stripped) >= min_length and alphanumeric_ratio >= 0.4:
+        return True
+    
+    # If text has at least 30 characters and 30% alphanumeric, accept it (more lenient)
+    if len(text_stripped) >= 30 and alphanumeric_ratio >= 0.3:
         return True
     
     return False
@@ -314,13 +325,14 @@ def parse_pdf(file_path: str, use_ocr_fallback: bool = True) -> Dict[str, Any]:
             
             # Check if text is meaningful (not just metadata)
             if text:
-                text_is_meaningful = is_text_meaningful(text, min_length=50)
+                text_is_meaningful = is_text_meaningful(text, min_length=20)
                 if text_is_meaningful:
                     parser_used = "PyMuPDF"
                     logger.info(f"[RESUME_PARSER] PyMuPDF SUCCESS - Extracted {len(text)} meaningful characters")
                 else:
                     logger.warning(f"[RESUME_PARSER] PyMuPDF extracted {len(text)} chars but text appears to be metadata only (not meaningful)")
-                    text = None  # Reset to trigger fallback
+                    # Don't reset text immediately - try other parsers first
+                    # Only reset if all parsers fail
         except Exception as e:
             last_error = str(e)
             logger.error(f"[RESUME_PARSER] PyMuPDF failed: {str(e)}")
@@ -343,13 +355,13 @@ def parse_pdf(file_path: str, use_ocr_fallback: bool = True) -> Dict[str, Any]:
                     text = "\n".join(text_parts)
                 
                 if text:
-                    text_is_meaningful = is_text_meaningful(text, min_length=50)
+                    text_is_meaningful = is_text_meaningful(text, min_length=20)
                     if text_is_meaningful:
                         parser_used = "pdfplumber"
                         logger.info(f"[RESUME_PARSER] pdfplumber SUCCESS - Extracted {len(text)} meaningful characters")
                     else:
                         logger.warning(f"[RESUME_PARSER] pdfplumber extracted {len(text)} chars but text appears to be metadata only")
-                        text = None
+                        # Don't reset text - continue to next parser
             except Exception as e:
                 last_error = str(e)
                 logger.error(f"[RESUME_PARSER] pdfplumber failed: {str(e)}")
@@ -361,13 +373,13 @@ def parse_pdf(file_path: str, use_ocr_fallback: bool = True) -> Dict[str, Any]:
                 logger.debug(f"[RESUME_PARSER] Attempting pdfminer.six parsing...")
                 text = pdfminer_extract(file_path)
                 if text:
-                    text_is_meaningful = is_text_meaningful(text, min_length=50)
+                    text_is_meaningful = is_text_meaningful(text, min_length=20)
                     if text_is_meaningful:
                         parser_used = "pdfminer.six"
                         logger.info(f"[RESUME_PARSER] pdfminer.six SUCCESS - Extracted {len(text)} meaningful characters")
                     else:
                         logger.warning(f"[RESUME_PARSER] pdfminer.six extracted {len(text)} chars but text appears to be metadata only")
-                        text = None
+                        # Don't reset text - continue to next parser
             except Exception as e:
                 last_error = str(e)
                 logger.error(f"[RESUME_PARSER] pdfminer.six failed: {str(e)}")
@@ -391,33 +403,45 @@ def parse_pdf(file_path: str, use_ocr_fallback: bool = True) -> Dict[str, Any]:
                     text = "\n".join(text_parts)
                 
                 if text:
-                    text_is_meaningful = is_text_meaningful(text, min_length=50)
+                    text_is_meaningful = is_text_meaningful(text, min_length=20)
                     if text_is_meaningful:
                         parser_used = "PyPDF2"
                         logger.info(f"[RESUME_PARSER] PyPDF2 SUCCESS - Extracted {len(text)} meaningful characters")
                     else:
                         logger.warning(f"[RESUME_PARSER] PyPDF2 extracted {len(text)} chars but text appears to be metadata only")
-                        text = None
+                        # Don't reset text - will check after all parsers
             except Exception as e:
                 last_error = str(e)
                 logger.error(f"[RESUME_PARSER] PyPDF2 failed: {str(e)}")
     
-    # Final validation - try OCR if no meaningful text was extracted
-    if not text or not text_is_meaningful:
-        if use_ocr_fallback:
-            if OCR_AVAILABLE:
-                logger.info("[RESUME_PARSER] LaTeX-based PDF detected - running OCR to extract text...")
-                logger.info("[RESUME_PARSER] No meaningful text extracted with standard parsers. Attempting OCR fallback...")
-                ocr_text = extract_text_with_ocr(file_path)
-                if ocr_text and is_text_meaningful(ocr_text, min_length=50):
-                    text = ocr_text
-                    parser_used = "OCR (Tesseract)"
-                    text_is_meaningful = True
-                    logger.info(f"[RESUME_PARSER] OCR fallback SUCCESS - Extracted {len(text)} meaningful characters")
+        # Final check: if we have text but it wasn't marked as meaningful, 
+        # check one more time with more lenient criteria before giving up
+        if text and not text_is_meaningful:
+            # Try with even more lenient criteria (10 chars minimum)
+            if len(text.strip()) >= 10:
+                # If we have at least 10 characters, accept it even if not "meaningful"
+                # This prevents false positives for simple but valid PDFs
+                logger.info(f"[RESUME_PARSER] Accepting text with {len(text)} chars (lenient mode)")
+                text_is_meaningful = True
+                if not parser_used:
+                    parser_used = "PyMuPDF"  # Default to first parser used
+        
+        # Final validation - try OCR if no meaningful text was extracted
+        if not text or not text_is_meaningful:
+            if use_ocr_fallback:
+                if OCR_AVAILABLE:
+                    logger.info("[RESUME_PARSER] LaTeX-based PDF detected - running OCR to extract text...")
+                    logger.info("[RESUME_PARSER] No meaningful text extracted with standard parsers. Attempting OCR fallback...")
+                    ocr_text = extract_text_with_ocr(file_path)
+                    if ocr_text and is_text_meaningful(ocr_text, min_length=20):
+                        text = ocr_text
+                        parser_used = "OCR (Tesseract)"
+                        text_is_meaningful = True
+                        logger.info(f"[RESUME_PARSER] OCR fallback SUCCESS - Extracted {len(text)} meaningful characters")
+                    else:
+                        logger.warning("[RESUME_PARSER] OCR fallback also failed to extract meaningful text")
                 else:
-                    logger.warning("[RESUME_PARSER] OCR fallback also failed to extract meaningful text")
-            else:
-                logger.warning("[RESUME_PARSER] LaTeX-based PDF detected but OCR fallback requested - Tesseract OCR is not installed. This PDF requires OCR.")
+                    logger.warning("[RESUME_PARSER] LaTeX-based PDF detected but OCR fallback requested - Tesseract OCR is not installed. This PDF requires OCR.")
         
         # If still no meaningful text after OCR, raise error
         if not text or not text_is_meaningful:
@@ -597,16 +621,54 @@ def extract_skills(text: str, text_lower: str) -> List[str]:
 
 
 def extract_experience(text: str, text_lower: str) -> str:
-    """Extract experience level or summary"""
-    # Patterns for years of experience
-    years_patterns = [
-        r'\b(\d+)\s*(?:years?|yrs?|y\.?)\s*(?:of\s*)?experience',
-        r'experience[:\s]+(\d+)\s*(?:years?|yrs?)',
-        r'(\d+)\s*(?:years?|yrs?)\s*(?:in|of)',
+    """
+    Extract experience level or summary
+    ONLY counts actual work experience, NOT projects, internships, or academic work.
+    """
+    # First, check for explicit fresher indicators
+    fresher_pattern = r'\b(fresher|fresh\s*graduate|no\s*experience|entry\s*level|recent\s*graduate|new\s*graduate)\b'
+    if re.search(fresher_pattern, text_lower):
+        return "Fresher"
+    
+    # Look for work experience section headers
+    work_experience_section_keywords = [
+        r'\b(work\s*experience|professional\s*experience|employment\s*history|work\s*history|career\s*history|experience\s*section)\b',
+        r'\b(experience|employment|work\s*history)\s*:',
+    ]
+    
+    # Check if there's a work experience section
+    has_work_experience_section = False
+    for pattern in work_experience_section_keywords:
+        if re.search(pattern, text_lower):
+            has_work_experience_section = True
+            break
+    
+    # Check for company/role patterns indicating actual employment
+    employment_indicators = [
+        r'\b(company|employer|organization|corporation|firm)\s*:',
+        r'\b(worked\s*at|employed\s*at|position\s*at|role\s*at|job\s*at)\b',
+        r'\b(software\s*engineer|developer|analyst|manager|engineer|consultant)\s*(?:at|in|with)\b',
+    ]
+    
+    has_employment_indicators = False
+    for pattern in employment_indicators:
+        if re.search(pattern, text_lower):
+            has_employment_indicators = True
+            break
+    
+    # If no work experience section or employment indicators found, return Fresher
+    if not has_work_experience_section and not has_employment_indicators:
+        return "Fresher"
+    
+    # Patterns for years of experience ONLY in work/professional context
+    work_experience_patterns = [
+        r'\b(\d+)\s*(?:years?|yrs?|y\.?)\s*(?:of\s*)?(?:work|professional|industry|relevant)\s*experience',
+        r'(?:work|professional|industry|relevant)\s*experience[:\s]+(\d+)\s*(?:years?|yrs?)',
+        r'\b(\d+)\s*(?:years?|yrs?)\s*(?:of\s*)?experience\s*(?:in|with|at)\s*(?:software|development|engineering|technology)',
     ]
     
     max_years = 0
-    for pattern in years_patterns:
+    for pattern in work_experience_patterns:
         matches = re.finditer(pattern, text_lower, re.IGNORECASE)
         for match in matches:
             try:
@@ -618,15 +680,14 @@ def extract_experience(text: str, text_lower: str) -> str:
     if max_years > 0:
         return f"{max_years} years"
     
-    # Check for keywords
-    if re.search(r'fresher|fresh\s*graduate|no\s*experience|entry\s*level', text_lower):
-        return "Fresher"
-    elif re.search(r'senior|lead|principal|architect', text_lower):
-        return "5+ years"
-    elif re.search(r'mid|middle|intermediate', text_lower):
-        return "2-4 years"
-    elif re.search(r'junior|entry|associate', text_lower):
-        return "1 year"
+    # If work experience section exists but no years found, check for job titles
+    # BUT only if we're in a work experience section context
+    if has_work_experience_section or has_employment_indicators:
+        # Look for senior/lead roles in work context
+        senior_pattern = r'\b(senior|lead|principal|architect|manager|director)\s+(?:software|engineer|developer|analyst|consultant)'
+        if re.search(senior_pattern, text_lower):
+            return "5+ years"
     
-    return "Not specified"
+    # Default: No valid work experience found
+    return "Fresher"
 

@@ -246,8 +246,9 @@
         </div>
     </div>
 
+    <!-- Load API configuration first -->
+    <script src="api-config.js"></script>
     <script>
-        const API_BASE = window.location.origin;
         
         // Get session_id from URL
         const urlParams = new URLSearchParams(window.location.search);
@@ -264,20 +265,45 @@
             }
 
             try {
-                const response = await fetch(`${API_BASE}/api/interview/coding/${sessionId}/results`);
+                const response = await fetch(`${getApiBase()}/api/interview/coding/${sessionId}/results`);
                 
                 if (!response.ok) {
-                    throw new Error(`Failed to load results: ${response.status}`);
+                    const errorText = await response.text();
+                    console.error('Response error:', response.status, errorText);
+                    throw new Error(`Failed to load results: ${response.status} - ${errorText}`);
                 }
 
                 const data = await response.json();
+                
+                if (!data.results || data.results.length === 0) {
+                    console.warn('No results found for this session');
+                    
+                    document.getElementById('loadingState').innerHTML = `
+                        <h2 style="color: #f57f17;">No Results Found</h2>
+                        <p>No coding results were found for session: ${sessionId}</p>
+                        <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
+                            Possible reasons:<br>
+                            • The interview was not completed<br>
+                            • Results were not saved to the database<br>
+                            • Database connection issue<br>
+                            <br>
+                            <strong>Debug:</strong> Check browser console for details.
+                        </p>
+                        <a href="resume-analysis.html" class="btn btn-primary" style="margin-top: 20px;">Go to Dashboard</a>
+                    `;
+                    return;
+                }
                 
                 // Hide loading, show results
                 document.getElementById('loadingState').style.display = 'none';
                 document.getElementById('resultsContent').style.display = 'block';
 
                 // Display statistics
-                displayStatistics(data.statistics);
+                if (data.statistics) {
+                    displayStatistics(data.statistics);
+                } else {
+                    console.warn('No statistics in response');
+                }
                 
                 // Display questions
                 displayQuestions(data.results);
@@ -286,7 +312,17 @@
                 console.error('Error loading results:', error);
                 document.getElementById('loadingState').innerHTML = `
                     <h2 style="color: #c62828;">Error Loading Results</h2>
-                    <p>${error.message}</p>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
+                        <strong>Session ID:</strong> ${sessionId}<br>
+                        <strong>API Endpoint:</strong> ${getApiBase()}/api/interview/coding/${sessionId}/results<br>
+                        <br>
+                        <strong>Debug Steps:</strong><br>
+                        1. Check browser console for detailed error<br>
+                        2. Verify backend is running<br>
+                        3. Check Supabase table exists and has correct schema<br>
+                        4. Verify session ID is correct
+                    </p>
                     <a href="resume-analysis.html" class="btn btn-primary" style="margin-top: 20px;">Go to Dashboard</a>
                 `;
             }
@@ -326,11 +362,20 @@
                 return;
             }
 
+
             container.innerHTML = results.map((result, index) => {
                 const isCorrect = result.correctness;
                 const score = result.final_score || 0;
                 const difficulty = result.difficulty_level || 'Medium';
                 const language = result.programming_language || 'python';
+                
+                // Extract structured data from feedback if available
+                const errors = result.errors_found || [];
+                const bugs = result.bugs_explained || [];
+                const improvements = result.improvements || [];
+                const motivation = result.motivation_message || '';
+                const timeComplexity = result.time_complexity || '';
+                const spaceComplexity = result.space_complexity || '';
 
                 return `
                     <div class="question-result">
@@ -347,37 +392,133 @@
                         </div>
 
                         <div class="code-section">
-                            <h3>Problem Statement</h3>
-                            <div class="code-block" style="background: #e3f2fd; white-space: pre-wrap;">${escapeHtml(result.question_text || 'No question text available')}</div>
+                            <h3>📋 Problem Statement</h3>
+                            <div class="code-block" style="background: #e3f2fd; white-space: pre-wrap; padding: 20px;">${escapeHtml(result.question_text || 'No question text available')}</div>
                         </div>
 
                         <div class="code-section">
-                            <h3>Your Solution</h3>
-                            <div class="code-block">${escapeHtml(result.user_code || 'No code submitted')}</div>
+                            <h3>💻 Your Solution</h3>
+                            <div class="code-block" style="background: ${isCorrect ? '#e8f5e9' : '#fff3e0'};">
+                                <pre style="margin: 0; font-family: 'Courier New', monospace; font-size: 13px;">${escapeHtml(result.user_code || 'No code submitted')}</pre>
+                            </div>
                         </div>
 
-                        ${result.execution_output ? `
-                            <div class="code-section">
-                                <h3>Execution Output</h3>
-                                <div class="code-block" style="background: ${isCorrect ? '#e8f5e9' : '#ffebee'};">
-                                    ${escapeHtml(result.execution_output)}
+                        <div class="code-section">
+                            <h3>⚙️ Execution Output</h3>
+                            <div class="code-block" style="background: ${isCorrect ? '#e8f5e9' : '#ffebee'}; white-space: pre-wrap;">
+                                ${result.execution_output && result.execution_output.trim() 
+                                    ? escapeHtml(result.execution_output) 
+                                    : '<em style="color: #757575;">No execution output recorded. The code may not have produced any output.</em>'}
+                            </div>
+                        </div>
+
+                        <div class="code-section">
+                            <h3>✅ Is the Answer Correct?</h3>
+                            <div style="padding: 16px; background: ${isCorrect ? '#e8f5e9' : '#ffebee'}; border-radius: 8px; border-left: 4px solid ${isCorrect ? '#4caf50' : '#f44336'};">
+                                <div style="font-size: 18px; font-weight: 700; color: ${isCorrect ? '#1b5e20' : '#b71c1c'}; margin-bottom: 8px;">
+                                    ${isCorrect ? '✓ YES - Your solution is correct!' : '✗ NO - Your solution needs improvement'}
+                                </div>
+                                <div style="color: #37474f; line-height: 1.6;">
+                                    ${isCorrect 
+                                        ? 'Congratulations! Your code correctly solves the problem. Well done!' 
+                                        : 'Your solution has some issues. Review the errors and feedback below to improve.'}
                                 </div>
                             </div>
+                        </div>
+
+                        ${errors.length > 0 || bugs.length > 0 ? `
+                        <div class="code-section">
+                            <h3>🐛 Error & Bug Explanation</h3>
+                            <div style="background: #ffebee; border-left: 4px solid #f44336; padding: 16px; border-radius: 8px;">
+                                ${errors.length > 0 ? `
+                                    <div style="margin-bottom: 16px;">
+                                        <h4 style="color: #b71c1c; margin-bottom: 8px;">Errors Found:</h4>
+                                        <ul style="margin: 0; padding-left: 20px; color: #37474f;">
+                                            ${errors.map(e => `<li style="margin-bottom: 8px;">${escapeHtml(e)}</li>`).join('')}
+                                        </ul>
+                                    </div>
+                                ` : ''}
+                                ${bugs.length > 0 ? `
+                                    <div>
+                                        <h4 style="color: #b71c1c; margin-bottom: 8px;">Bug Explanations:</h4>
+                                        <ul style="margin: 0; padding-left: 20px; color: #37474f;">
+                                            ${bugs.map(b => `<li style="margin-bottom: 8px;">${escapeHtml(b)}</li>`).join('')}
+                                        </ul>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
                         ` : ''}
 
-                        ${result.correct_solution ? `
-                            <div class="code-section">
-                                <h3>Correct Solution</h3>
-                                <div class="code-block" style="background: #e8f5e9;">${escapeHtml(result.correct_solution)}</div>
+                        <div class="code-section">
+                            <h3>✅ Correct Solution</h3>
+                            <div class="code-block" style="background: #e8f5e9;">
+                                ${result.correct_solution && result.correct_solution.trim() 
+                                    ? `<pre style="margin: 0; font-family: 'Courier New', monospace; font-size: 13px; white-space: pre-wrap;">${escapeHtml(result.correct_solution)}</pre>` 
+                                    : '<em style="color: #757575;">Correct solution is being generated. Please refresh the page in a moment.</em>'}
                             </div>
+                        </div>
+
+                        ${timeComplexity || spaceComplexity ? `
+                        <div class="code-section">
+                            <h3>⏱️ Complexity Analysis</h3>
+                            <div style="background: #e3f2fd; padding: 16px; border-radius: 8px;">
+                                ${timeComplexity ? `<div style="margin-bottom: 8px;"><strong>Time Complexity:</strong> ${escapeHtml(timeComplexity)}</div>` : ''}
+                                ${spaceComplexity ? `<div><strong>Space Complexity:</strong> ${escapeHtml(spaceComplexity)}</div>` : ''}
+                            </div>
+                        </div>
                         ` : ''}
 
-                        ${result.ai_feedback ? `
-                            <div class="feedback-section">
-                                <h3>📝 AI Feedback & Analysis</h3>
-                                <div style="white-space: pre-wrap; line-height: 1.8;">${escapeHtml(result.ai_feedback)}</div>
+                        <div class="feedback-section">
+                            <h3>📝 AI Feedback & Logic Improvement Guide</h3>
+                            <div style="white-space: pre-wrap; line-height: 1.8; color: #37474f; padding: 16px; background: #ffffff; border-radius: 8px;">
+                                ${result.ai_feedback && result.ai_feedback.trim() 
+                                    ? escapeHtml(result.ai_feedback) 
+                                    : '<em style="color: #757575;">AI feedback is being generated. Please refresh the page in a moment.</em>'}
                             </div>
+                        </div>
+
+                        ${improvements.length > 0 ? `
+                        <div class="code-section">
+                            <h3>💡 Improvement Suggestions</h3>
+                            <div style="background: #fff3e0; border-left: 4px solid #ff9800; padding: 16px; border-radius: 8px;">
+                                <ul style="margin: 0; padding-left: 20px; color: #37474f;">
+                                    ${improvements.map(imp => `<li style="margin-bottom: 8px;">${escapeHtml(imp)}</li>`).join('')}
+                                </ul>
+                            </div>
+                        </div>
                         ` : ''}
+
+                        ${motivation ? `
+                        <div class="code-section">
+                            <h3>💪 Personal Motivation Message</h3>
+                            <div style="background: ${isCorrect ? '#e8f5e9' : '#e3f2fd'}; border-left: 4px solid ${isCorrect ? '#4caf50' : '#2196f3'}; padding: 20px; border-radius: 8px;">
+                                <div style="white-space: pre-wrap; line-height: 1.8; color: #37474f; font-size: 15px;">
+                                    ${escapeHtml(motivation)}
+                                </div>
+                            </div>
+                        </div>
+                        ` : isCorrect ? `
+                        <div class="code-section">
+                            <h3>💪 Personal Motivation Message</h3>
+                            <div style="background: #e8f5e9; border-left: 4px solid #4caf50; padding: 20px; border-radius: 8px;">
+                                <div style="line-height: 1.8; color: #1b5e20; font-size: 15px;">
+                                    <strong>🎉 Excellent Work!</strong><br><br>
+                                    Congratulations on solving this problem correctly! Your solution demonstrates strong problem-solving skills and understanding of the concepts. Keep up the great work and continue practicing to master even more challenging problems. You're doing amazing! 💪✨
+                                </div>
+                            </div>
+                        </div>
+                        ` : `
+                        <div class="code-section">
+                            <h3>💪 Personal Motivation Message</h3>
+                            <div style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 20px; border-radius: 8px;">
+                                <div style="line-height: 1.8; color: #1565c0; font-size: 15px;">
+                                    <strong>💪 Keep Going!</strong><br><br>
+                                    Don't be discouraged! Every mistake is a learning opportunity. Review the feedback above, understand the correct solution, and try similar problems. With practice and persistence, you'll master these concepts. You've got this! 🌟
+                                </div>
+                            </div>
+                        </div>
+                        `}
                     </div>
                 `;
             }).join('');

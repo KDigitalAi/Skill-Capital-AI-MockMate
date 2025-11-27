@@ -5,9 +5,7 @@ Pydantic schemas for request/response validation
 from .user import (
     UserProfileCreate,
     UserProfileUpdate,
-    UserProfileResponse,
-    AuthRequest,
-    AuthResponse
+    UserProfileResponse
 )
 
 from .interview import (
@@ -27,13 +25,6 @@ from .interview import (
     InterviewEvaluationResponse
 )
 
-from .admin import (
-    StudentInterviewResult,
-    QuestionTemplate,
-    QuestionTemplateCreate,
-    QuestionTemplateUpdate,
-    AnalyticsData
-)
 
 from .dashboard import (
     InterviewSummary,
@@ -48,8 +39,6 @@ __all__ = [
     "UserProfileCreate",
     "UserProfileUpdate",
     "UserProfileResponse",
-    "AuthRequest",
-    "AuthResponse",
     # Interview schemas
     "InterviewSetupRequest",
     "InterviewSetupResponse",
@@ -65,12 +54,6 @@ __all__ = [
     "CategoryScore",
     "InterviewEvaluationRequest",
     "InterviewEvaluationResponse",
-    # Admin schemas
-    "StudentInterviewResult",
-    "QuestionTemplate",
-    "QuestionTemplateCreate",
-    "QuestionTemplateUpdate",
-    "AnalyticsData",
     # Dashboard schemas
     "InterviewSummary",
     "SkillAnalysis",

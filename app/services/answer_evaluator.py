@@ -50,7 +50,7 @@ class AnswerEvaluator:
                     openai_api_key=settings.openai_api_key
                 )
             except Exception as e:
-                print(f"Warning: Could not initialize OpenAI: {str(e)}")
+                pass  # OpenAI not available, will use fallback
                 self.openai_available = False
                 self.llm = None
         else:
@@ -173,7 +173,6 @@ Provide scores and feedback as specified. Note the response time in your feedbac
             )
             
         except Exception as e:
-            print(f"Error evaluating answer with AI: {str(e)}")
             # Return default scores on error
             return self._get_default_scores(answer)
     

@@ -16,34 +16,17 @@ from dotenv import load_dotenv
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 ENV_PATH = PROJECT_ROOT / ".env"
 
-# Debug: Print path information (only in development)
-if os.getenv("ENVIRONMENT", "development") == "development":
-    print(f"[ENV] Project root: {PROJECT_ROOT}")
-    print(f"[ENV] .env path: {ENV_PATH}")
-    print(f"[ENV] .env exists: {ENV_PATH.exists()}")
-
 # Load .env file with explicit path
 if ENV_PATH.exists():
     load_dotenv(dotenv_path=ENV_PATH, override=True)
-    print(f"[ENV] Loaded .env from: {ENV_PATH}")
 else:
     # Try current directory as fallback
     current_dir_env = Path.cwd() / ".env"
     if current_dir_env.exists():
         load_dotenv(dotenv_path=current_dir_env, override=True)
-        print(f"[ENV] Loaded .env from: {current_dir_env}")
     else:
         # Last resort: try default location
         load_dotenv(override=True)
-        print(f"[ENV] Attempted to load .env from default location")
-
-# Verify key variables are loaded
-if os.getenv("ENVIRONMENT", "development") == "development":
-    supabase_url = os.getenv("SUPABASE_URL", "")
-    supabase_key = os.getenv("SUPABASE_KEY", "")
-    print(f"[ENV] SUPABASE_URL: {'SET' if supabase_url else 'NOT SET'}")
-    print(f"[ENV] SUPABASE_KEY: {'SET' if supabase_key else 'NOT SET'}")
-
 
 class Settings(BaseSettings):
     """
@@ -67,15 +50,20 @@ class Settings(BaseSettings):
     backend_port: int = Field(default=8000, env="BACKEND_PORT")
     environment: str = Field(default="development", env="ENVIRONMENT")
     frontend_url: Optional[str] = Field(default=None, env="FRONTEND_URL")
-    
-    # Test User Configuration (for testing without authentication)
-    test_user_id: str = Field(default="test_user_001", env="TEST_USER_ID")
+    vercel_url: Optional[str] = Field(default=None, env="VERCEL_URL")  # Vercel provides this automatically
     
     # CORS Configuration - Use computed field to avoid pydantic-settings JSON parsing
     @computed_field
     @property
     def cors_origins(self) -> list[str]:
         """Get CORS origins as a list, parsing from environment variable"""
+        # Check if we're on Vercel
+        vercel_url = os.getenv("VERCEL_URL")
+        if vercel_url:
+            # On Vercel, allow the Vercel domain
+            vercel_origin = f"https://{vercel_url}"
+            return [vercel_origin, "*"]  # Allow Vercel domain and all origins for flexibility
+        
         # Read directly from environment to avoid pydantic-settings JSON parsing
         cors_val = os.getenv('CORS_ORIGINS')
         

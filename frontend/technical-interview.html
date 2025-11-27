@@ -546,6 +546,8 @@
         </footer>
     </div>
 
+    <!-- Load API configuration first -->
+    <script src="api-config.js"></script>
     <script src="technical-interview.js"></script>
     <script>
         /**
@@ -577,8 +579,7 @@
                     const sessionId = urlParams.get('session') || sessionStorage.getItem('resume_analysis_session');
                     
                     if (sessionId && sessionId !== 'new') {
-                        const API_BASE = 'http://127.0.0.1:8000';
-                        const res = await fetch(`${API_BASE}/api/profile/resume-analysis/${sessionId}`);
+                        const res = await fetch(`${getApiBase()}/api/profile/resume-analysis/${sessionId}`);
                         
                         if (res.ok) {
                             const data = await res.json();
@@ -597,9 +598,22 @@
             // If still no skills, try to get from user profile
             if (skills.length === 0) {
                 try {
-                    const userId = window.TEST_USER_ID || 'test_user_001';
-                    const API_BASE = 'http://127.0.0.1:8000';
-                    const res = await fetch(`${API_BASE}/api/profile/${userId}`);
+                    // Get current user
+                    let userId = null;
+                    try {
+                        const userRes = await fetch(`${getApiBase()}/api/profile/current`);
+                        if (userRes.ok) {
+                            const user = await userRes.json();
+                            userId = user.user_id;
+                        } else {
+                            throw new Error('Failed to get current user');
+                        }
+                    } catch (e) {
+                        console.error('Error getting current user:', e);
+                        alert('Error: No authenticated user found. Please ensure a user exists in user_profiles table.');
+                        return;
+                    }
+                    const res = await fetch(`${getApiBase()}/api/profile/${userId}`);
                     
                     if (res.ok) {
                         const profile = await res.json();

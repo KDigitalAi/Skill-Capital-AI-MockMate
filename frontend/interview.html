@@ -333,6 +333,141 @@
             border-left: 4px solid #c62828;
             text-align: center;
         }
+
+        /* Modern Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .modal-container {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 0;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease;
+            border: 1px solid var(--border-light);
+            overflow: hidden;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            padding: 24px 24px 16px;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin: 0;
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .modal-message {
+            font-size: 16px;
+            color: var(--text-primary);
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        .modal-footer {
+            padding: 16px 24px 24px;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            border-top: 1px solid var(--border-light);
+        }
+
+        .modal-btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .modal-btn-cancel {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .modal-btn-cancel:hover {
+            background: var(--border-light);
+        }
+
+        .modal-btn-confirm {
+            background: var(--primary);
+            color: white;
+        }
+
+        .modal-btn-confirm:hover {
+            background: var(--primary-hover);
+        }
+
+        @media (max-width: 600px) {
+            .modal-container {
+                width: 95%;
+                margin: 20px;
+            }
+
+            .modal-header,
+            .modal-body,
+            .modal-footer {
+                padding: 20px;
+            }
+
+            .modal-footer {
+                flex-direction: column-reverse;
+            }
+
+            .modal-btn {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
@@ -468,12 +603,28 @@
         </footer>
     </div>
 
+    <!-- Modern Confirmation Modal -->
+    <div id="confirmationModal" class="modal-overlay">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">Confirm Action</h3>
+            </div>
+            <div class="modal-body">
+                <p class="modal-message" id="modalMessage">Are you sure?</p>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn modal-btn-cancel" id="modalCancelBtn">Cancel</button>
+                <button class="modal-btn modal-btn-confirm" id="modalConfirmBtn">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load API configuration first -->
+    <script src="api-config.js"></script>
     <script>
-        // Configuration
-        const API_BASE = 'http://127.0.0.1:8000';
-        const TEST_USER_ID = 'test_user_001';
 
         // State
+        let currentUserId = null;
         let interviewSessionId = null;
         let currentQuestion = null;
         let currentQuestionNumber = 0;
@@ -482,6 +633,87 @@
         let mediaRecorder = null;
         let audioChunks = [];
         let interviewActive = false;
+        let currentAudioBlob = null;  // Store the current audio recording
+
+        // Modal confirmation function (replaces browser confirm)
+        function showConfirmation(title, message) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('confirmationModal');
+                const modalTitle = document.getElementById('modalTitle');
+                const modalMessage = document.getElementById('modalMessage');
+                const confirmBtn = document.getElementById('modalConfirmBtn');
+                const cancelBtn = document.getElementById('modalCancelBtn');
+
+                // Set modal content
+                modalTitle.textContent = title;
+                modalMessage.textContent = message;
+
+                // Show modal
+                modal.classList.add('show');
+
+                // Handle confirm (use once: true to auto-remove listener)
+                const handleConfirm = () => {
+                    modal.classList.remove('show');
+                    resolve(true);
+                };
+
+                // Handle cancel (use once: true to auto-remove listener)
+                const handleCancel = () => {
+                    modal.classList.remove('show');
+                    resolve(false);
+                };
+
+                confirmBtn.addEventListener('click', handleConfirm, { once: true });
+                cancelBtn.addEventListener('click', handleCancel, { once: true });
+
+                // Prevent closing by clicking outside (as per requirements)
+                // No event listener on overlay, so clicking outside won't close modal
+            });
+        }
+
+        // Get current authenticated user from user_profiles
+        async function getCurrentUser() {
+            try {
+                // First, try to get from localStorage (persistent) or sessionStorage
+                const storedUserId = localStorage.getItem('user_id') || 
+                                    sessionStorage.getItem('resume_user_id') || 
+                                    window.CURRENT_USER_ID;
+                if (storedUserId) {
+                    currentUserId = storedUserId;
+                    window.CURRENT_USER_ID = storedUserId;
+                    return { user_id: storedUserId };
+                }
+                
+                // If not in storage, fetch from API
+                const res = await fetch(`${getApiBase()}/api/profile/current`);
+                if (!res.ok) {
+                    throw new Error(`Failed to get current user: ${res.status}`);
+                }
+                const user = await res.json();
+                currentUserId = user.user_id;
+                
+                // Store in both localStorage (persistent) and sessionStorage
+                if (currentUserId) {
+                    localStorage.setItem('user_id', currentUserId);
+                    sessionStorage.setItem('resume_user_id', currentUserId);
+                    window.CURRENT_USER_ID = currentUserId;
+                }
+                
+                return user;
+            } catch (e) {
+                console.error('Error getting current user:', e);
+                // Try one more fallback: check storage
+                const fallbackUserId = localStorage.getItem('user_id') || 
+                                      sessionStorage.getItem('resume_user_id') || 
+                                      window.CURRENT_USER_ID;
+                if (fallbackUserId) {
+                    currentUserId = fallbackUserId;
+                    window.CURRENT_USER_ID = fallbackUserId;
+                    return { user_id: fallbackUserId };
+                }
+                throw new Error('No authenticated user found. Please ensure you have uploaded a resume and have a valid user profile.');
+            }
+        }
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
@@ -489,22 +721,25 @@
         });
 
         async function init() {
-            // Load config from backend
             try {
-                const res = await fetch(`${API_BASE}/api/config`);
-                const config = await res.json();
-                if (config.test_user_id) {
-                    window.TEST_USER_ID = config.test_user_id;
-                }
+                // Get current user first
+                await getCurrentUser();
+                
+                // Setup event listeners
+                setupEventListeners();
+
+                // Start interview
+                await startInterview();
             } catch (e) {
-                console.warn('Config load failed, using default');
+                console.error('Initialization failed:', e);
+                document.body.innerHTML = `
+                    <div style="padding: 40px; text-align: center;">
+                        <h2 style="color: #c62828;">Error</h2>
+                        <p>${e.message}</p>
+                        <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px;">Retry</button>
+                    </div>
+                `;
             }
-
-            // Setup event listeners
-            setupEventListeners();
-
-            // Start interview
-            await startInterview();
         }
 
         function setupEventListeners() {
@@ -519,14 +754,20 @@
 
         async function startInterview() {
             try {
-                const userId = window.TEST_USER_ID || TEST_USER_ID;
+                // Ensure we have current user
+                if (!currentUserId) {
+                    await getCurrentUser();
+                }
                 
-                console.log('[INTERVIEW] Starting interview for user:', userId);
+                // Validate userId is available
+                if (!currentUserId) {
+                    throw new Error('userId is not defined. Please ensure you have uploaded a resume and have a valid user profile.');
+                }
                 
-                const response = await fetch(`${API_BASE}/api/interview/technical/start`, {
+                const response = await fetch(`${getApiBase()}/api/interview/technical/start`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: userId })
+                    body: JSON.stringify({ user_id: currentUserId })
                 });
 
                 if (!response.ok) {
@@ -535,7 +776,6 @@
                 }
 
                 const data = await response.json();
-                console.log('[INTERVIEW] Interview started:', data);
                 
                 interviewSessionId = data.session_id;
                 currentQuestion = data.question;
@@ -550,16 +790,22 @@
                 // Display question
                 displayQuestion(data.question, data.question_number);
                 
-                // Play audio - use the question text directly
-                if (data.question) {
-                    // Play TTS for the question
+                // Play audio - prefer audio_url if provided, otherwise generate from question text
+                if (data.audio_url) {
+                    // Use provided audio URL (absolute URL from backend)
+                    playAudio(data.audio_url).catch(err => {
+                        console.warn('[TTS] Could not play provided audio URL, trying to generate from text:', err);
+                        // Fallback: generate from question text
+                        if (data.question) {
+                            playAudio(data.question).catch(e => {
+                                console.warn('[TTS] Could not play audio, continuing without audio:', e);
+                            });
+                        }
+                    });
+                } else if (data.question) {
+                    // Generate TTS from question text
                     playAudio(data.question).catch(err => {
                         console.warn('[TTS] Could not play audio, continuing without audio:', err);
-                    });
-                } else if (data.audio_url) {
-                    // Fallback to audio_url if provided
-                    playAudio(data.audio_url).catch(err => {
-                        console.warn('[TTS] Could not play audio URL, continuing without audio:', err);
                     });
                 }
 
@@ -597,7 +843,6 @@
 
         async function startRecording() {
             try {
-                console.log('[RECORDING] Requesting microphone access...');
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     audio: {
                         echoCancellation: true,
@@ -606,7 +851,6 @@
                     } 
                 });
                 
-                console.log('[RECORDING] Microphone access granted');
                 
                 // Determine the best MIME type supported
                 let mimeType = 'audio/webm';
@@ -618,7 +862,6 @@
                     mimeType = 'audio/mp4';
                 }
                 
-                console.log('[RECORDING] Using MIME type:', mimeType);
                 
                 const options = { mimeType: mimeType };
                 mediaRecorder = new MediaRecorder(stream, options);
@@ -626,7 +869,6 @@
 
                 mediaRecorder.ondataavailable = (event) => {
                     if (event.data && event.data.size > 0) {
-                        console.log('[RECORDING] Data chunk received, size:', event.data.size);
                         audioChunks.push(event.data);
                     }
                 };
@@ -637,15 +879,16 @@
                 };
 
                 mediaRecorder.onstop = async () => {
-                    console.log('[RECORDING] Recording stopped, chunks:', audioChunks.length);
                     const audioBlob = new Blob(audioChunks, { type: mimeType });
-                    console.log('[RECORDING] Audio blob created, size:', audioBlob.size, 'type:', audioBlob.type);
                     
                     if (audioBlob.size === 0) {
                         document.getElementById('voiceStatus').textContent = 'No audio recorded. Please try again.';
                         document.getElementById('soundWave').classList.add('hidden');
                         return;
                     }
+                    
+                    // Store the audio blob for submission
+                    currentAudioBlob = audioBlob;
                     
                     await processAudioAnswer(audioBlob);
                     stream.getTracks().forEach(track => track.stop());
@@ -661,7 +904,6 @@
                 document.getElementById('soundWave').classList.remove('hidden');
                 document.getElementById('submitAnswerBtn').disabled = false;
                 
-                console.log('[RECORDING] Recording started');
             } catch (error) {
                 console.error('[RECORDING] Error accessing microphone:', error);
                 let errorMessage = 'Microphone access denied. ';
@@ -691,7 +933,6 @@
 
         async function processAudioAnswer(audioBlob) {
             try {
-                console.log('[STT] Processing audio blob, size:', audioBlob.size, 'type:', audioBlob.type);
                 
                 if (audioBlob.size === 0) {
                     throw new Error('Audio blob is empty');
@@ -700,13 +941,11 @@
                 const formData = new FormData();
                 formData.append('audio', audioBlob, 'recording.webm');
 
-                console.log('[STT] Sending audio to backend...');
-                const sttResponse = await fetch(`${API_BASE}/api/interview/speech-to-text`, {
+                const sttResponse = await fetch(`${getApiBase()}/api/interview/speech-to-text`, {
                     method: 'POST',
                     body: formData
                 });
 
-                console.log('[STT] Response status:', sttResponse.status);
                 
                 if (!sttResponse.ok) {
                     const errorText = await sttResponse.text();
@@ -715,7 +954,6 @@
                 }
 
                 const sttData = await sttResponse.json();
-                console.log('[STT] Transcription received:', sttData);
                 
                 const transcribedText = sttData.text || sttData.transcript || '';
 
@@ -757,14 +995,33 @@
             document.getElementById('answerTextarea').disabled = true;
 
             try {
-                const response = await fetch(`${API_BASE}/api/interview/technical/next`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
+                // Prepare request - use FormData if audio is available, otherwise JSON
+                let requestBody;
+                let headers = {};
+                
+                if (currentAudioBlob && currentAudioBlob.size > 0) {
+                    // Send as FormData with audio file
+                    const formData = new FormData();
+                    formData.append('session_id', interviewSessionId);
+                    formData.append('user_answer', answerText);
+                    formData.append('previous_question', currentQuestion);
+                    formData.append('audio', currentAudioBlob, 'recording.webm');
+                    requestBody = formData;
+                    // Don't set Content-Type header - browser will set it with boundary for FormData
+                } else {
+                    // Send as JSON (text only)
+                    headers['Content-Type'] = 'application/json';
+                    requestBody = JSON.stringify({
                         session_id: interviewSessionId,
                         user_answer: answerText,
                         previous_question: currentQuestion
-                    })
+                    });
+                }
+                
+                const response = await fetch(`${getApiBase()}/api/interview/technical/next`, {
+                    method: 'POST',
+                    headers: headers,
+                    body: requestBody
                 });
 
                 if (!response.ok) {
@@ -784,17 +1041,25 @@
                     // Clear answer textarea and hide it
                     document.getElementById('answerTextarea').value = '';
                     document.getElementById('textInputArea').classList.add('hidden');
+                    // Clear audio blob after successful submission
+                    currentAudioBlob = null;
                     
-                    // Play audio - use the question text directly
-                    if (data.question) {
-                        // Play TTS for the next question
+                    // Play audio - prefer audio_url if provided, otherwise generate from question text
+                    if (data.audio_url) {
+                        // Use provided audio URL (absolute URL from backend)
+                        playAudio(data.audio_url).catch(err => {
+                            console.warn('[TTS] Could not play provided audio URL, trying to generate from text:', err);
+                            // Fallback: generate from question text
+                            if (data.question) {
+                                playAudio(data.question).catch(e => {
+                                    console.warn('[TTS] Could not play audio, continuing without audio:', e);
+                                });
+                            }
+                        });
+                    } else if (data.question) {
+                        // Generate TTS from question text
                         playAudio(data.question).catch(err => {
                             console.warn('[TTS] Could not play audio, continuing without audio:', err);
-                        });
-                    } else if (data.audio_url) {
-                        // Fallback to audio_url if provided
-                        playAudio(data.audio_url).catch(err => {
-                            console.warn('[TTS] Could not play audio URL, continuing without audio:', err);
                         });
                     }
 
@@ -824,13 +1089,29 @@
             document.getElementById('summarySection').classList.remove('hidden');
 
             try {
-                const response = await fetch(`${API_BASE}/api/interview/technical/${interviewSessionId}/summary`);
+                const response = await fetch(`${getApiBase()}/api/interview/technical/${interviewSessionId}/summary`);
                 
                 if (!response.ok) {
-                    throw new Error('Failed to get interview summary');
+                    // Get detailed error from backend
+                    let errorDetail = 'Failed to get interview summary';
+                    try {
+                        const errorData = await response.json();
+                        errorDetail = errorData.detail || errorData.message || errorDetail;
+                    } catch (e) {
+                        const errorText = await response.text();
+                        errorDetail = errorText || errorDetail;
+                    }
+                    console.error('[SUMMARY] Backend error:', response.status, errorDetail);
+                    throw new Error(errorDetail);
                 }
 
                 const summary = await response.json();
+                
+                // Validate response has required fields
+                if (!summary) {
+                    throw new Error('Empty response from server');
+                }
+                
 
                 // Display summary
                 document.getElementById('overallScore').textContent = (summary.overall_score || 0).toFixed(1);
@@ -859,8 +1140,12 @@
             }
         }
 
-        async function playAudio(textOrUrl) {
-            if (!textOrUrl) return;
+        async function playAudio(textOrUrl, retryCount = 0) {
+            const MAX_RETRIES = 2;
+            if (!textOrUrl) {
+                console.warn('[TTS] No text or URL provided');
+                return;
+            }
             
             try {
                 let text = textOrUrl;
@@ -876,7 +1161,15 @@
                         } else {
                             // If it's a direct audio URL, play it
                             const audio = new Audio(textOrUrl);
+                            audio.onerror = (e) => {
+                                console.error('[TTS] Direct audio URL playback failed:', e);
+                                document.getElementById('voiceStatus').textContent = 'Audio playback failed. Question is displayed above.';
+                            };
+                            audio.onended = () => {
+                                document.getElementById('voiceStatus').textContent = 'Click the microphone to start recording';
+                            };
                             await audio.play();
+                            document.getElementById('voiceStatus').textContent = 'AI is speaking the question...';
                             return;
                         }
                     } catch (e) {
@@ -890,35 +1183,49 @@
                     return;
                 }
                 
-                console.log('[TTS] Requesting speech for:', text.substring(0, 50) + '...');
                 
-                const response = await fetch(`${API_BASE}/api/interview/text-to-speech`, {
+                // Show loading indicator
+                document.getElementById('voiceStatus').textContent = 'Generating audio...';
+                
+                const response = await fetch(`${getApiBase()}/api/interview/text-to-speech`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ text: text })
+                    body: JSON.stringify({ text: text.trim() })
                 });
                 
                 if (!response.ok) {
                     const errorText = await response.text();
+                    console.error('[TTS] API error:', response.status, errorText);
+                    
+                    // Retry on server errors (5xx) or service unavailable (503)
+                    if ((response.status >= 500 || response.status === 503) && retryCount < MAX_RETRIES) {
+                        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Exponential backoff
+                        return playAudio(textOrUrl, retryCount + 1);
+                    }
+                    
                     throw new Error(`TTS failed: ${response.status} - ${errorText}`);
+                }
+                
+                // Check content type
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('audio')) {
+                    console.warn('[TTS] Unexpected content type:', contentType);
                 }
                 
                 // Get audio blob
                 const audioBlob = await response.blob();
-                console.log('[TTS] Received audio blob, size:', audioBlob.size);
                 
                 if (audioBlob.size === 0) {
-                    throw new Error('Empty audio blob received');
+                    throw new Error('Empty audio blob received from server');
                 }
+                
                 
                 const audioUrl_obj = URL.createObjectURL(audioBlob);
                 const audio = new Audio(audioUrl_obj);
                 
-                // Show playing indicator
-                document.getElementById('voiceStatus').textContent = 'AI is speaking the question...';
-                
+                // Set up event handlers before playing
                 audio.onended = () => {
                     URL.revokeObjectURL(audioUrl_obj);
                     document.getElementById('voiceStatus').textContent = 'Click the microphone to start recording';
@@ -930,18 +1237,57 @@
                     document.getElementById('voiceStatus').textContent = 'Audio playback failed. Question is displayed above.';
                 };
                 
-                await audio.play();
-                console.log('[TTS] Audio played successfully');
+                audio.onloadstart = () => {
+                    document.getElementById('voiceStatus').textContent = 'Loading audio...';
+                };
+                
+                audio.oncanplay = () => {
+                    document.getElementById('voiceStatus').textContent = 'AI is speaking the question...';
+                };
+                
+                // Play audio
+                try {
+                    await audio.play();
+                } catch (playError) {
+                    console.error('[TTS] Error starting playback:', playError);
+                    // Some browsers require user interaction - show message
+                    if (playError.name === 'NotAllowedError') {
+                        document.getElementById('voiceStatus').textContent = 'Click anywhere to enable audio playback';
+                        // Try to play after user interaction
+                        document.addEventListener('click', async function enableAudio() {
+                            try {
+                                await audio.play();
+                                document.removeEventListener('click', enableAudio);
+                            } catch (e) {
+                                console.error('[TTS] Still cannot play after interaction:', e);
+                            }
+                        }, { once: true });
+                    } else {
+                        throw playError;
+                    }
+                }
                 
             } catch (error) {
-                console.error('[TTS] Error playing audio:', error);
+                console.error('[TTS] Error in playAudio:', error);
+                
+                // Retry on network errors
+                if (retryCount < MAX_RETRIES && (error.message.includes('fetch') || error.message.includes('network'))) {
+                    await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+                    return playAudio(textOrUrl, retryCount + 1);
+                }
+                
                 document.getElementById('voiceStatus').textContent = 'Audio playback unavailable. Question is displayed above.';
                 // Don't block the interview flow if TTS fails
             }
         }
 
         async function endInterview() {
-            if (confirm('Are you sure you want to end the interview? Your progress will be saved.')) {
+            const confirmed = await showConfirmation(
+                'End Interview',
+                'Are you sure you want to end the interview? Your progress will be saved.'
+            );
+            
+            if (confirmed) {
                 interviewActive = false;
                 
                 if (isRecording) {
@@ -950,7 +1296,7 @@
 
                 if (interviewSessionId) {
                     try {
-                        await fetch(`${API_BASE}/api/interview/technical/${interviewSessionId}/end`, {
+                        await fetch(`${getApiBase()}/api/interview/technical/${interviewSessionId}/end`, {
                             method: 'POST'
                         });
                     } catch (error) {

@@ -52,7 +52,7 @@ class QuestionGenerator:
                     openai_api_key=settings.openai_api_key
                 )
             except Exception as e:
-                print(f"Warning: Could not initialize OpenAI: {str(e)}")
+                pass  # OpenAI not available, will use fallback
                 self.openai_available = False
                 self.llm = None
         else:
@@ -212,7 +212,6 @@ Return only valid JSON array, no additional text.""")
             
         except Exception as e:
             # Fallback to predefined questions if AI generation fails
-            print(f"Error generating questions with AI: {str(e)}")
             return self._get_fallback_questions(role, experience_level, skills, resume_context)
     
     def _get_fallback_questions(

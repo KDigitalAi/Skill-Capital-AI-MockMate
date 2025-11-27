@@ -15,6 +15,9 @@ from app.schemas.dashboard import (
 from app.utils.exceptions import NotFoundError, DatabaseError
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -31,7 +34,7 @@ async def get_performance_dashboard(
             sessions = sessions_response.data if sessions_response.data else []
         except Exception as db_err:
             # If table doesn't exist or query fails, return empty dashboard
-            print(f"[WARNING] Failed to fetch interview sessions: {str(db_err)}")
+            logger.warning(f"Failed to fetch interview sessions: {str(db_err)}")
             sessions = []
         
         if not sessions:
@@ -46,29 +49,52 @@ async def get_performance_dashboard(
                 resume_summary=None
             )
         
-        # Get all answers for all sessions in a single query (optimized: O(1) instead of O(n))
-        # Time Complexity: O(1) - Single query with IN clause
-        # Space Complexity: O(n) where n = total answers
+        # Get all answers from round tables based on session type (new schema)
+        # Time Complexity: O(n) where n = number of sessions
+        # Space Complexity: O(m) where m = total answers
         session_ids = [s["id"] for s in sessions]
         all_answers = []
         
         if session_ids:
             try:
-                # Batch fetch all answers for all sessions at once
-                # Supabase supports IN queries for better performance
-                answers_response = supabase.table("interview_answers").select("*").in_("session_id", session_ids).execute()
-                if answers_response.data:
-                    all_answers = answers_response.data
-            except Exception as db_err:
-                print(f"[WARNING] Failed to batch fetch answers: {str(db_err)}")
-                # Fallback to individual queries only if batch fails
-                for session_id in session_ids:
+                # Fetch from all round tables based on session interview_type
+                for session in sessions:
+                    session_id = session["id"]
+                    session_type = session.get("interview_type", "technical")
+                    
+                    # Determine which round table to use
+                    if session_type == "coding":
+                        round_table = "coding_round"
+                    elif session_type == "hr":
+                        round_table = "hr_round"
+                    elif session_type == "star":
+                        round_table = "star_round"
+                    else:
+                        round_table = "technical_round"
+                    
                     try:
-                        answers_response = supabase.table("interview_answers").select("*").eq("session_id", session_id).execute()
+                        answers_response = supabase.table(round_table).select("*").eq("session_id", session_id).execute()
                         if answers_response.data:
-                            all_answers.extend(answers_response.data)
-                    except Exception:
+                            # Map to common format for dashboard
+                            for row in answers_response.data:
+                                # Only include rows with answers (user_answer is not empty)
+                                if row.get("user_answer"):
+                                    mapped_answer = {
+                                        "session_id": session_id,
+                                        "question_number": row.get("question_number", 0),
+                                        "question_type": row.get("question_type") or row.get("question_category") or "Technical",
+                                        "overall_score": row.get("overall_score", 0),
+                                        "relevance_score": row.get("relevance_score"),
+                                        "technical_accuracy_score": row.get("technical_accuracy_score"),
+                                        "communication_score": row.get("communication_score"),
+                                        "created_at": row.get("created_at")  # Use created_at instead of answered_at
+                                    }
+                                    all_answers.append(mapped_answer)
+                    except Exception as round_err:
+                        logger.warning(f"Failed to fetch from {round_table} for session {session_id}: {str(round_err)}")
                         continue
+            except Exception as db_err:
+                logger.warning(f"Failed to batch fetch answers: {str(db_err)}")
         
         # Create answer lookup dictionary for O(1) access instead of O(n) filtering
         # Time Complexity: O(n) to build, O(1) to access
@@ -81,19 +107,37 @@ async def get_performance_dashboard(
                     answers_by_session[session_id] = []
                 answers_by_session[session_id].append(answer)
         
-        # Batch fetch question counts for all sessions (optimized: O(1) instead of O(n))
-        # Time Complexity: O(1) - Single query with IN clause
-        # Space Complexity: O(n) where n = number of sessions
+        # Count questions from round tables (new schema)
+        # Questions are stored in round tables with question_text
         question_counts = {}
         if session_ids:
             try:
-                questions_response = supabase.table("interview_questions").select("session_id,id").in_("session_id", session_ids).execute()
-                if questions_response.data:
-                    # Count questions per session
-                    for q in questions_response.data:
-                        sid = q.get("session_id")
-                        if sid:
-                            question_counts[sid] = question_counts.get(sid, 0) + 1
+                # Count questions per session from round tables
+                for session in sessions:
+                    session_id = session["id"]
+                    session_type = session.get("interview_type", "technical")
+                    
+                    # Determine which round table to use
+                    if session_type == "coding":
+                        round_table = "coding_round"
+                    elif session_type == "hr":
+                        round_table = "hr_round"
+                    elif session_type == "star":
+                        round_table = "star_round"
+                    else:
+                        round_table = "technical_round"
+                    
+                    try:
+                        questions_response = supabase.table(round_table).select("question_number").eq("session_id", session_id).execute()
+                        # Count unique question_numbers (questions with question_text)
+                        unique_questions = set()
+                        for row in (questions_response.data or []):
+                            if row.get("question_text"):
+                                unique_questions.add(row.get("question_number", 0))
+                        question_counts[session_id] = len(unique_questions)
+                    except Exception:
+                        # Fallback: use answer counts as approximation
+                        question_counts[session_id] = len(answers_by_session.get(session_id, []))
             except Exception:
                 # Fallback: use answer counts as approximation
                 for sid in session_ids:
@@ -124,10 +168,10 @@ async def get_performance_dashboard(
                     if score:
                         score_sum += score
                         score_count_session += 1
-                    # Track latest answer time in same loop
-                    answered_at = answer.get("answered_at")
-                    if answered_at and (not latest_answered_at or answered_at > latest_answered_at):
-                        latest_answered_at = answered_at
+                    # Track latest answer time in same loop (use created_at from new schema)
+                    created_at = answer.get("created_at")
+                    if created_at and (not latest_answered_at or created_at > latest_answered_at):
+                        latest_answered_at = created_at
                 
                 if score_count_session > 0:
                     session_avg = score_sum / score_count_session
@@ -178,7 +222,7 @@ async def get_performance_dashboard(
                     "has_resume": bool(profile.get("resume_url"))
                 }
         except Exception as db_err:
-            print(f"[WARNING] Failed to fetch user profile: {str(db_err)}")
+            logger.warning(f"Failed to fetch user profile: {str(db_err)}")
             resume_summary = None
         
         return PerformanceDashboardResponse(
@@ -198,10 +242,7 @@ async def get_performance_dashboard(
         status_code = e.status_code if hasattr(e, 'status_code') else 500
         raise HTTPException(status_code=status_code, detail=str(e))
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"[ERROR] Performance dashboard error: {str(e)}")
-        print(f"[ERROR] Traceback: {error_details}")
+        logger.exception("Performance dashboard error")
         raise HTTPException(status_code=500, detail=f"Error fetching performance dashboard: {str(e)}")
 
 @router.get("/trends/{user_id}", response_model=TrendsDashboardResponse)
@@ -216,7 +257,7 @@ async def get_trends_dashboard(
             sessions_response = supabase.table("interview_sessions").select("*").eq("user_id", user_id).order("created_at", desc=False).execute()
             sessions = sessions_response.data if sessions_response.data else []
         except Exception as db_err:
-            print(f"[WARNING] Failed to fetch interview sessions: {str(db_err)}")
+            logger.warning(f"Failed to fetch interview sessions: {str(db_err)}")
             sessions = []
         
         if not sessions:
@@ -226,19 +267,49 @@ async def get_trends_dashboard(
                 score_progression={}
             )
         
-        # Batch fetch all answers for all sessions (optimized: O(1) instead of O(n))
-        # Time Complexity: O(1) - Single query with IN clause
-        # Space Complexity: O(n) where n = total answers
+        # Get all answers from round tables based on session type (new schema)
         session_ids = [s["id"] for s in sessions]
         all_answers_trends = []
         
         if session_ids:
             try:
-                answers_response = supabase.table("interview_answers").select("*").in_("session_id", session_ids).execute()
-                if answers_response.data:
-                    all_answers_trends = answers_response.data
+                # Fetch from all round tables based on session interview_type
+                for session in sessions:
+                    session_id = session["id"]
+                    session_type = session.get("interview_type", "technical")
+                    
+                    # Determine which round table to use
+                    if session_type == "coding":
+                        round_table = "coding_round"
+                    elif session_type == "hr":
+                        round_table = "hr_round"
+                    elif session_type == "star":
+                        round_table = "star_round"
+                    else:
+                        round_table = "technical_round"
+                    
+                    try:
+                        answers_response = supabase.table(round_table).select("*").eq("session_id", session_id).execute()
+                        if answers_response.data:
+                            # Map to common format for trends
+                            for row in answers_response.data:
+                                if row.get("user_answer"):
+                                    mapped_answer = {
+                                        "session_id": session_id,
+                                        "question_number": row.get("question_number", 0),
+                                        "question_type": row.get("question_type") or row.get("question_category") or "Technical",
+                                        "overall_score": row.get("overall_score", 0),
+                                        "relevance_score": row.get("relevance_score"),
+                                        "technical_accuracy_score": row.get("technical_accuracy_score"),
+                                        "communication_score": row.get("communication_score"),
+                                        "created_at": row.get("created_at")  # Use created_at instead of answered_at
+                                    }
+                                    all_answers_trends.append(mapped_answer)
+                    except Exception as round_err:
+                        logger.warning(f"Failed to fetch from {round_table} for trends: {str(round_err)}")
+                        continue
             except Exception as db_err:
-                print(f"[WARNING] Failed to batch fetch answers for trends: {str(db_err)}")
+                logger.warning(f"Failed to batch fetch answers for trends: {str(db_err)}")
         
         # Create answer lookup dictionary for O(1) access
         # Time Complexity: O(n) to build, O(1) to access
@@ -300,20 +371,18 @@ async def get_trends_dashboard(
                         accuracy_sum += technical
                         accuracy_count += 1
                     
-                    confidence = answer.get("confidence_score")
-                    if confidence:
-                        confidence_sum += confidence
-                        confidence_count += 1
+                    # Note: confidence_score doesn't exist in new schema, skip it
+                    # Use communication_score as alternative if needed
                     
                     comm = answer.get("communication_score")
                     if comm:
                         communication_sum += comm
                         communication_count += 1
                     
-                    # Track latest answer time
-                    answered_at = answer.get("answered_at")
-                    if answered_at and (not latest_answered_at or answered_at > latest_answered_at):
-                        latest_answered_at = answered_at
+                    # Track latest answer time (use created_at from new schema)
+                    created_at = answer.get("created_at")
+                    if created_at and (not latest_answered_at or created_at > latest_answered_at):
+                        latest_answered_at = created_at
                 
                 if score_count > 0:
                     avg_score = score_sum / score_count
@@ -344,10 +413,12 @@ async def get_trends_dashboard(
                             "date": date_str,
                             "score": round(accuracy_sum / accuracy_count, 2)
                         })
-                    if confidence_count > 0:
+                    # Note: confidence_score removed - using communication_score instead
+                    # Keep confidence array for API compatibility but use communication data
+                    if communication_count > 0:
                         score_progression["confidence"].append({
                             "date": date_str,
-                            "score": round(confidence_sum / confidence_count, 2)
+                            "score": round(communication_sum / communication_count, 2)
                         })
                     if communication_count > 0:
                         score_progression["communication"].append({
@@ -368,10 +439,7 @@ async def get_trends_dashboard(
         status_code = e.status_code if hasattr(e, 'status_code') else 500
         raise HTTPException(status_code=status_code, detail=str(e))
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"[ERROR] Trends dashboard error: {str(e)}")
-        print(f"[ERROR] Traceback: {error_details}")
+        logger.exception("Trends dashboard error")
         raise HTTPException(status_code=500, detail=f"Error fetching trends dashboard: {str(e)}")
 
 def analyze_skills(all_answers: List[Dict], sessions: List[Dict]) -> SkillAnalysis:

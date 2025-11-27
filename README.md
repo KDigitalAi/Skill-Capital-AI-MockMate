@@ -194,7 +194,6 @@ BACKEND_PORT=8000
 ENVIRONMENT=development
 
 # Test User (for testing without authentication)
-TEST_USER_ID=test_user_001
 
 # CORS Origins (comma-separated, optional)
 CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:8000
@@ -291,7 +290,6 @@ All configuration is done through environment variables in the `.env` file:
 | `SUPABASE_SERVICE_KEY` | Supabase service role key | Yes |
 | `BACKEND_PORT` | Backend server port | No (default: 8000) |
 | `ENVIRONMENT` | Environment (development/production) | No (default: development) |
-| `TEST_USER_ID` | Test user ID for development | No |
 | `CORS_ORIGINS` | Comma-separated CORS origins | No |
 
 ### CORS Configuration

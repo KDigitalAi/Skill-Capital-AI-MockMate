@@ -11,28 +11,37 @@ Optimized for:
 """
 
 import os
+import sys
+import logging
 import webbrowser
 from pathlib import Path
 from datetime import datetime
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 from dotenv import load_dotenv
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Add project root to Python path to fix imports when running directly
+# This allows the script to work whether run as: python app/main.py or python -m app.main
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 # Load environment variables with explicit path
 # Note: Settings module already loads .env, but we ensure it's loaded here too
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ENV_PATH = PROJECT_ROOT / ".env"
 if ENV_PATH.exists():
     load_dotenv(dotenv_path=ENV_PATH, override=True)
 else:
     load_dotenv(override=True)
 
-# Import routers (auth and admin removed - Student Dashboard only)
+# Import routers
 from app.routers import profile, interview, dashboard
-# Temporary test router for parser verification
-from app.routers import test_parser
 
 # Import configuration
 from app.config.settings import get_cors_origins, settings
@@ -44,47 +53,55 @@ from app.utils.resume_parser_util import configure_tesseract
 PROJECT_ROOT = Path(__file__).parent.parent
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
 
-# Initialize FastAPI app
+# Lifespan event handler (replaces deprecated @app.on_event)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize services on application startup and cleanup on shutdown"""
+    # Startup
+    logger.info("[STARTUP] Configuring Tesseract OCR...")
+    configure_tesseract()
+    
+    # Test Supabase connection on startup
+    logger.info("[STARTUP] Testing Supabase connection...")
+    try:
+        from app.db.client import get_supabase_client
+        
+        # Check if credentials are set
+        if not settings.supabase_url or not settings.supabase_service_key:
+            logger.warning("[STARTUP] ⚠️  WARNING: Supabase credentials not configured!")
+            logger.warning("[STARTUP]    Please set SUPABASE_URL and SUPABASE_SERVICE_KEY in .env file")
+        else:
+            # Test connection
+            try:
+                supabase = get_supabase_client()
+                # Simple test query
+                test_response = supabase.table("user_profiles").select("id").limit(1).execute()
+                logger.info("[STARTUP] ✅ Supabase connection successful!")
+                logger.info(f"[STARTUP]    URL: {settings.supabase_url[:30]}...")
+            except Exception as conn_error:
+                logger.error(f"[STARTUP] ❌ Supabase connection failed: {str(conn_error)}")
+                logger.error("[STARTUP]    Please check your SUPABASE_URL and SUPABASE_SERVICE_KEY")
+    except Exception as e:
+        logger.warning(f"[STARTUP] ⚠️  Could not test Supabase connection: {str(e)}")
+    
+    logger.info("[STARTUP] Application startup complete.")
+    
+    yield  # Application runs here
+    
+    # Shutdown (if needed)
+    logger.info("[SHUTDOWN] Application shutting down...")
+
+# Initialize FastAPI app with lifespan
 app = FastAPI(
     title="Skill Capital AI MockMate",
     description="Backend API for AI-powered interview preparation",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
-# Configure Tesseract OCR at startup
-@app.on_event("startup")
-async def startup_event():
-    """Initialize services on application startup"""
-    print("[STARTUP] Configuring Tesseract OCR...")
-    configure_tesseract()
-    print("[STARTUP] Application startup complete.")
-
-# Configure CORS with dynamic origins
-# For development, allow all origins without credentials for maximum compatibility
-cors_origins = get_cors_origins()
-use_wildcard = "*" in cors_origins or settings.environment == "development"
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"] if use_wildcard else cors_origins,
-    allow_credentials=False,  # Set to False to allow "*" origin in development
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Include routers (before static files to ensure API routes take precedence)
-# Auth and Admin routers removed - Student Dashboard only
-app.include_router(profile.router)
-app.include_router(interview.router)
-app.include_router(dashboard.router)
-
-# Temporary test router for parser verification (will be removed after testing)
-app.include_router(test_parser.router)
-
-# Register API endpoints BEFORE static file serving to ensure they take precedence
-# These endpoints must be registered before the catch-all route for static files
+# Register health check endpoints FIRST (before routers) to ensure they're matched
 @app.get("/api/health")
 async def health_check():
     """
@@ -98,10 +115,91 @@ async def health_check():
     }
 
 
-@app.get("/api/config")
-async def get_frontend_config():
+@app.get("/api/health/database", tags=["health"])
+async def database_health_check():
     """
-    Get frontend configuration (Supabase public credentials and test user ID)
+    Database connection health check endpoint
+    Tests Supabase connection by performing a simple query
+    Returns: {status: 'connected'} when Supabase works, {status: 'failed'} when there's an issue
+    Time Complexity: O(1)
+    Space Complexity: O(1)
+    """
+    from app.db.client import get_supabase_client
+    
+    try:
+        # Check if environment variables are loaded
+        if not settings.supabase_url:
+            return {
+                "status": "failed",
+                "error": "SUPABASE_URL environment variable is not set"
+            }
+        
+        if not settings.supabase_service_key:
+            return {
+                "status": "failed",
+                "error": "SUPABASE_SERVICE_KEY environment variable is not set"
+            }
+        
+        # Test connection by performing a simple query
+        try:
+            supabase = get_supabase_client()
+            
+            # Perform a simple query: select 1 row from user_profiles
+            test_response = supabase.table("user_profiles").select("id").limit(1).execute()
+            
+            # If we get here, connection is working
+            return {
+                "status": "connected",
+                "message": "Supabase connection successful",
+                "tables_tested": 1
+            }
+            
+        except ValueError as ve:
+            # Configuration error (missing credentials, invalid URL, etc.)
+            return {
+                "status": "failed",
+                "error": f"Configuration error: {str(ve)}"
+            }
+        except Exception as conn_error:
+            # Connection or query error
+            return {
+                "status": "failed",
+                "error": f"Connection failed: {str(conn_error)}"
+            }
+            
+    except Exception as e:
+        # Unexpected error
+        return {
+            "status": "failed",
+            "error": f"Health check failed: {str(e)}"
+        }
+
+# Configure CORS with dynamic origins
+# For development, allow all origins without credentials for maximum compatibility
+cors_origins = get_cors_origins()
+use_wildcard = "*" in cors_origins or settings.environment == "development"
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"] if use_wildcard else cors_origins,
+    allow_credentials=False,  # Set to False to allow "*" origin in development
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],  # Explicitly include OPTIONS for CORS preflight
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,  # Cache preflight requests for 1 hour
+)
+
+# Include routers (before static files to ensure API routes take precedence)
+app.include_router(profile.router)
+app.include_router(interview.router)
+app.include_router(dashboard.router)
+
+
+@app.get("/api/config")
+async def get_frontend_config(request: Request):
+    from app.utils.url_utils import get_api_base_url
+    """
+    Get frontend configuration (Supabase public credentials)
     This endpoint exposes only public-safe credentials to the frontend
     Time Complexity: O(1)
     Space Complexity: O(1)
@@ -110,34 +208,38 @@ async def get_frontend_config():
     supabase_url = settings.supabase_url or ""
     supabase_key = settings.supabase_key or ""
     
+    # Determine API base URL dynamically based on environment
+    # CRITICAL: Always return the BACKEND URL, not the frontend URL
+    # Priority: VERCEL_URL > Backend host:port (for local dev)
+    # NOTE: We do NOT use FRONTEND_URL because it might be wrong (e.g., localhost:3000)
+    api_base_url = None
+    
+    if settings.vercel_url:
+        # Vercel provides VERCEL_URL (e.g., "your-app.vercel.app")
+        # On Vercel, frontend and backend are on the same domain
+        api_base_url = f"https://{settings.vercel_url}"
+    else:
+        # Local development: Always use backend URL (127.0.0.1:8000)
+        # CRITICAL: Always use 127.0.0.1:8000, never use request port (could be 3000, etc.)
+        # Don't use request.host, request.url.hostname, or settings.frontend_url
+        # because those might be the frontend port (3000) or wrong hostname
+        api_base_url = f"http://127.0.0.1:{settings.backend_port}"
+    
     # Check if values are actually set (not just empty strings)
     if not supabase_url.strip() or not supabase_key.strip():
-        # Log for debugging
-        print(f"[API] /api/config - Missing credentials")
-        print(f"[API] SUPABASE_URL: {'SET' if supabase_url.strip() else 'EMPTY'}")
-        print(f"[API] SUPABASE_KEY: {'SET' if supabase_key.strip() else 'EMPTY'}")
-        
         return {
             "error": "Supabase configuration missing",
             "message": "SUPABASE_URL and SUPABASE_KEY must be set in .env file. Please check your .env file in the project root.",
             "supabase_url": "",
             "supabase_anon_key": "",
-            "api_base_url": f"http://127.0.0.1:{settings.backend_port}",
-            "test_user_id": settings.test_user_id,
+            "api_base_url": api_base_url,
             "help": "Get your credentials from Supabase Dashboard → Settings → API"
         }
-    
-    # Log successful config (only URL preview for security)
-    print(f"[API] /api/config - Returning configuration")
-    print(f"[API] SUPABASE_URL: {supabase_url[:30]}...")
-    print(f"[API] SUPABASE_KEY: {'SET' if supabase_key else 'EMPTY'}")
-    print(f"[API] TEST_USER_ID: {settings.test_user_id}")
     
     return {
         "supabase_url": supabase_url,
         "supabase_anon_key": supabase_key,
-        "api_base_url": f"http://127.0.0.1:{settings.backend_port}",
-        "test_user_id": settings.test_user_id
+        "api_base_url": api_base_url
     }
 
 # Serve static files from frontend directory
@@ -242,7 +344,7 @@ if FRONTEND_DIR.exists():
             from fastapi import HTTPException
             raise HTTPException(
                 status_code=404, 
-                detail=f"API endpoint not found: {path}. Available endpoints: /api/test, /api/health, /api/config, /api/profile/*, /api/interview/*, /api/dashboard/*"
+                detail=f"API endpoint not found: {path}. Available endpoints: /api/test, /api/health, /api/health/database, /api/config, /api/profile/*, /api/interview/*, /api/dashboard/*"
             )
         
         # Skip FastAPI docs routes
@@ -312,28 +414,59 @@ if __name__ == "__main__":
     import uvicorn
     import threading
     import time
+    from app.utils.url_utils import get_api_base_url
     
-    # Auto-open browser after a short delay
+    # Auto-open browser after a short delay (only in development)
     def open_browser():
-        """Open browser after server starts"""
-        time.sleep(1.5)  # Wait for server to start
-        url = f"http://127.0.0.1:{settings.backend_port}"
-        print(f"\n🌐 Opening browser at {url}")
-        webbrowser.open(url)
+        """Open browser after server starts (development only)"""
+        if settings.environment == "development":
+            time.sleep(1.5)  # Wait for server to start
+            # Use dynamic URL instead of hardcoded localhost
+            base_url = get_api_base_url()
+            logger.info(f"🌐 Opening browser at {base_url}")
+            try:
+                webbrowser.open(base_url)
+            except Exception as e:
+                logger.warning(f"Could not open browser: {str(e)}")
     
-    # Start browser opening in background thread
-    browser_thread = threading.Thread(target=open_browser, daemon=True)
-    browser_thread.start()
+    # Start browser opening in background thread (only in development)
+    if settings.environment == "development":
+        browser_thread = threading.Thread(target=open_browser, daemon=True)
+        browser_thread.start()
     
-    print(f"\n🚀 Starting Skill Capital AI MockMate...")
-    print(f"📡 Backend API: http://127.0.0.1:{settings.backend_port}")
-    print(f"📚 API Docs: http://127.0.0.1:{settings.backend_port}/docs")
-    print(f"🌐 Frontend: http://127.0.0.1:{settings.backend_port}/")
-    print(f"\nPress CTRL+C to stop the server\n")
+    # Use dynamic URL for logging
+    base_url = get_api_base_url()
+    logger.info(f"🚀 Starting Skill Capital AI MockMate...")
+    logger.info(f"📡 Backend API: {base_url}")
+    logger.info(f"📚 API Docs: {base_url}/docs")
+    logger.info(f"🌐 Frontend: {base_url}/")
+    logger.info("Press CTRL+C to stop the server")
     
-    uvicorn.run(
-        app, 
-        host="0.0.0.0", 
-        port=settings.backend_port,
-        reload=True
-    )
+    # Determine host based on environment
+    # For local development, bind to 127.0.0.1 explicitly
+    # For production/Vercel, use 0.0.0.0 to accept connections from all interfaces
+    if settings.environment == "development":
+        server_host = "127.0.0.1"  # Explicit localhost binding for development
+    else:
+        server_host = "0.0.0.0"  # Accept all interfaces for production
+    
+    logger.info(f"🔧 Server binding to: {server_host}:{settings.backend_port}")
+    
+    # For reload to work properly, use app as import string
+    # When reload=True, uvicorn needs the app as an import string, not the object
+    if settings.environment == "development":
+        uvicorn.run(
+            "app.main:app",  # Use import string for reload to work
+            host=server_host, 
+            port=settings.backend_port,
+            reload=True,
+            log_level="info"
+        )
+    else:
+        uvicorn.run(
+            app,  # Use app object when not using reload
+            host=server_host, 
+            port=settings.backend_port,
+            reload=False,
+            log_level="info"
+        )

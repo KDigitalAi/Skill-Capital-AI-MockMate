@@ -51,7 +51,7 @@ class InterviewEvaluator:
                     openai_api_key=settings.openai_api_key
                 )
             except Exception as e:
-                print(f"Warning: Could not initialize OpenAI: {str(e)}")
+                pass  # OpenAI not available, will use fallback
                 self.openai_available = False
                 self.llm = None
         else:
@@ -222,7 +222,6 @@ Provide comprehensive feedback and recommendations as specified.""")
             }
             
         except Exception as e:
-            print(f"Error generating feedback with AI: {str(e)}")
             return self._get_default_feedback(category_scores, overall_score)
     
     def _get_default_feedback(

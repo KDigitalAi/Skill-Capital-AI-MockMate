@@ -40,8 +40,8 @@
                         <div class="upload-content" id="uploadContent">
                             <p class="upload-text">Drop your resume here or choose a file</p>
                             <p class="upload-hint">PDF & DOCX only. Max 2MB file size.</p>
-                            <input type="file" id="fileInput" accept=".pdf,.docx,.doc" hidden>
-                            <button class="btn btn-primary" id="uploadBtn">Upload Resume</button>
+                            <input type="file" id="fileInput" accept=".pdf,.docx,.doc" style="display: none;">
+                            <label for="fileInput" class="btn btn-primary" id="uploadBtn" style="cursor: pointer; display: inline-block;">Upload Resume</label>
                             <p class="privacy-text">🔒 Privacy guaranteed</p>
                         </div>
                         <div class="upload-scanning hidden" id="uploadScanning">
@@ -143,6 +143,8 @@
         </footer>
     </div>
 
+    <!-- Load API configuration first - must be before app.js -->
+    <script src="api-config.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
