@@ -130,9 +130,12 @@ async function startInterview() {
 
         const data = await response.json();
         
+        console.log('[TECHNICAL INTERVIEW] Start response data:', data);
+        console.log('[TECHNICAL INTERVIEW] audio_url in response:', data.audio_url);
+        
         interviewSessionId = data.session_id;
         interviewActive = true;
-        conversationHistory = data.conversation_history || [];
+        conversationHistory = [];  // Start with empty history (like HR/STAR)
 
         // IMPORTANT: Once we have a session ID, keep interview section visible
         // Don't hide it even if getting questions fails
@@ -152,22 +155,34 @@ async function startInterview() {
         // Clear container and prepare for messages
         container.innerHTML = '';
 
-        // Display conversation history if any
-        if (conversationHistory.length > 0) {
-            conversationHistory.forEach(msg => {
-                displayMessage(msg.role, msg.content, msg.audio_url);
+        // ✅ CONVERSATIONAL FLOW: Display first question if available (like HR/STAR interviews)
+        if (data.question) {
+            currentQuestion = data.question;
+            conversationHistory.push({
+                role: 'ai',
+                content: data.question,
+                audio_url: data.audio_url
             });
-        }
-
-        // Get first question from AI
-        // If this fails, show error but keep interview section visible
-        try {
-            await getNextQuestion();
-        } catch (questionError) {
-            console.error('[INTERVIEW] Error getting first question:', questionError);
-            showError(`Failed to get first question: ${questionError.message || 'Please try again.'}`);
-            document.getElementById('voiceStatus').textContent = 'Error loading question. The interview session is active - you can try again.';
-            // Keep interview section visible - don't redirect
+            // Display question with audio URL
+            displayMessage('ai', data.question, data.audio_url);
+            
+            // Play audio if available
+            // Note: playAudio is called after user interaction (button click), so autoplay should work
+            if (data.audio_url) {
+                console.log('[TECHNICAL INTERVIEW] ✅ audio_url found, calling playAudio:', data.audio_url);
+                // Use setTimeout to ensure this runs in next event loop tick but still within user interaction context
+                setTimeout(() => {
+                    playAudio(data.audio_url).catch(err => {
+                        console.warn('[TECHNICAL INTERVIEW] Audio playback failed, will show manual play button:', err);
+                        // Error is already handled in playAudio with manual play button
+                    });
+                }, 100); // Small delay to ensure UI is updated
+            } else {
+                console.error('[TECHNICAL INTERVIEW] ❌ No audio_url received for first question. Response keys:', Object.keys(data));
+                document.getElementById('voiceStatus').textContent = 'Click the microphone to record your answer';
+            }
+        } else {
+            showError('No question received. Please try again.');
         }
 
     } catch (error) {
@@ -195,78 +210,137 @@ async function startInterview() {
     }
 }
 
-async function getNextQuestion() {
+async function getNextQuestion(userAnswer = null) {
     if (!interviewSessionId) {
-        console.error('[INTERVIEW] No session ID available');
+        console.error('[TECHNICAL INTERVIEW] No session ID available');
         showError('No interview session found. Please start the interview again.');
-        // Don't redirect - just show error and let user retry
         return;
     }
 
     try {
-        
         // Hide loading message if still visible
         const loadingMsg = document.getElementById('loadingMessage');
         if (loadingMsg) {
             loadingMsg.classList.add('hidden');
         }
         
-        // Get next question from AI
+        console.log('[TECHNICAL INTERVIEW] Fetching next question from backend...');
+        if (userAnswer) {
+            console.log('[TECHNICAL INTERVIEW] Sending user answer for context-aware question generation');
+        }
+        
+        // ✅ CONVERSATIONAL FLOW: Call backend endpoint to get next AI-generated technical question
+        // Send user_answer if provided so backend can save it and use it for context-aware generation
+        const requestBody = {};
+        if (userAnswer) {
+            requestBody.user_answer = userAnswer;
+        }
+        
         const response = await fetch(`${getApiBase()}/api/interview/technical/${interviewSessionId}/next-question`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
         });
 
-        
         if (!response.ok) {
             const errorText = await response.text();
-            console.error('[INTERVIEW] Error getting question:', errorText);
-            throw new Error(`Failed to get next question: ${response.status} - ${errorText}`);
+            throw new Error(`Backend error: ${response.status} - ${errorText}`);
         }
 
         const data = await response.json();
         
+        // Check if interview is completed
         if (data.interview_completed) {
-            // Interview is complete
+            console.log('[TECHNICAL INTERVIEW] Interview completed:', data.message);
             await completeInterview();
             return;
         }
-
-        if (!data.question) {
-            throw new Error('No question received from server');
+        
+        // Extract question data from response
+        const nextQuestion = data.question;
+        const audioUrl = data.audio_url || data.audioUrl; // Try both possible field names
+        const questionNumber = data.question_number || conversationHistory.filter(m => m.role === 'ai').length + 1;
+        
+        if (!nextQuestion) {
+            throw new Error('No question received from backend');
         }
-
-        currentQuestion = data.question;
+        
+        console.log('[TECHNICAL INTERVIEW] Received question:', nextQuestion.substring(0, 50) + '...');
+        console.log('[TECHNICAL INTERVIEW] Audio URL from response:', audioUrl);
+        console.log('[TECHNICAL INTERVIEW] Full response data keys:', Object.keys(data));
+        
+        // Update current question
+        currentQuestion = nextQuestion;
+        
+        // Update local conversation history to reflect backend's source of truth
+        // Note: If user_answer was sent, it's already saved in backend and included in conversation history
+        // We only need to add the newly received question to local history
         conversationHistory.push({
             role: 'ai',
-            content: data.question,
-            audio_url: data.audio_url
+            content: nextQuestion,
+            audio_url: audioUrl,
+            question_number: questionNumber
         });
-
-        // Display question
-        displayMessage('ai', data.question, data.audio_url);
-
-        // Play audio if available
-        if (data.audio_url) {
-            playAudio(data.audio_url);
-        }
+        
+        console.log('[TECHNICAL INTERVIEW] ✅ Updated local conversation history with new question');
+        
+        // Display question with audio URL
+        displayMessage('ai', nextQuestion, audioUrl);
+        
+        // ✅ FIX: ALWAYS play audio for every question (same behavior as HR/STAR interviews)
+        // Use setTimeout to ensure audio plays after UI update, but don't wait for user interaction
+        // For subsequent questions, user has already interacted (recorded answer), so autoplay should work
+        setTimeout(() => {
+            if (audioUrl && audioUrl.trim()) {
+                console.log('[TECHNICAL INTERVIEW] ✅ Playing next question audio:', audioUrl);
+                playAudio(audioUrl).catch(err => {
+                    console.warn('[TECHNICAL INTERVIEW] Audio playback failed, trying fallback TTS:', err);
+                    // Fallback: generate TTS from question text if audio_url fails
+                    if (nextQuestion) {
+                        playAudio(nextQuestion).catch(fallbackErr => {
+                            console.warn('[TECHNICAL INTERVIEW] Fallback TTS also failed, will show manual play button:', fallbackErr);
+                            // Error is already handled in playAudio with manual play button
+                        });
+                    }
+                });
+            } else {
+                // ✅ FIX: Fallback - generate TTS from question text if audio_url is missing
+                console.warn('[TECHNICAL INTERVIEW] ⚠️ No audioUrl provided, generating TTS from question text');
+                if (nextQuestion) {
+                    playAudio(nextQuestion).catch(err => {
+                        console.warn('[TECHNICAL INTERVIEW] Fallback TTS generation failed:', err);
+                        // Error is already handled in playAudio with manual play button
+                    });
+                } else {
+                    console.error('[TECHNICAL INTERVIEW] ❌ No question text available for TTS fallback');
+                    document.getElementById('voiceStatus').textContent = 'Click the microphone to record your answer';
+                }
+            }
+        }, 100); // Small delay to ensure UI is updated
 
         // Update status
         document.getElementById('voiceStatus').textContent = 'Click the microphone to record your answer';
         document.getElementById('voiceButton').classList.remove('listening');
 
     } catch (error) {
-        console.error('[INTERVIEW] Get question error:', error);
-        const errorMsg = `Failed to get question: ${error.message || 'Please try again.'}`;
+        console.error('[TECHNICAL INTERVIEW] ❌ Get question error:', error);
+        const errorMsg = `Failed to get question from backend: ${error.message || 'Please try again.'}`;
         showError(errorMsg);
-        
-        // Show alert for critical errors
-        if (error.message && error.message.includes('500')) {
-            alert(`Interview error: ${errorMsg}\n\nThe interview session may have encountered an issue. You can try starting a new interview.`);
-        }
-        
-        // Keep interview section visible - don't redirect
         document.getElementById('voiceStatus').textContent = 'Error occurred. Please try recording again or start a new interview.';
+        
+        // No fallback to hardcoded questions - all questions must come from backend
+        // If backend fails, we can only complete the interview if we have enough questions
+        const questionCount = conversationHistory.filter(m => m.role === 'ai').length;
+        if (questionCount >= 5) {
+            console.log('[TECHNICAL INTERVIEW] Interview completed due to question count (5 questions reached)');
+            await completeInterview();
+        } else {
+            // Show error but don't try to continue with hardcoded questions
+            console.error('[TECHNICAL INTERVIEW] Cannot continue: Backend question generation failed and interview is incomplete');
+            alert('Unable to get next question from the server. Please try refreshing the page or starting a new interview.');
+        }
     }
 }
 
@@ -412,13 +486,17 @@ async function submitAnswer(answer) {
             }
         }
 
-        // Check if interview is complete
-        if (data.interview_completed) {
+        // Check if interview is complete (10 questions for Technical - same as HR/STAR)
+        const aiQuestionsCount = conversationHistory.filter(m => m.role === 'ai').length;
+        if (data.interview_completed || aiQuestionsCount >= 10) {
+            console.log(`[SUBMIT ANSWER] Interview completed: ${aiQuestionsCount} questions asked`);
             await completeInterview();
         } else {
-            // Get next question after a short delay
+            // ✅ CONVERSATIONAL FLOW: Get next question after a short delay with race condition check
+            // Pass the user's answer so backend can save it and use it for context-aware next question
             setTimeout(() => {
-                getNextQuestion();
+                // Check if getNextQuestion is already in progress to prevent duplicate calls
+                getNextQuestion(answer);  // Pass the answer for context-aware question generation
             }, 2000);
         }
 

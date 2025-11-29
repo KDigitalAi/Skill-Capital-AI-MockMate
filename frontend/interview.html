@@ -334,6 +334,85 @@
             text-align: center;
         }
 
+        /* Chat-Based Conversation Styles */
+        .interview-status {
+            display: inline-block;
+            padding: 8px 16px;
+            background: var(--accent-light);
+            border-radius: 20px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-top: 10px;
+        }
+
+        .interview-status.active {
+            background: #c8e6c9;
+            color: #2e7d32;
+        }
+
+        .interview-status.completed {
+            background: #bbdefb;
+            color: #1565c0;
+        }
+
+        .conversation-container {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 20px;
+            margin: 20px 0;
+            max-height: 500px;
+            overflow-y: auto;
+            box-shadow: 0 2px 8px var(--shadow-sm);
+        }
+
+        .message {
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 12px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .message.ai {
+            background: var(--accent-light);
+            border-left: 4px solid var(--primary);
+        }
+
+        .message.user {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            margin-left: auto;
+            max-width: 80%;
+        }
+
+        .message-header {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+
+        .message-content {
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .audio-player {
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        .interview-actions {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-light);
+        }
+
         /* Modern Modal Styles */
         .modal-overlay {
             display: none;
@@ -493,64 +572,29 @@
                     <p style="color: var(--text-light);">Please wait while we prepare your interview questions.</p>
                 </div>
 
-                <!-- Interview Interface -->
+                <!-- Interview Interface (Chat-Based Flow) -->
                 <div id="interviewInterface" class="hidden">
-                    <!-- Progress Indicator -->
+                    <!-- Interview Status -->
                     <div class="interview-header">
-                        <div class="progress-indicator" id="progressIndicator">Question 1 of 10</div>
+                        <div class="interview-status" id="interviewStatus">Ready to Start</div>
                     </div>
 
-                    <!-- Question Card -->
-                    <div class="question-card">
-                        <p class="question-subtitle">AI is asking based on your resume skills.</p>
-                        <div class="question-text" id="questionText">Loading question...</div>
+                    <!-- Conversation Display (Chat-Based) -->
+                    <div class="conversation-container" id="conversationContainer">
+                        <div class="loading" id="loadingMessage">Initializing interview...</div>
                     </div>
 
-                    <!-- Answer Section -->
-                    <div class="answer-section">
-                        <!-- Voice Controls -->
-                        <div class="voice-controls">
-                            <button class="voice-button" id="voiceButton" title="Click to record your answer">
-                                🎤
-                            </button>
-                            
-                            <!-- Sound Wave Animation -->
-                            <div class="sound-wave hidden" id="soundWave">
-                                <div class="wave-bar"></div>
-                                <div class="wave-bar"></div>
-                                <div class="wave-bar"></div>
-                                <div class="wave-bar"></div>
-                                <div class="wave-bar"></div>
-                                <div class="wave-bar"></div>
-                                <div class="wave-bar"></div>
-                                <div class="wave-bar"></div>
-                                <div class="wave-bar"></div>
-                                <div class="wave-bar"></div>
-                            </div>
-                            
-                            <div class="voice-status" id="voiceStatus">Click the microphone to start recording</div>
-                            
-                            <!-- Progress Indicator -->
-                            <div class="progress-indicator" id="questionProgress" style="margin-top: 20px;">Question 1 of 10</div>
-                        </div>
+                    <!-- Voice Controls -->
+                    <div class="voice-controls">
+                        <button class="voice-button" id="voiceButton" title="Click to record your answer">
+                            🎤
+                        </button>
+                        <div class="voice-status" id="voiceStatus">Click the microphone to start recording</div>
+                    </div>
 
-                        <!-- Optional Text Input (Hidden by default, can be toggled) -->
-                        <div class="answer-input-area hidden" id="textInputArea">
-                            <label for="answerTextarea" style="display: block; margin-bottom: 10px; color: var(--text-secondary); font-weight: 500;">
-                                Type your answer (optional):
-                            </label>
-                            <textarea 
-                                id="answerTextarea" 
-                                class="answer-textarea" 
-                                placeholder="You can type your answer here or use voice recording above..."
-                            ></textarea>
-                        </div>
-
-                        <!-- Action Buttons -->
-                        <div class="action-buttons" style="margin-top: 40px;">
-                            <button class="btn btn-primary" id="submitAnswerBtn" disabled>Submit Answer</button>
-                            <button class="btn btn-danger" id="endInterviewBtn" style="background: #ef5350; color: white;">End Interview</button>
-                        </div>
+                    <!-- Interview Actions -->
+                    <div class="interview-actions">
+                        <button class="btn btn-danger" id="endInterviewBtn">End Interview</button>
                     </div>
                 </div>
 
@@ -627,8 +671,7 @@
         let currentUserId = null;
         let interviewSessionId = null;
         let currentQuestion = null;
-        let currentQuestionNumber = 0;
-        let totalQuestions = 10;
+        let conversationHistory = [];
         let isRecording = false;
         let mediaRecorder = null;
         let audioChunks = [];
@@ -744,12 +787,38 @@
 
         function setupEventListeners() {
             document.getElementById('voiceButton').addEventListener('click', toggleRecording);
-            document.getElementById('submitAnswerBtn').addEventListener('click', submitAnswer);
             document.getElementById('endInterviewBtn').addEventListener('click', endInterview);
-            document.getElementById('answerTextarea').addEventListener('input', () => {
-                const hasText = document.getElementById('answerTextarea').value.trim().length > 0;
-                document.getElementById('submitAnswerBtn').disabled = !hasText && !isRecording;
-            });
+        }
+
+        function displayMessage(role, content, audioUrl = null) {
+            const container = document.getElementById('conversationContainer');
+            if (!container) {
+                console.error('[INTERVIEW] Conversation container not found');
+                return;
+            }
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+
+            const header = role === 'ai' ? 'AI Interviewer' : 'You';
+            messageDiv.innerHTML = `
+                <div class="message-header">${header}</div>
+                <div class="message-content">${content}</div>
+                ${audioUrl ? `<audio class="audio-player" controls src="${audioUrl}"></audio>` : ''}
+            `;
+
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function showError(message) {
+            const container = document.getElementById('conversationContainer');
+            if (container) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                errorDiv.textContent = message;
+                container.appendChild(errorDiv);
+            }
         }
 
         async function startInterview() {
@@ -777,36 +846,54 @@
 
                 const data = await response.json();
                 
+                console.log('[TECHNICAL INTERVIEW] Start response data:', data);
+                console.log('[TECHNICAL INTERVIEW] audio_url in response:', data.audio_url);
+                
                 interviewSessionId = data.session_id;
-                currentQuestion = data.question;
-                currentQuestionNumber = data.question_number;
-                totalQuestions = data.total_questions;
                 interviewActive = true;
+                conversationHistory = [];  // Start with empty history (like HR/STAR)
 
                 // Hide loading, show interview
                 document.getElementById('loadingState').classList.add('hidden');
                 document.getElementById('interviewInterface').classList.remove('hidden');
 
-                // Display question
-                displayQuestion(data.question, data.question_number);
-                
-                // Play audio - prefer audio_url if provided, otherwise generate from question text
-                if (data.audio_url) {
-                    // Use provided audio URL (absolute URL from backend)
-                    playAudio(data.audio_url).catch(err => {
-                        console.warn('[TTS] Could not play provided audio URL, trying to generate from text:', err);
-                        // Fallback: generate from question text
-                        if (data.question) {
-                            playAudio(data.question).catch(e => {
-                                console.warn('[TTS] Could not play audio, continuing without audio:', e);
+                // Update status
+                const statusEl = document.getElementById('interviewStatus');
+                if (statusEl) {
+                    statusEl.textContent = 'Interview Active';
+                    statusEl.classList.add('active');
+                }
+
+                // Clear container and prepare for messages
+                const container = document.getElementById('conversationContainer');
+                if (container) {
+                    container.innerHTML = '';
+                }
+
+                // ✅ CONVERSATIONAL FLOW: Display first question if available (like HR/STAR interviews)
+                if (data.question) {
+                    currentQuestion = data.question;
+                    conversationHistory.push({
+                        role: 'ai',
+                        content: data.question,
+                        audio_url: data.audio_url
+                    });
+                    // Display question with audio URL
+                    displayMessage('ai', data.question, data.audio_url);
+                    
+                    // Play audio if available
+                    if (data.audio_url) {
+                        console.log('[TECHNICAL INTERVIEW] ✅ audio_url found, calling playAudio:', data.audio_url);
+                        setTimeout(() => {
+                            playAudio(data.audio_url).catch(err => {
+                                console.warn('[TECHNICAL INTERVIEW] Audio playback failed, will show manual play button:', err);
                             });
-                        }
-                    });
-                } else if (data.question) {
-                    // Generate TTS from question text
-                    playAudio(data.question).catch(err => {
-                        console.warn('[TTS] Could not play audio, continuing without audio:', err);
-                    });
+                        }, 100);
+                    } else {
+                        console.error('[TECHNICAL INTERVIEW] ❌ No audio_url received for first question');
+                    }
+                } else {
+                    showError('No question received. Please try again.');
                 }
 
             } catch (error) {
@@ -823,12 +910,25 @@
             }
         }
 
-        function displayQuestion(question, questionNumber) {
-            document.getElementById('questionText').textContent = question;
-            document.getElementById('progressIndicator').textContent = `Question ${questionNumber} of ${totalQuestions}`;
-            document.getElementById('questionProgress').textContent = `Question ${questionNumber} of ${totalQuestions}`;
-            currentQuestion = question;
-            currentQuestionNumber = questionNumber;
+        function displayMessage(role, content, audioUrl = null) {
+            const container = document.getElementById('conversationContainer');
+            if (!container) {
+                console.error('[INTERVIEW] Conversation container not found');
+                return;
+            }
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+
+            const header = role === 'ai' ? 'AI Interviewer' : 'You';
+            messageDiv.innerHTML = `
+                <div class="message-header">${header}</div>
+                <div class="message-content">${content}</div>
+                ${audioUrl ? `<audio class="audio-player" controls src="${audioUrl}"></audio>` : ''}
+            `;
+
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
         }
 
         async function toggleRecording() {
@@ -883,7 +983,6 @@
                     
                     if (audioBlob.size === 0) {
                         document.getElementById('voiceStatus').textContent = 'No audio recorded. Please try again.';
-                        document.getElementById('soundWave').classList.add('hidden');
                         return;
                     }
                     
@@ -892,8 +991,6 @@
                     
                     await processAudioAnswer(audioBlob);
                     stream.getTracks().forEach(track => track.stop());
-                    // Hide sound wave
-                    document.getElementById('soundWave').classList.add('hidden');
                 };
 
                 // Start recording with timeslice to ensure data is available
@@ -901,8 +998,6 @@
                 isRecording = true;
                 document.getElementById('voiceButton').classList.add('recording');
                 document.getElementById('voiceStatus').textContent = 'Recording... Click again to stop';
-                document.getElementById('soundWave').classList.remove('hidden');
-                document.getElementById('submitAnswerBtn').disabled = false;
                 
             } catch (error) {
                 console.error('[RECORDING] Error accessing microphone:', error);
@@ -916,8 +1011,6 @@
                 }
                 alert(errorMessage);
                 document.getElementById('voiceStatus').textContent = errorMessage;
-                // Show text input as fallback
-                document.getElementById('textInputArea').classList.remove('hidden');
             }
         }
 
@@ -927,13 +1020,11 @@
                 isRecording = false;
                 document.getElementById('voiceButton').classList.remove('recording');
                 document.getElementById('voiceStatus').textContent = 'Processing your answer...';
-                document.getElementById('soundWave').classList.add('hidden');
             }
         }
 
         async function processAudioAnswer(audioBlob) {
             try {
-                
                 if (audioBlob.size === 0) {
                     throw new Error('Audio blob is empty');
                 }
@@ -946,7 +1037,6 @@
                     body: formData
                 });
 
-                
                 if (!sttResponse.ok) {
                     const errorText = await sttResponse.text();
                     console.error('[STT] Error response:', errorText);
@@ -954,33 +1044,34 @@
                 }
 
                 const sttData = await sttResponse.json();
-                
                 const transcribedText = sttData.text || sttData.transcript || '';
 
-                if (!transcribedText) {
+                if (!transcribedText || transcribedText.trim() === '') {
                     throw new Error('No transcription received');
                 }
 
-                // Show text input area and fill with transcribed text
-                document.getElementById('textInputArea').classList.remove('hidden');
-                document.getElementById('answerTextarea').value = transcribedText;
-                document.getElementById('voiceStatus').textContent = 'Answer transcribed. You can edit it or submit.';
-                document.getElementById('submitAnswerBtn').disabled = false;
+                // ✅ CONVERSATIONAL FLOW: Display user answer as chat bubble and submit automatically
+                displayMessage('user', transcribedText);
+                conversationHistory.push({
+                    role: 'user',
+                    content: transcribedText
+                });
+
+                // Auto-submit answer after transcription
+                await submitAnswer(transcribedText);
+                currentAudioBlob = null; // Clear after submission
 
             } catch (error) {
                 console.error('[STT] Process audio error:', error);
-                document.getElementById('voiceStatus').textContent = `Error processing audio: ${error.message || 'Please try typing your answer.'}`;
-                // Show text input as fallback
-                document.getElementById('textInputArea').classList.remove('hidden');
-                document.getElementById('answerTextarea').placeholder = 'Please type your answer here...';
+                document.getElementById('voiceStatus').textContent = `Error processing audio: ${error.message || 'Please try again.'}`;
+                showError(`Error: ${error.message || 'Failed to process audio. Please try recording again.'}`);
             }
         }
 
-        async function submitAnswer() {
-            const answerText = document.getElementById('answerTextarea').value.trim();
-            
+        async function submitAnswer(answerText = null) {
+            // If answerText is provided (from voice), use it; otherwise this shouldn't be called
             if (!answerText) {
-                alert('Please provide an answer (type or record).');
+                console.error('[SUBMIT ANSWER] No answer text provided');
                 return;
             }
 
@@ -989,39 +1080,24 @@
                 return;
             }
 
-            // Disable buttons during submission
-            document.getElementById('submitAnswerBtn').disabled = true;
-            document.getElementById('voiceButton').disabled = true;
-            document.getElementById('answerTextarea').disabled = true;
+            // Disable voice button during submission
+            const voiceButton = document.getElementById('voiceButton');
+            if (voiceButton) {
+                voiceButton.disabled = true;
+            }
+            document.getElementById('voiceStatus').textContent = 'Submitting answer...';
 
             try {
-                // Prepare request - use FormData if audio is available, otherwise JSON
-                let requestBody;
-                let headers = {};
+                console.log('[SUBMIT ANSWER] Submitting answer to backend...');
                 
-                if (currentAudioBlob && currentAudioBlob.size > 0) {
-                    // Send as FormData with audio file
-                    const formData = new FormData();
-                    formData.append('session_id', interviewSessionId);
-                    formData.append('user_answer', answerText);
-                    formData.append('previous_question', currentQuestion);
-                    formData.append('audio', currentAudioBlob, 'recording.webm');
-                    requestBody = formData;
-                    // Don't set Content-Type header - browser will set it with boundary for FormData
-                } else {
-                    // Send as JSON (text only)
-                    headers['Content-Type'] = 'application/json';
-                    requestBody = JSON.stringify({
-                        session_id: interviewSessionId,
-                        user_answer: answerText,
-                        previous_question: currentQuestion
-                    });
-                }
-                
-                const response = await fetch(`${getApiBase()}/api/interview/technical/next`, {
+                // ✅ CONVERSATIONAL FLOW: Use the new submit-answer endpoint
+                const response = await fetch(`${getApiBase()}/api/interview/technical/${interviewSessionId}/submit-answer`, {
                     method: 'POST',
-                    headers: headers,
-                    body: requestBody
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        question: currentQuestion,
+                        answer: answerText
+                    })
                 });
 
                 if (!response.ok) {
@@ -1030,54 +1106,145 @@
                 }
 
                 const data = await response.json();
+                console.log('[SUBMIT ANSWER] Answer submitted successfully');
 
-                if (data.interview_completed) {
-                    // Interview is complete
-                    await showSummary();
-                } else {
-                    // Show next question
-                    displayQuestion(data.question, data.question_number);
+                // Display AI response if any
+                if (data.ai_response) {
+                    conversationHistory.push({
+                        role: 'ai',
+                        content: data.ai_response,
+                        audio_url: data.ai_response_audio_url || data.audio_url
+                    });
+                    displayMessage('ai', data.ai_response, data.ai_response_audio_url || data.audio_url);
                     
-                    // Clear answer textarea and hide it
-                    document.getElementById('answerTextarea').value = '';
-                    document.getElementById('textInputArea').classList.add('hidden');
-                    // Clear audio blob after successful submission
-                    currentAudioBlob = null;
-                    
-                    // Play audio - prefer audio_url if provided, otherwise generate from question text
-                    if (data.audio_url) {
-                        // Use provided audio URL (absolute URL from backend)
-                        playAudio(data.audio_url).catch(err => {
-                            console.warn('[TTS] Could not play provided audio URL, trying to generate from text:', err);
-                            // Fallback: generate from question text
-                            if (data.question) {
-                                playAudio(data.question).catch(e => {
-                                    console.warn('[TTS] Could not play audio, continuing without audio:', e);
-                                });
-                            }
-                        });
-                    } else if (data.question) {
-                        // Generate TTS from question text
-                        playAudio(data.question).catch(err => {
-                            console.warn('[TTS] Could not play audio, continuing without audio:', err);
+                    if (data.ai_response_audio_url || data.audio_url) {
+                        playAudio(data.ai_response_audio_url || data.audio_url).catch(err => {
+                            console.warn('[TECHNICAL INTERVIEW] Audio playback failed:', err);
                         });
                     }
+                }
 
-                    // Re-enable controls
-                    document.getElementById('submitAnswerBtn').disabled = true;
-                    document.getElementById('voiceButton').disabled = false;
-                    document.getElementById('answerTextarea').disabled = false;
-                    document.getElementById('voiceStatus').textContent = 'Click the microphone to start recording';
+                // Check if interview is complete (10 questions for Technical - same as HR/STAR)
+                const aiQuestionsCount = conversationHistory.filter(m => m.role === 'ai').length;
+                if (data.interview_completed || aiQuestionsCount >= 10) {
+                    console.log(`[SUBMIT ANSWER] Interview completed: ${aiQuestionsCount} questions asked`);
+                    await showSummary();
+                } else {
+                    // ✅ CONVERSATIONAL FLOW: Get next question after a short delay
+                    // Pass the user's answer so backend can save it and use it for context-aware next question
+                    setTimeout(() => {
+                        getNextQuestion(answerText);  // Pass the answer for context-aware question generation
+                    }, 2000);
+                }
+
+                document.getElementById('voiceStatus').textContent = 'Click the microphone to record your answer';
+                if (voiceButton) {
+                    voiceButton.disabled = false;
                 }
 
             } catch (error) {
-                console.error('Submit answer error:', error);
-                alert(`Error submitting answer: ${error.message || 'Please try again.'}`);
+                console.error('[SUBMIT ANSWER] Submit answer error:', error);
+                const errorMsg = error.message || 'Failed to submit answer. Please try again.';
+                showError(errorMsg);
+                document.getElementById('voiceStatus').textContent = 'Error submitting answer. Click the microphone to try again.';
+                if (voiceButton) {
+                    voiceButton.disabled = false;
+                }
+            }
+        }
+
+        async function getNextQuestion(userAnswer = null) {
+            if (!interviewSessionId) {
+                console.error('[TECHNICAL INTERVIEW] No session ID available');
+                showError('No interview session found. Please start the interview again.');
+                return;
+            }
+
+            try {
+                console.log('[TECHNICAL INTERVIEW] Fetching next question from backend...');
+                if (userAnswer) {
+                    console.log('[TECHNICAL INTERVIEW] Sending user answer for context-aware question generation');
+                }
                 
-                // Re-enable controls
-                document.getElementById('submitAnswerBtn').disabled = false;
-                document.getElementById('voiceButton').disabled = false;
-                document.getElementById('answerTextarea').disabled = false;
+                // ✅ CONVERSATIONAL FLOW: Call backend endpoint to get next AI-generated technical question
+                const requestBody = {};
+                if (userAnswer) {
+                    requestBody.user_answer = userAnswer;
+                }
+                
+                const response = await fetch(`${getApiBase()}/api/interview/technical/${interviewSessionId}/next-question`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Backend error: ${response.status} - ${errorText}`);
+                }
+
+                const data = await response.json();
+                
+                // Check if interview is completed
+                if (data.interview_completed) {
+                    console.log('[TECHNICAL INTERVIEW] Interview completed:', data.message);
+                    await showSummary();
+                    return;
+                }
+                
+                const nextQuestion = data.question;
+                const audioUrl = data.audio_url || data.audioUrl;
+                
+                if (!nextQuestion) {
+                    throw new Error('No question received from backend');
+                }
+                
+                console.log('[TECHNICAL INTERVIEW] Received question:', nextQuestion.substring(0, 50) + '...');
+                
+                // Update current question
+                currentQuestion = nextQuestion;
+                
+                // Update conversation history
+                conversationHistory.push({
+                    role: 'ai',
+                    content: nextQuestion,
+                    audio_url: audioUrl
+                });
+                
+                // Display question with audio URL
+                displayMessage('ai', nextQuestion, audioUrl);
+                
+                // ✅ FIX: ALWAYS play audio for every question
+                setTimeout(() => {
+                    if (audioUrl && audioUrl.trim()) {
+                        console.log('[TECHNICAL INTERVIEW] ✅ Playing next question audio:', audioUrl);
+                        playAudio(audioUrl).catch(err => {
+                            console.warn('[TECHNICAL INTERVIEW] Audio playback failed:', err);
+                        });
+                    } else if (nextQuestion) {
+                        // Fallback: generate TTS from question text
+                        playAudio(nextQuestion).catch(err => {
+                            console.warn('[TECHNICAL INTERVIEW] Fallback TTS generation failed:', err);
+                        });
+                    }
+                }, 100);
+
+                document.getElementById('voiceStatus').textContent = 'Click the microphone to record your answer';
+
+            } catch (error) {
+                console.error('[TECHNICAL INTERVIEW] ❌ Get question error:', error);
+                showError(`Failed to get question: ${error.message || 'Please try again.'}`);
+                document.getElementById('voiceStatus').textContent = 'Error occurred. Please try recording again.';
+            }
+        }
+
+        function showError(message) {
+            const container = document.getElementById('conversationContainer');
+            if (container) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                errorDiv.textContent = message;
+                container.appendChild(errorDiv);
             }
         }
 

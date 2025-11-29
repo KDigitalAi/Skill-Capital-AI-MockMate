@@ -1816,14 +1816,159 @@ async def start_technical_interview(
             "all_scores": []
         }
         
-        # Update session with metadata (store as JSON in a text field or use a metadata column)
-        # Since we don't have a metadata column, we'll manage this in memory and store in answers/questions
+        # ✅ CONVERSATIONAL FLOW: Generate first question immediately (like HR/STAR interviews)
+        # Get user profile for resume context
+        experience_level = resume_context.get("experience_level") or (profile.get("experience_level") if profile else "Intermediate")
+        skills = resume_skills
         
-        return TechnicalInterviewStartResponse(
-            session_id=session_id,
-            conversation_history=session_data["conversation_history"],
-            technical_skills=session_data["technical_skills"]
-        )
+        # Generate first technical question using OpenAI with conversation history
+        question_text = None
+        try:
+            from openai import OpenAI, APIError, RateLimitError
+            from app.config.settings import settings
+            
+            # Check if API key is available
+            if not settings.openai_api_key:
+                logger.error("[TECHNICAL START] OpenAI API key is missing.")
+                raise HTTPException(status_code=503, detail="AI service temporarily unavailable. API key not set.")
+            
+            client = OpenAI(api_key=settings.openai_api_key)
+            
+            # Build context for technical question generation
+            skills_context = ", ".join(skills[:10]) if skills else "general technical skills"
+            
+            # Technical-focused system prompt
+            system_prompt = """You are an experienced, friendly technical interviewer conducting a natural, conversational voice-based interview.
+
+Your interview style:
+- Speak naturally and conversationally, as if talking to a colleague
+- Build on previous answers - ask follow-up questions when appropriate
+- Show genuine interest in the candidate's responses
+- Focus on technical knowledge, problem-solving, and implementation details
+- Reference what the candidate mentioned in previous answers
+- Avoid awkward pauses - keep the conversation flowing smoothly
+- Never repeat questions that have already been asked
+
+Question guidelines:
+- Keep questions concise (1-2 sentences) for voice interaction
+- Make questions feel natural and conversational
+- Build on previous answers to create a cohesive interview flow
+- Test technical knowledge progressively (basic → advanced)
+- Reference specific technologies/skills from the resume when relevant"""
+
+            user_prompt = f"""Generate the first technical interview question for a smooth, natural conversation flow.
+
+CANDIDATE'S TECHNICAL SKILLS (from resume):
+Skills: {skills_context}
+Experience Level: {experience_level}
+
+This is the first question. Start with a friendly introduction and a foundational technical question that:
+1. Is relevant to the candidate's skills: {skills_context}
+2. Feels like a natural first question in a human interview
+3. Is appropriate for voice interaction (concise, clear)
+4. Tests technical knowledge at an appropriate level
+5. References specific technologies from their resume when relevant
+
+Return ONLY the question text, nothing else. Make it sound natural and conversational."""
+
+            messages = [{"role": "system", "content": system_prompt}]
+            messages.append({"role": "user", "content": user_prompt})
+            
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                temperature=0.7,
+                max_tokens=150,
+                timeout=30
+            )
+            
+            question_text = response.choices[0].message.content.strip()
+            logger.info(f"[TECHNICAL START] Generated first question: {question_text[:50]}...")
+            
+        except RateLimitError as e:
+            logger.error(f"[TECHNICAL START] OpenAI rate limit exceeded: {str(e)}")
+            raise HTTPException(
+                status_code=503, 
+                detail="The AI service is currently experiencing high demand. Please try again shortly."
+            )
+        except APIError as e:
+            logger.error(f"[TECHNICAL START] OpenAI API error: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500, 
+                detail="An external service error occurred during question generation. Please try again."
+            )
+        except Exception as e:
+            logger.error(f"[TECHNICAL START] Unexpected error generating first question: {str(e)}", exc_info=True)
+            # Fallback to simple question
+            question_text = f"Can you tell me about your experience with {skills_context if skills_context else 'technical skills'}?"
+        
+        # Generate audio URL for the question BEFORE storing (same as HR/STAR interviews)
+        audio_url = None
+        try:
+            import urllib.parse
+            from app.utils.url_utils import get_api_base_url
+            if question_text:
+                encoded_text = urllib.parse.quote(question_text)
+                base_url = get_api_base_url()
+                audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"
+                logger.info(f"[TECHNICAL INTERVIEW] ✅ Generated audio_url: {audio_url}")
+            else:
+                logger.error(f"[TECHNICAL INTERVIEW] ❌ question_text is empty, cannot generate audio_url")
+                audio_url = None
+        except Exception as e:
+            logger.error(f"[TECHNICAL INTERVIEW] ❌ Could not generate audio URL for technical question: {str(e)}", exc_info=True)
+            audio_url = None
+        
+        # Store first question in technical_round table (question_number = 1, supports up to 10 questions)
+        question_db_data = {
+            "user_id": str(user_id),
+            "session_id": session_id,
+            "question_number": 1,  # First question
+            "question_text": question_text,
+            "question_type": "Technical",
+            "user_answer": "",  # Initialize with empty answer
+            "relevance_score": None,
+            "technical_accuracy_score": None,
+            "communication_score": None,
+            "overall_score": None,
+            "ai_feedback": None,
+            "response_time": None
+        }
+        
+        # ✅ Make question saving mandatory - fail fast if save fails
+        try:
+            insert_response = supabase.table("technical_round").insert(question_db_data).execute()
+            if not insert_response.data or len(insert_response.data) == 0:
+                logger.error("[TECHNICAL START] Failed to store technical question - no data returned from insert")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to save interview question. Please try again."
+                )
+            saved_question = insert_response.data[0] if insert_response.data else None
+            if saved_question:
+                saved_question_number = saved_question.get('question_number')
+                logger.info(f"[TECHNICAL START] ✅ Stored first technical question in database (question_number={saved_question_number})")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"[TECHNICAL START] Failed to store technical question: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to save interview question. Please try again."
+            )
+        
+        # Return response with first question and audio_url (like HR/STAR interviews)
+        return {
+            "session_id": session_id,
+            "question": question_text,
+            "question_type": "Technical",
+            "question_number": 1,
+            "total_questions": 10,  # Technical interviews now have 10 questions (same as HR/STAR)
+            "interview_completed": False,
+            "user_id": user_id,
+            "audio_url": audio_url,  # Include audio URL for TTS playback
+            "technical_skills": session_data["technical_skills"]
+        }
         
     except HTTPException:
         raise
@@ -1833,90 +1978,314 @@ async def start_technical_interview(
 @router.post("/technical/{session_id}/next-question")
 async def get_next_technical_question(
     session_id: str,
+    request: Dict[str, Any] = Body(...),
     supabase: Client = Depends(get_supabase_client)
 ):
     """
     Get the next technical question for the interview
+    Accepts user_answer in request body, saves it first, then generates context-aware next question
+    Uses conversation history from database to enable context-aware follow-up questions (like HR/STAR)
     """
     try:
+        # Input validation
+        if not session_id or not isinstance(session_id, str) or not session_id.strip():
+            logger.error(f"[TECHNICAL NEXT QUESTION] Invalid session_id: {session_id}")
+            raise HTTPException(status_code=400, detail="Invalid request format. Please check your input and try again.")
+        
+        logger.info(f"[TECHNICAL NEXT QUESTION] Request for session_id: {session_id}")
+        
         # Get session
-        session_response = supabase.table("interview_sessions").select("*").eq("id", session_id).execute()
+        try:
+            session_response = supabase.table("interview_sessions").select("*").eq("id", session_id).execute()
+        except Exception as db_error:
+            logger.error(f"[TECHNICAL NEXT QUESTION] Database error fetching session: {str(db_error)}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to retrieve interview session. Please try again.")
         
         if not session_response.data or len(session_response.data) == 0:
-            raise HTTPException(status_code=404, detail="Session not found")
+            logger.warning(f"[TECHNICAL NEXT QUESTION] Session not found: {session_id}")
+            raise HTTPException(status_code=404, detail="Interview session not found. Please start a new interview.")
         
         session = session_response.data[0]
         
-        # Get conversation history from stored questions and answers
-        # Note: In new schema, questions are stored in round tables, not separate interview_questions table
-        # For now, get answers from technical_round (can be enhanced to check session type)
-        session_type = session.get("interview_type", "technical") if session else "technical"
-        if session_type == "coding":
-            round_table = "coding_round"
-        elif session_type == "hr":
-            round_table = "hr_round"
-        elif session_type == "star":
-            round_table = "star_round"
-        else:
-            round_table = "technical_round"
+        # Check if session is already completed
+        session_status = session.get("session_status", "").lower()
+        if session_status == "completed":
+            logger.warning(f"[TECHNICAL NEXT QUESTION] Session already completed: {session_id}")
+            raise HTTPException(
+                status_code=400,
+                detail="This interview session has already been completed. Please start a new interview."
+            )
         
-        # Get questions from round table (question_text field)
-        answers_response = supabase.table(round_table).select("question_text, question_number, user_answer").eq("session_id", session_id).order("question_number").execute()
-        # Map to old format for compatibility
-        questions_response_data = []
-        answers_response_data = []
-        for row in (answers_response.data or []):
-            questions_response_data.append({"question": row.get("question_text", ""), "question_number": row.get("question_number", 0)})
-            answers_response_data.append({"user_answer": row.get("user_answer", ""), "question_number": row.get("question_number", 0)})
+        # Validate session is technical type
+        session_type = session.get("interview_type", "").lower()
+        if session_type != "technical":
+            logger.error(f"[TECHNICAL NEXT QUESTION] Wrong session type: {session_type} (expected: technical)")
+            raise HTTPException(
+                status_code=400, 
+                detail="This endpoint is for technical interviews only. Please use the correct interview type."
+            )
         
-        # Build conversation history
+        # Step 1: Save current answer if provided in request (like HR/STAR interviews)
+        user_answer = request.get("user_answer") or request.get("answer")
+        
+        if user_answer is not None:
+            if not isinstance(user_answer, str):
+                logger.warning(f"[TECHNICAL NEXT QUESTION] Invalid user_answer type received: {type(user_answer)}. Attempting conversion.")
+                try:
+                    user_answer = str(user_answer) 
+                except Exception:
+                    user_answer = None
+            
+            # ✅ Reject empty answers - NO random/auto-answers allowed
+            if user_answer and user_answer.strip():
+                try:
+                    # Get the last question for this session to update with the answer
+                    last_question_response = supabase.table("technical_round").select("*").eq("session_id", session_id).order("question_number", desc=True).limit(1).execute()
+                    
+                    if last_question_response.data and len(last_question_response.data) > 0:
+                        last_question = last_question_response.data[0]
+                        question_number = last_question.get("question_number")
+                        
+                        # Update the last question with the user's answer
+                        update_data = {
+                            "user_answer": user_answer
+                        }
+                        
+                        supabase.table("technical_round").update(update_data).eq("session_id", session_id).eq("question_number", question_number).execute()
+                        logger.info(f"[TECHNICAL NEXT QUESTION] ✅ Saved user answer for question {question_number}")
+                    else:
+                        logger.warning("[TECHNICAL NEXT QUESTION] No question found to update with answer")
+                except Exception as e:
+                    logger.error(f"[TECHNICAL NEXT QUESTION] Failed to save user answer: {str(e)}", exc_info=True)
+                    raise HTTPException(
+                        status_code=500,
+                        detail="Failed to save interview data. Please try again."
+                    )
+            else:
+                # ✅ Reject empty answers - do NOT allow unanswered questions to move forward
+                logger.warning("[TECHNICAL NEXT QUESTION] Empty answer provided - rejecting request")
+                raise HTTPException(
+                    status_code=400,
+                    detail="I could not hear your answer. Please speak again."
+                )
+        
+        # Step 2: Retrieve full conversation history from technical_round table AFTER saving answer
+        technical_round_response = supabase.table("technical_round").select(
+            "question_text, question_number, user_answer"
+        ).eq("session_id", session_id).order("question_number").execute()
+        
+        # Step 3: Build conversation history array in exact format for LLM
         conversation_history = []
         questions_asked = []
         answers_received = []
         
-        # Add questions and answers to conversation
-        questions = questions_response_data if questions_response_data else []
-        answers = answers_response_data if answers_response_data else []
+        for row in (technical_round_response.data or []):
+            question_text = row.get("question_text", "")
+            user_answer_text = row.get("user_answer", "")
+            
+            # Add question to conversation history
+            if question_text:
+                conversation_history.append({"role": "ai", "content": question_text})
+                questions_asked.append(question_text)
+            
+            # Add answer to conversation history (only if not empty)
+            if user_answer_text and user_answer_text.strip():
+                conversation_history.append({"role": "user", "content": user_answer_text})
+                answers_received.append(user_answer_text)
         
-        for q in questions:
-            conversation_history.append({"role": "ai", "content": q["question"]})
-            questions_asked.append(q["question"])
+        # Check if interview should end (max 10 questions for Technical - same as HR/STAR)
+        TECHNICAL_MAX_QUESTIONS = 10
+        current_question_count = len(questions_asked)
         
-        for a in answers:
-            conversation_history.append({"role": "user", "content": a["user_answer"]})
-            answers_received.append(a["user_answer"])
-        
-        # Prepare session data
-        session_data = {
-            "session_id": session_id,
-            "technical_skills": session.get("skills", []),
-            "conversation_history": conversation_history,
-            "current_question_index": len(questions),
-            "questions_asked": questions_asked,
-            "answers_received": answers_received
-        }
-        
-        # Check if interview should end (max 20 questions)
-        if len(questions_asked) >= 20:
+        # If we already have 10 questions, don't generate another one
+        if current_question_count >= TECHNICAL_MAX_QUESTIONS:
+            logger.info(f"[TECHNICAL NEXT QUESTION] Interview completed: {current_question_count} questions already asked (max: {TECHNICAL_MAX_QUESTIONS})")
             return {
                 "interview_completed": True,
                 "message": "Interview completed. Maximum questions reached."
             }
         
-        # Generate next question
-        question_data = technical_interview_engine.generate_next_question(session_data, conversation_history)
+        # ✅ CONVERSATIONAL FLOW: Generate next question using OpenAI with conversation history (like HR/STAR)
+        # Get user profile for resume context
+        user_id = session.get("user_id")
+        profile_response = supabase.table("user_profiles").select("*").eq("user_id", user_id).execute()
+        profile = profile_response.data[0] if profile_response.data else None
         
-        # Store question in technical_round table (new schema)
-        question_number = len(questions) + 1
+        resume_context = {}
+        experience_level = "Intermediate"
+        skills = []
+        
+        if profile:
+            resume_context = build_resume_context_from_profile(profile, supabase)
+            experience_level = profile.get("experience_level", "Intermediate")
+            skills = resume_context.get("skills", [])
+        
+        # Generate next technical question using OpenAI with conversation history
+        question_text = None
+        try:
+            from openai import OpenAI, APIError, RateLimitError
+            from app.config.settings import settings
+            
+            # Check if API key is available
+            if not settings.openai_api_key:
+                logger.error("[TECHNICAL NEXT QUESTION] OpenAI API key is missing.")
+                raise HTTPException(status_code=503, detail="AI service temporarily unavailable. API key not set.")
+            
+            client = OpenAI(api_key=settings.openai_api_key)
+            
+            # Build context for technical question generation
+            skills_context = ", ".join(skills[:10]) if skills else "general technical skills"
+            
+            # Build conversation context
+            conversation_context = ""
+            if conversation_history:
+                # Include last 30 messages to maintain context while staying within token limits
+                recent_messages = conversation_history[-30:] if len(conversation_history) > 30 else conversation_history
+                conversation_context = "\n".join([
+                    f"{msg.get('role', 'unknown').upper()}: {msg.get('content', '')[:300]}"
+                    for msg in recent_messages
+                ])
+            
+            # Build list of previously asked questions
+            questions_list = ""
+            if questions_asked:
+                questions_list = "\n".join([f"{i+1}. {q[:150]}" for i, q in enumerate(questions_asked)])
+            
+            # Technical-focused system prompt
+            system_prompt = """You are an experienced, friendly technical interviewer conducting a natural, conversational voice-based interview.
+
+Your interview style:
+- Speak naturally and conversationally, as if talking to a colleague
+- Build on previous answers - ask follow-up questions when appropriate
+- Show genuine interest in the candidate's responses
+- Focus on technical knowledge, problem-solving, and implementation details
+- Reference what the candidate mentioned in previous answers
+- Avoid awkward pauses - keep the conversation flowing smoothly
+- Never repeat questions that have already been asked
+
+Question guidelines:
+- Keep questions concise (1-2 sentences) for voice interaction
+- Make questions feel natural and conversational
+- Build on previous answers to create a cohesive interview flow
+- Test technical knowledge progressively (basic → advanced)
+- Reference specific technologies/skills from the resume when relevant"""
+
+            user_prompt = f"""Generate the next technical interview question for a smooth, natural conversation flow.
+
+CANDIDATE'S TECHNICAL SKILLS (from resume):
+Skills: {skills_context}
+Experience Level: {experience_level}
+
+CONVERSATION HISTORY (full context):
+{conversation_context if conversation_context else "This is the first question. Start with a friendly introduction and a foundational technical question."}
+
+PREVIOUSLY ASKED QUESTIONS (do NOT repeat these):
+{questions_list if questions_list else "None - this is the first question"}
+
+INTERVIEW PROGRESS:
+- Questions asked so far: {len(questions_asked)}
+- Answers received: {len(answers_received)}
+
+Generate ONE natural, conversational technical question that:
+1. Flows naturally from the conversation (builds on previous answers if any)
+2. Is relevant to the candidate's skills: {skills_context}
+3. Has NOT been asked before (check the list above)
+4. Feels like a natural next question in a human interview
+5. Is appropriate for voice interaction (concise, clear)
+6. Tests technical knowledge at an appropriate level
+7. References specific technologies from their resume when relevant
+
+IMPORTANT:
+- If this is early in the interview, start with foundational questions
+- If the candidate mentioned something interesting, ask a follow-up
+- Make it feel like a real conversation, not a scripted Q&A
+- Reference specific technologies from their resume when relevant
+
+Return ONLY the question text, nothing else. Make it sound natural and conversational."""
+
+            # Build messages with conversation history
+            messages = [
+                {"role": "system", "content": system_prompt}
+            ]
+            
+            # Step 4: Add conversation history as context messages for context-aware generation
+            # CRITICAL: This enables the AI to reference previous answers and build natural follow-ups
+            if conversation_history and len(conversation_history) > 0:
+                # Include last 30 messages to maintain context while staying within token limits
+                history_messages = conversation_history[-30:] if len(conversation_history) > 30 else conversation_history
+                for msg in history_messages:
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    if role == "ai" or role == "assistant":
+                        messages.append({"role": "assistant", "content": content[:500]})  # Limit length
+                    elif role == "user":
+                        messages.append({"role": "user", "content": content[:500]})  # Limit length
+                logger.info(f"[TECHNICAL NEXT QUESTION] ✅ Added {len(history_messages)} conversation history messages for context-aware question generation")
+            
+            messages.append({"role": "user", "content": user_prompt})
+            
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                temperature=0.7,
+                max_tokens=150,
+                timeout=30
+            )
+            
+            question_text = response.choices[0].message.content.strip()
+            logger.info(f"[TECHNICAL NEXT QUESTION] Generated next question: {question_text[:50]}...")
+            
+        except RateLimitError as e:
+            logger.error(f"[TECHNICAL NEXT QUESTION] OpenAI rate limit exceeded: {str(e)}")
+            raise HTTPException(
+                status_code=503, 
+                detail="The AI service is currently experiencing high demand. Please try again shortly."
+            )
+        except APIError as e:
+            logger.error(f"[TECHNICAL NEXT QUESTION] OpenAI API error: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500, 
+                detail="An external service error occurred during question generation. Please try again."
+            )
+        except Exception as e:
+            logger.error(f"[TECHNICAL NEXT QUESTION] Unexpected error: {str(e)}", exc_info=True)
+            question_text = None
+        
+        # Fallback to technical_interview_engine if OpenAI failed
+        if not question_text:
+            try:
+                session_data = {
+                    "session_id": session_id,
+                    "technical_skills": skills,
+                    "conversation_history": conversation_history,
+                    "current_question_index": current_question_count,
+                    "questions_asked": questions_asked,
+                    "answers_received": answers_received
+                }
+                question_data = technical_interview_engine.generate_next_question(session_data, conversation_history)
+                question_text = question_data.get("question", "")
+            except Exception as fallback_error:
+                logger.error(f"[TECHNICAL NEXT QUESTION] Fallback question generation failed: {str(fallback_error)}")
+                # Last resort fallback
+                fallback_questions = [
+                    f"Can you explain how you would use {skills[0] if skills else 'your technical skills'} in a real-world project?",
+                    "What's your approach to debugging complex technical issues?",
+                    "How do you stay updated with the latest technologies in your field?",
+                    "Can you describe a challenging technical problem you've solved?",
+                    "What's your experience with version control and collaboration tools?"
+                ]
+                question_text = fallback_questions[current_question_count % len(fallback_questions)]
+        
+        # Store new question in technical_round table
+        question_number = current_question_count + 1
         user_id = str(session.get("user_id", "")) if session else ""
         
-        # Store question in technical_round table with placeholder answer (will be updated when user answers)
         question_db_data = {
             "user_id": user_id,
             "session_id": session_id,
             "question_number": question_number,
-            "question_text": question_data["question"],
-            "question_type": question_data.get("question_type", "Technical"),
+            "question_text": question_text,
+            "question_type": "Technical",
             "user_answer": "",  # Placeholder - will be updated when user submits answer
             "relevance_score": None,
             "technical_accuracy_score": None,
@@ -1926,33 +2295,59 @@ async def get_next_technical_question(
             "response_time": None
         }
         
-        supabase.table("technical_round").insert(question_db_data).execute()
+        try:
+            insert_response = supabase.table("technical_round").insert(question_db_data).execute()
+            if not insert_response.data or len(insert_response.data) == 0:
+                logger.error("[TECHNICAL NEXT QUESTION] Failed to store technical question - no data returned from insert")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to save interview question. Please try again."
+                )
+            logger.info(f"[TECHNICAL NEXT QUESTION] ✅ Stored question {question_number} in database")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"[TECHNICAL NEXT QUESTION] Failed to store technical question: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to save interview question. Please try again."
+            )
         
-        # Generate audio URL using TTS
+        # ✅ FIX: Generate audio URL for EVERY question - MUST always return audio_url
         audio_url = None
         try:
-            # We'll generate audio on-demand via the TTS endpoint
             import urllib.parse
-            from app.config.settings import settings
             from app.utils.url_utils import get_api_base_url
-            encoded_text = urllib.parse.quote(question_data['question'])
-            # Use absolute URL - works for both localhost and production
-            base_url = get_api_base_url()
-            audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"
+            if question_text:
+                encoded_text = urllib.parse.quote(question_text)
+                base_url = get_api_base_url()
+                audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"
+                logger.info(f"[TECHNICAL INTERVIEW] ✅ Generated audio_url: {audio_url}")
+            else:
+                logger.error(f"[TECHNICAL INTERVIEW] ❌ question_text is empty, cannot generate audio_url")
+                audio_url = None
         except Exception as e:
-            logger.warning(f"Could not generate audio URL: {str(e)}")
+            logger.error(f"[TECHNICAL INTERVIEW] ❌ Could not generate audio URL for technical question: {str(e)}", exc_info=True)
+            audio_url = None
+        
+        # Determine if interview is completed (question_number > 10)
+        interview_completed = question_number > TECHNICAL_MAX_QUESTIONS
         
         return {
-            "question": question_data["question"],
-            "question_type": question_data.get("question_type", "Technical"),
+            "question": question_text,
+            "question_type": "Technical",
+            "question_number": question_number,
+            "total_questions": 10,  # Technical interviews now have 10 questions (same as HR/STAR)
             "audio_url": audio_url,
-            "interview_completed": False
+            "interview_completed": interview_completed,
+            "session_id": session_id
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error getting next question: {str(e)}")
+        logger.error(f"[TECHNICAL NEXT QUESTION] Unexpected error getting next technical question: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate next question. Please try again.")
 
 @router.post("/technical/{session_id}/submit-answer")
 async def submit_technical_answer(
@@ -5652,13 +6047,31 @@ async def start_star_interview(
         except Exception as e:
             logger.warning(f"Failed to store STAR question: {str(e)}")
         
+        # Generate audio URL for the question (same as HR interview)
+        audio_url = None
+        try:
+            import urllib.parse
+            from app.utils.url_utils import get_api_base_url
+            if question_text:
+                encoded_text = urllib.parse.quote(question_text)
+                base_url = get_api_base_url()
+                audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"
+                logger.info(f"[STAR INTERVIEW] ✅ Generated audio_url: {audio_url}")
+            else:
+                logger.error(f"[STAR INTERVIEW] ❌ question_text is empty, cannot generate audio_url")
+                audio_url = None
+        except Exception as e:
+            logger.error(f"[STAR INTERVIEW] ❌ Could not generate audio URL: {str(e)}", exc_info=True)
+            audio_url = None
+        
         return {
             "session_id": session_id,
             "question": question_text,
             "question_type": "STAR",
             "question_number": 1,
-            "total_questions": 5,  # Default for STAR interviews
-            "user_id": user_id
+            "total_questions": 10,  # STAR interviews support up to 10 questions
+            "user_id": user_id,
+            "audio_url": audio_url  # Include audio URL for TTS playback
         }
         
     except HTTPException:
@@ -5666,6 +6079,776 @@ async def start_star_interview(
     except Exception as e:
         logger.error(f"Error starting STAR interview: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error starting STAR interview: {str(e)}")
+
+
+@router.post("/star/{session_id}/submit-answer")
+async def submit_star_answer(
+    session_id: str,
+    request: Dict[str, Any] = Body(...),
+    supabase: Client = Depends(get_supabase_client)
+):
+    """
+    Submit an answer to the current STAR question
+    Uses STAR-specific evaluation and stores in star_round table
+    """
+    try:
+        # Input validation
+        if not session_id or not isinstance(session_id, str) or not session_id.strip():
+            logger.error(f"[STAR SUBMIT ANSWER] Invalid session_id: {session_id}")
+            raise HTTPException(status_code=400, detail="Invalid request format. Please check your input and try again.")
+        
+        question = request.get("question") or request.get("question_text")
+        answer = request.get("answer") or request.get("user_answer")
+        
+        # Accept "No Answer" as valid answer, reject only truly empty answers
+        if not answer or not isinstance(answer, str):
+            logger.error(f"[STAR SUBMIT ANSWER] Empty or invalid answer in request - rejecting")
+            raise HTTPException(status_code=400, detail="I could not hear your answer. Please speak again.")
+        
+        # Allow "No Answer" exactly as-is (case-sensitive check)
+        if answer.strip() == "" and answer != "No Answer":
+            logger.error(f"[STAR SUBMIT ANSWER] Empty or whitespace-only answer - rejecting")
+            raise HTTPException(status_code=400, detail="I could not hear your answer. Please speak again.")
+        
+        logger.info(f"[STAR SUBMIT ANSWER] Submitting answer for session_id: {session_id}")
+        
+        # Get session
+        try:
+            session_response = supabase.table("interview_sessions").select("*").eq("id", session_id).execute()
+        except Exception as db_error:
+            logger.error(f"[STAR SUBMIT ANSWER] Database error fetching session: {str(db_error)}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to retrieve interview session. Please try again.")
+        
+        if not session_response.data or len(session_response.data) == 0:
+            logger.warning(f"[STAR SUBMIT ANSWER] Session not found: {session_id}")
+            raise HTTPException(status_code=404, detail="Interview session not found. Please start a new interview.")
+        
+        session = session_response.data[0]
+        
+        # Validate session is STAR type
+        session_type = session.get("interview_type", "").lower()
+        if session_type != "star":
+            logger.error(f"[STAR SUBMIT ANSWER] Wrong session type: {session_type} (expected: star)")
+            raise HTTPException(
+                status_code=400, 
+                detail="This endpoint is for STAR interviews only. Please use the correct interview type."
+            )
+        
+        # Get current question from star_round table
+        try:
+            questions_response = supabase.table("star_round").select("*").eq("session_id", session_id).order("question_number", desc=True).limit(1).execute()
+        except Exception as db_error:
+            logger.error(f"[STAR SUBMIT ANSWER] Database error fetching question: {str(db_error)}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to submit answer due to a server error. Please try again.")
+        
+        if not questions_response.data or len(questions_response.data) == 0:
+            logger.warning(f"[STAR SUBMIT ANSWER] No question found in star_round for session_id={session_id}")
+            raise HTTPException(
+                status_code=404, 
+                detail="No current question found for this session. Please start a new interview."
+            )
+        
+        current_question_db = questions_response.data[0]
+        question_number = current_question_db["question_number"]
+        question_text = current_question_db.get("question_text", question)
+        
+        if not question_text or not question_text.strip():
+            question_text = question
+            if not question_text or not question_text.strip():
+                logger.error(f"[STAR SUBMIT ANSWER] Both DB and request have empty question text")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Question text is missing. Please start a new interview."
+                )
+        
+        # Get experience level for evaluation
+        experience_level = session.get("experience_level", "Intermediate")
+        response_time = request.get("response_time")
+        
+        # For "No Answer", set all scores to 0
+        if answer == "No Answer":
+            logger.debug(f"[STAR SUBMIT ANSWER] Setting all scores to 0 for 'No Answer'")
+            from app.services.answer_evaluator import AnswerScore
+            scores = AnswerScore(
+                relevance=0,
+                confidence=0,
+                technical_accuracy=0,
+                communication=0,
+                overall=0,
+                feedback="No answer provided."
+            )
+        else:
+            # Evaluate answer using STAR-specific evaluation
+            from app.services.answer_evaluator import answer_evaluator
+            scores = answer_evaluator.evaluate_answer(
+                question=question_text,
+                question_type="STAR",
+                answer=answer,
+                experience_level=experience_level,
+                response_time=response_time
+            )
+        
+        logger.info(f"[STAR SUBMIT ANSWER] Answer evaluated - Overall: {scores.overall}")
+        
+        # Generate AI response
+        ai_response = None
+        if answer == "No Answer":
+            ai_response = "Let's continue with the next question."
+        else:
+            # Use OpenAI to generate STAR-specific feedback
+            from app.services.technical_interview_engine import technical_interview_engine
+            if technical_interview_engine.openai_available and technical_interview_engine.client is not None:
+                try:
+                    system_prompt = """You are an experienced behavioral interviewer providing feedback on STAR method answers.
+Provide brief, encouraging, and constructive feedback (1-2 sentences) that:
+- Acknowledges what the candidate said
+- Provides gentle guidance on STAR structure if needed
+- Maintains a positive, professional tone
+- Focuses on Situation, Task, Action, Result structure"""
+                    
+                    user_prompt = f"""Question: {question_text}
+Candidate Answer: {answer}
+Overall Score: {scores.overall}/100
+                    
+Provide brief, encouraging feedback for this STAR interview answer."""
+                    
+                    response = technical_interview_engine.client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt}
+                        ],
+                        temperature=0.7,
+                        max_tokens=150
+                    )
+                    
+                    ai_response = response.choices[0].message.content.strip()
+                    logger.info(f"[STAR SUBMIT ANSWER] AI response generated: {ai_response[:50]}...")
+                    
+                except Exception as e:
+                    logger.warning(f"[STAR SUBMIT ANSWER] Could not generate AI response: {str(e)}")
+                    ai_response = "Thank you for your answer. Let's continue with the next question."
+            else:
+                ai_response = "Thank you for your answer. Let's continue with the next question."
+        
+        # Generate audio URL for AI response
+        ai_response_audio_url = None
+        if ai_response:
+            try:
+                import urllib.parse
+                from app.utils.url_utils import get_api_base_url
+                encoded_text = urllib.parse.quote(ai_response)
+                base_url = get_api_base_url()
+                ai_response_audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"
+                logger.info(f"[STAR SUBMIT ANSWER] Generated AI response audio URL")
+            except Exception as e:
+                logger.warning(f"[STAR SUBMIT ANSWER] Could not generate audio URL: {str(e)}")
+        
+        # Update the existing question row in star_round table
+        user_id = str(session.get("user_id", "")) if session else ""
+        
+        # Map scores to STAR-specific fields
+        # For STAR, we evaluate: structure, situation, task, action, result
+        # Map from answer_evaluator scores to STAR scores
+        star_structure_score = scores.overall  # Overall structure adherence
+        situation_score = scores.relevance  # How well situation was described
+        task_score = scores.communication  # How well task was explained
+        action_score = scores.technical_accuracy  # How well actions were described
+        result_score = scores.overall  # How well results were presented
+        overall_score = scores.overall
+        
+        update_data = {
+            "user_answer": answer,
+            "star_structure_score": star_structure_score,
+            "situation_score": situation_score,
+            "task_score": task_score,
+            "action_score": action_score,
+            "result_score": result_score,
+            "overall_score": overall_score,
+            "ai_feedback": ai_response if ai_response else scores.feedback,
+            "response_time": response_time
+        }
+        
+        try:
+            answer_response = supabase.table("star_round").update(update_data).eq("session_id", str(session_id)).eq("question_number", int(question_number)).execute()
+            
+            if not answer_response.data or len(answer_response.data) == 0:
+                logger.error(f"[STAR SUBMIT ANSWER] ❌ Update returned no rows")
+                raise HTTPException(status_code=500, detail="Failed to save answer to database. Please try again.")
+            
+            logger.info(f"[STAR SUBMIT ANSWER] ✅ Answer saved successfully")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"[STAR SUBMIT ANSWER] Database error updating answer: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to save answer to database. Please try again.")
+        
+        # Check if interview should be completed (max 10 questions for STAR)
+        STAR_MAX_QUESTIONS = 10
+        questions_response = supabase.table("star_round").select("question_number").eq("session_id", session_id).execute()
+        total_questions = len(questions_response.data) if questions_response.data else 0
+        interview_completed = total_questions >= STAR_MAX_QUESTIONS
+        
+        # Update session status if completed
+        if interview_completed:
+            try:
+                supabase.table("interview_sessions").update({
+                    "session_status": "completed"
+                }).eq("id", session_id).execute()
+                logger.info(f"[STAR SUBMIT ANSWER] ✅ Session marked as completed")
+            except Exception as e:
+                logger.warning(f"[STAR SUBMIT ANSWER] Could not update session status: {str(e)}")
+        
+        return {
+            "answer_id": answer_response.data[0].get("id"),
+            "session_id": session_id,
+            "question_number": question_number,
+            "scores": {
+                "star_structure": star_structure_score,
+                "situation": situation_score,
+                "task": task_score,
+                "action": action_score,
+                "result": result_score,
+                "overall": overall_score
+            },
+            "ai_response": ai_response,
+            "audio_url": ai_response_audio_url,
+            "feedback": scores.feedback,
+            "interview_completed": interview_completed,
+            "response_time": response_time
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[STAR SUBMIT ANSWER] Unexpected error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to submit answer. Please try again.")
+
+
+@router.post("/star/{session_id}/next-question")
+async def get_next_star_question(
+    session_id: str,
+    request: Dict[str, Any] = Body(...),
+    supabase: Client = Depends(get_supabase_client)
+):
+    """
+    Get the next STAR question for the interview
+    Accepts user_answer in request body, saves it first, then generates context-aware next question
+    """
+    try:
+        # Input validation
+        if not session_id or not isinstance(session_id, str) or not session_id.strip():
+            logger.error(f"[STAR NEXT QUESTION] Invalid session_id: {session_id}")
+            raise HTTPException(status_code=400, detail="Invalid request format. Please check your input and try again.")
+        
+        logger.info(f"[STAR NEXT QUESTION] Request for session_id: {session_id}")
+        
+        # Get session
+        try:
+            session_response = supabase.table("interview_sessions").select("*").eq("id", session_id).execute()
+        except Exception as db_error:
+            logger.error(f"[STAR NEXT QUESTION] Database error fetching session: {str(db_error)}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to retrieve interview session. Please try again.")
+        
+        if not session_response.data or len(session_response.data) == 0:
+            logger.warning(f"[STAR NEXT QUESTION] Session not found: {session_id}")
+            raise HTTPException(status_code=404, detail="Interview session not found. Please start a new interview.")
+        
+        session = session_response.data[0]
+        
+        # Validate session is STAR type
+        session_type = session.get("interview_type", "").lower()
+        if session_type != "star":
+            logger.error(f"[STAR NEXT QUESTION] Wrong session type: {session_type} (expected: star)")
+            raise HTTPException(
+                status_code=400, 
+                detail="This endpoint is for STAR interviews only. Please use the correct interview type."
+            )
+        
+        # Save current answer if provided
+        user_answer = request.get("user_answer") or request.get("answer")
+        if user_answer and user_answer.strip() and user_answer != "No Answer":
+            try:
+                last_question_response = supabase.table("star_round").select("*").eq("session_id", session_id).order("question_number", desc=True).limit(1).execute()
+                
+                if last_question_response.data and len(last_question_response.data) > 0:
+                    last_question = last_question_response.data[0]
+                    question_number = last_question.get("question_number")
+                    
+                    update_data = {"user_answer": user_answer}
+                    supabase.table("star_round").update(update_data).eq("session_id", session_id).eq("question_number", question_number).execute()
+                    logger.info(f"[STAR NEXT QUESTION] ✅ Saved user answer for question {question_number}")
+            except Exception as e:
+                logger.warning(f"[STAR NEXT QUESTION] Failed to save user answer: {str(e)}")
+        
+        # Retrieve conversation history
+        star_round_response = supabase.table("star_round").select(
+            "question_text, question_number, user_answer"
+        ).eq("session_id", session_id).order("question_number").execute()
+        
+        conversation_history = []
+        questions_asked = []
+        
+        for row in (star_round_response.data or []):
+            question_text = row.get("question_text", "")
+            user_answer_text = row.get("user_answer", "")
+            
+            if question_text:
+                conversation_history.append({"role": "ai", "content": question_text})
+                questions_asked.append(question_text)
+            
+            if user_answer_text and user_answer_text.strip() and user_answer_text != "No Answer":
+                conversation_history.append({"role": "user", "content": user_answer_text})
+        
+        # Check if interview should end (max 10 questions for STAR)
+        STAR_MAX_QUESTIONS = 10
+        current_question_count = len(questions_asked)
+        
+        if current_question_count >= STAR_MAX_QUESTIONS:
+            logger.info(f"[STAR NEXT QUESTION] Interview completed: {current_question_count} questions already asked")
+            return {
+                "interview_completed": True,
+                "message": "Interview completed. Maximum questions reached."
+            }
+        
+        # Generate next STAR question
+        next_question_number = current_question_count + 1
+        user_id = session.get("user_id")
+        
+        # Get user profile for resume context
+        profile_response = supabase.table("user_profiles").select("*").eq("user_id", user_id).execute()
+        profile = profile_response.data[0] if profile_response.data else None
+        
+        resume_context = {}
+        experience_level = "Intermediate"
+        skills = []
+        
+        if profile:
+            resume_context = build_resume_context_from_profile(profile, supabase)
+            experience_level = profile.get("experience_level", "Intermediate")
+            skills = resume_context.get("skills", [])
+        
+        # Generate next STAR question using OpenAI
+        question_text = None
+        try:
+            from openai import OpenAI, APIError, RateLimitError
+            from app.config.settings import settings
+            
+            if not settings.openai_api_key:
+                logger.error("[STAR NEXT QUESTION] OpenAI API key is missing.")
+                raise HTTPException(status_code=503, detail="AI service temporarily unavailable. API key not set.")
+            
+            client = OpenAI(api_key=settings.openai_api_key)
+            
+            skills_context = ", ".join(skills[:10]) if skills else "general skills"
+            
+            conversation_context = ""
+            if conversation_history:
+                recent_messages = conversation_history[-30:] if len(conversation_history) > 30 else conversation_history
+                conversation_context = "\n".join([
+                    f"{msg.get('role', 'unknown').upper()}: {msg.get('content', '')[:300]}"
+                    for msg in recent_messages
+                ])
+            
+            questions_list = ""
+            if questions_asked:
+                questions_list = "\n".join([f"{i+1}. {q[:150]}" for i, q in enumerate(questions_asked)])
+            
+            system_prompt = """You are an experienced behavioral interviewer conducting STAR method interviews.
+Your interview style:
+- Ask behavioral questions that require STAR method answers
+- Focus on Situation, Task, Action, Result structure
+- Build on previous answers when appropriate
+- Reference the candidate's resume and experiences
+- Keep questions concise (1-2 sentences) for voice interaction
+- Never repeat questions that have already been asked"""
+            
+            user_prompt = f"""Generate the next STAR interview question for a behavioral interview.
+            
+CANDIDATE'S BACKGROUND (from resume):
+Skills: {skills_context}
+Experience Level: {experience_level}
+            
+CONVERSATION HISTORY:
+{conversation_context if conversation_context else "This is the first question. Start with a foundational behavioral question."}
+            
+PREVIOUSLY ASKED QUESTIONS (do NOT repeat these):
+{questions_list if questions_list else "None - this is the first question"}
+            
+INTERVIEW PROGRESS:
+- Questions asked so far: {len(questions_asked)}
+            
+Generate ONE behavioral question that:
+1. Requires a STAR method answer (Situation, Task, Action, Result)
+2. Is relevant to behavioral interview topics
+3. Has NOT been asked before
+4. References the candidate's resume when relevant
+5. Is appropriate for voice interaction (concise, clear)
+            
+Return ONLY the question text, nothing else."""
+            
+            messages = [{"role": "system", "content": system_prompt}]
+            
+            if conversation_history and len(conversation_history) > 0:
+                history_messages = conversation_history[-30:] if len(conversation_history) > 30 else conversation_history
+                for msg in history_messages:
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    if role == "ai" or role == "assistant":
+                        messages.append({"role": "assistant", "content": content[:500]})
+                    elif role == "user":
+                        messages.append({"role": "user", "content": content[:500]})
+            
+            messages.append({"role": "user", "content": user_prompt})
+            
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                temperature=0.7,
+                max_tokens=150,
+                timeout=30
+            )
+            
+            question_text = response.choices[0].message.content.strip()
+            logger.info(f"[STAR INTERVIEW] Generated next question: {question_text[:50]}...")
+            
+        except RateLimitError as e:
+            logger.error(f"[STAR NEXT QUESTION] OpenAI rate limit exceeded: {str(e)}")
+            raise HTTPException(
+                status_code=503, 
+                detail="The AI service is currently experiencing high demand. Please try again shortly."
+            )
+        except APIError as e:
+            logger.error(f"[STAR NEXT QUESTION] OpenAI API error: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500, 
+                detail="An external service error occurred during question generation. Please try again."
+            )
+        except Exception as e:
+            logger.error(f"[STAR NEXT QUESTION] Unexpected error: {str(e)}", exc_info=True)
+            question_text = None
+        
+        # Fallback to question generator if OpenAI failed
+        if not question_text:
+            try:
+                from app.services.question_generator import question_generator
+                questions = question_generator.generate_questions(
+                    role="Behavioral Interview",
+                    experience_level=experience_level,
+                    skills=skills,
+                    resume_context=resume_context
+                )
+                star_questions = [q for q in questions if q.type.lower() in ["hr", "behavioral", "star"]]
+                if star_questions:
+                    question_text = star_questions[0].question if hasattr(star_questions[0], 'question') else star_questions[0].get("question", "")
+                else:
+                    fallback_questions = [
+                        "Tell me about a time when you had to work under pressure.",
+                        "Describe a situation where you had to solve a difficult problem.",
+                        "Give me an example of when you worked effectively in a team.",
+                        "Tell me about a time when you had to lead a project.",
+                        "Describe a challenging situation you faced at work."
+                    ]
+                    question_text = fallback_questions[len(questions_asked) % len(fallback_questions)]
+            except Exception as fallback_error:
+                logger.error(f"[STAR INTERVIEW] Fallback question generation failed: {str(fallback_error)}")
+                question_text = "Tell me about a time when you had to work under pressure."
+        
+        if not question_text:
+            logger.error("[STAR NEXT QUESTION] Failed to generate question")
+            raise HTTPException(status_code=500, detail="A server error occurred while processing your request. Please try again.")
+        
+        # Save new question in star_round table
+        question_db_data = {
+            "user_id": str(user_id),
+            "session_id": session_id,
+            "question_number": next_question_number,
+            "question_text": question_text,
+            "user_answer": "",
+            "star_structure_score": None,
+            "situation_score": None,
+            "task_score": None,
+            "action_score": None,
+            "result_score": None,
+            "overall_score": None,
+            "ai_feedback": None,
+            "star_guidance": None,
+            "improvement_suggestions": None,
+            "response_time": None
+        }
+        
+        try:
+            insert_response = supabase.table("star_round").insert(question_db_data).execute()
+            if not insert_response.data or len(insert_response.data) == 0:
+                logger.error(f"[STAR NEXT QUESTION] Failed to store question")
+                raise HTTPException(status_code=500, detail="Failed to save interview data. Please try again.")
+            logger.info(f"[STAR NEXT QUESTION] ✅ Saved new question {next_question_number}")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"[STAR NEXT QUESTION] Failed to store question: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to save interview data. Please try again.")
+        
+        # Generate audio URL for question
+        audio_url = None
+        try:
+            import urllib.parse
+            from app.utils.url_utils import get_api_base_url
+            if question_text:
+                encoded_text = urllib.parse.quote(question_text)
+                base_url = get_api_base_url()
+                audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"
+                logger.info(f"[STAR NEXT QUESTION] ✅ Generated audio_url for question {next_question_number}")
+        except Exception as e:
+            logger.error(f"[STAR NEXT QUESTION] ❌ Could not generate audio URL: {str(e)}", exc_info=True)
+            try:
+                from app.utils.url_utils import get_api_base_url
+                base_url = get_api_base_url()
+                if question_text:
+                    import urllib.parse
+                    encoded_text = urllib.parse.quote(question_text)
+                    audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"
+            except Exception:
+                audio_url = "/api/interview/text-to-speech?text="
+        
+        interview_completed = next_question_number > 10
+        
+        return {
+            "question": question_text,
+            "question_type": "STAR",
+            "question_number": next_question_number,
+            "total_questions": 10,
+            "audio_url": audio_url,
+            "interview_completed": interview_completed,
+            "session_id": session_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[STAR NEXT QUESTION] Unexpected error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate next question. Please try again.")
+
+
+@router.get("/star/{session_id}/feedback")
+async def get_star_interview_feedback(
+    session_id: str,
+    supabase: Client = Depends(get_supabase_client)
+):
+    """
+    Get final feedback for completed STAR interview
+    Returns STAR-specific feedback with structure, situation, task, action, and result scores
+    """
+    try:
+        # Input validation
+        if not session_id or not isinstance(session_id, str) or not session_id.strip():
+            logger.error(f"[STAR FEEDBACK] Invalid session_id: {session_id}")
+            raise HTTPException(status_code=400, detail="Invalid request format. Please check your input and try again.")
+        
+        logger.info(f"[STAR FEEDBACK] Requesting feedback for session_id: {session_id}")
+        
+        # Get session
+        try:
+            session_response = supabase.table("interview_sessions").select("*").eq("id", session_id).execute()
+        except Exception as db_error:
+            logger.error(f"[STAR FEEDBACK] Database error fetching session: {str(db_error)}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to retrieve interview session. Please try again.")
+        
+        if not session_response.data or len(session_response.data) == 0:
+            logger.warning(f"[STAR FEEDBACK] Session not found: {session_id}")
+            raise HTTPException(status_code=404, detail="Interview session not found. Please start a new interview.")
+        
+        session = session_response.data[0]
+        
+        # Validate session is STAR type
+        session_type = session.get("interview_type", "").lower()
+        if session_type != "star":
+            logger.error(f"[STAR FEEDBACK] Wrong session type: {session_type} (expected: star)")
+            raise HTTPException(
+                status_code=400, 
+                detail="This endpoint is for STAR interviews only. Please use the correct interview type."
+            )
+        
+        # Get all answers from star_round table
+        try:
+            answers_response = supabase.table("star_round").select("*").eq("session_id", session_id).order("question_number").execute()
+        except Exception as db_error:
+            logger.error(f"[STAR FEEDBACK] Database error fetching answers: {str(db_error)}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to retrieve interview answers. Please try again.")
+        
+        answers = answers_response.data if answers_response.data else []
+        
+        if not answers:
+            raise HTTPException(status_code=400, detail="No answers found for this session. Please complete the interview first.")
+        
+        # Calculate average scores
+        total_star_structure = 0
+        total_situation = 0
+        total_task = 0
+        total_action = 0
+        total_result = 0
+        total_overall = 0
+        count = 0
+        
+        for answer in answers:
+            if answer.get("overall_score") is not None:
+                total_star_structure += answer.get("star_structure_score", 0) or 0
+                total_situation += answer.get("situation_score", 0) or 0
+                total_task += answer.get("task_score", 0) or 0
+                total_action += answer.get("action_score", 0) or 0
+                total_result += answer.get("result_score", 0) or 0
+                total_overall += answer.get("overall_score", 0) or 0
+                count += 1
+        
+        if count == 0:
+            raise HTTPException(status_code=400, detail="No scored answers found for this session.")
+        
+        avg_star_structure = total_star_structure / count
+        avg_situation = total_situation / count
+        avg_task = total_task / count
+        avg_action = total_action / count
+        avg_result = total_result / count
+        avg_overall = total_overall / count
+        
+        # Generate feedback summary using OpenAI
+        feedback_summary = ""
+        strengths = []
+        areas_for_improvement = []
+        recommendations = []
+        
+        try:
+            from app.services.technical_interview_engine import technical_interview_engine
+            if technical_interview_engine.openai_available and technical_interview_engine.client is not None:
+                system_prompt = """You are an expert behavioral interview coach. Analyze STAR interview performance and provide:
+1. A 2-3 paragraph feedback summary
+2. List of strengths (3-5 items)
+3. List of areas for improvement (3-5 items)
+4. Specific recommendations (3-5 actionable items)
+
+Focus on STAR method structure, behavioral examples, and communication."""
+                
+                user_prompt = f"""STAR Interview Performance:
+- STAR Structure Score: {avg_star_structure}/100
+- Situation Score: {avg_situation}/100
+- Task Score: {avg_task}/100
+- Action Score: {avg_action}/100
+- Result Score: {avg_result}/100
+- Overall Score: {avg_overall}/100
+- Questions Answered: {len(answers)}
+
+Provide comprehensive feedback as specified."""
+                
+                response = technical_interview_engine.client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=0.7,
+                    max_tokens=500
+                )
+                
+                feedback_text = response.choices[0].message.content.strip()
+                
+                # Parse feedback (simple extraction)
+                lines = feedback_text.split('\n')
+                feedback_summary = feedback_text[:300]  # First 300 chars as summary
+                strengths = [line.strip('- ').strip() for line in lines if line.strip().startswith('-') or line.strip().startswith('•')][:5]
+                areas_for_improvement = [line.strip('- ').strip() for line in lines if 'improve' in line.lower() or 'weak' in line.lower()][:5]
+                recommendations = [line.strip('- ').strip() for line in lines if 'recommend' in line.lower() or 'suggest' in line.lower()][:5]
+                
+        except Exception as e:
+            logger.warning(f"[STAR FEEDBACK] Could not generate AI feedback: {str(e)}")
+            feedback_summary = f"Your STAR interview performance shows an overall score of {avg_overall}/100. Continue practicing to improve your behavioral interview skills."
+            strengths = ["Good effort in completing the interview"]
+            areas_for_improvement = ["Continue practicing STAR method structure"]
+            recommendations = ["Practice more behavioral interview questions"]
+        
+        return {
+            "overall_score": round(avg_overall, 2),
+            "star_structure_score": round(avg_star_structure, 2),
+            "situation_score": round(avg_situation, 2),
+            "task_score": round(avg_task, 2),
+            "action_score": round(avg_action, 2),
+            "result_score": round(avg_result, 2),
+            "feedback_summary": feedback_summary,
+            "strengths": strengths[:5],
+            "areas_for_improvement": areas_for_improvement[:5],
+            "recommendations": recommendations[:5],
+            "question_count": len(answers)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[STAR FEEDBACK] Unexpected error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate feedback. Please try again.")
+
+
+@router.post("/star/{session_id}/end")
+async def end_star_interview(
+    session_id: str,
+    supabase: Client = Depends(get_supabase_client)
+):
+    """
+    End the STAR interview session
+    Updates session status to completed
+    """
+    try:
+        # Input validation
+        if not session_id or not isinstance(session_id, str) or not session_id.strip():
+            logger.error(f"[STAR END] Invalid session_id: {session_id}")
+            raise HTTPException(status_code=400, detail="Invalid request format. Please check your input and try again.")
+        
+        logger.info(f"[STAR END] Ending STAR interview session: {session_id}")
+        
+        # Verify session exists and is STAR type
+        try:
+            session_response = supabase.table("interview_sessions").select("*").eq("id", session_id).execute()
+        except Exception as db_error:
+            logger.error(f"[STAR END] Database error fetching session: {str(db_error)}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to retrieve interview session. Please try again.")
+        
+        if not session_response.data or len(session_response.data) == 0:
+            logger.warning(f"[STAR END] Session not found: {session_id}")
+            raise HTTPException(status_code=404, detail="Interview session not found. Please start a new interview.")
+        
+        session = session_response.data[0]
+        
+        # Validate session is STAR type
+        session_type = session.get("interview_type", "").lower()
+        if session_type != "star":
+            logger.error(f"[STAR END] Wrong session type: {session_type} (expected: star)")
+            raise HTTPException(
+                status_code=400, 
+                detail="This endpoint is for STAR interviews only. Please use the correct interview type."
+            )
+        
+        # Update session status to completed
+        try:
+            update_response = supabase.table("interview_sessions").update({
+                "session_status": "completed"
+            }).eq("id", session_id).execute()
+            
+            if not update_response.data or len(update_response.data) == 0:
+                logger.warning(f"[STAR END] Session update returned no rows for session_id: {session_id}")
+            else:
+                logger.info(f"[STAR END] ✅ STAR interview session ended successfully: {session_id}")
+        except Exception as e:
+            logger.error(f"[STAR END] Error updating session status: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to end interview session. Please try again.")
+        
+        return {
+            "message": "STAR interview session ended successfully",
+            "session_id": session_id,
+            "status": "completed"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[STAR END] Unexpected error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to end interview session. Please try again.")
 
 
 @router.get("/coding/{session_id}/results")
