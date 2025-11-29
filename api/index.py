@@ -15,5 +15,6 @@ if str(PROJECT_ROOT) not in sys.path:
 from app.main import app
 
 # Export handler for Vercel
+# Vercel expects the handler to be the ASGI app directly
 handler = app
 

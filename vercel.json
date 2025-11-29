@@ -3,11 +3,10 @@
   "builds": [
     {
       "src": "api/index.py",
-      "use": "@vercel/python"
-    },
-    {
-      "src": "frontend/**",
-      "use": "@vercel/static"
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "50mb"
+      }
     }
   ],
   "rewrites": [
@@ -17,12 +16,12 @@
     },
     {
       "source": "/(.*)",
-      "destination": "/frontend/$1"
+      "destination": "/api/index.py"
     }
   ],
   "headers": [
     {
-      "source": "/(.*)",
+      "source": "/api/(.*)",
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
@@ -37,8 +36,23 @@
           "value": "Content-Type, Authorization, X-Requested-With"
         }
       ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        }
+      ]
     }
   ],
+  "functions": {
+    "api/index.py": {
+      "runtime": "python3.12",
+      "includeFiles": "app/**"
+    }
+  },
   "env": {
     "PYTHON_VERSION": "3.12"
   }
