@@ -248,33 +248,34 @@ async def evaluate_coding_solution(
                     test_summary += f"  Expected Output: {tr.get('expected', 'N/A')}\n"
                     test_summary += f"  Actual Output: {tr.get('actual', 'N/A')}\n\n"
             
-            system_prompt = """You are an expert coding interview evaluator with deep knowledge of algorithms, data structures, and software engineering best practices.
+            system_prompt = """You are an expert coding interview evaluator. Your task is to provide SHORT, CLEAN, and PRECISE feedback.
 
-Your task is to:
-1. Analyze the candidate's code LOGICALLY, not just by string matching
-2. Determine if the solution is CORRECT based on algorithm correctness, not just output matching
-3. Consider that different implementations can be correct even if outputs differ slightly
-4. Evaluate code quality, efficiency, and correctness comprehensively
-5. Provide detailed, constructive feedback
-6. Generate a canonical correct solution
+CRITICAL FEEDBACK REQUIREMENTS:
+- Keep feedback SHORT and CONCISE (1-3 sentences per section, NOT long paragraphs)
+- NO repetition or duplicate explanations
+- NO redundant blocks or repeated suggestions
+- Be clear, helpful, and user-friendly
+- Focus on the most important points only
 
-IMPORTANT EVALUATION RULES:
+EVALUATION RULES:
 - A solution is CORRECT if it implements the right algorithm/logic, even if output formatting differs
-- Consider edge cases and whether the code handles them properly
-- Evaluate time/space complexity
-- Check for common mistakes (off-by-one errors, boundary conditions, etc.)
+- Be generous with correctness - if the solution works, mark it as TRUE
 - For SQL: Check if query logic is correct, not just exact output match
-- For data analysis: Check if the approach and results are logically sound
 
-CRITICAL: When determining correctness:
-- If the code logic is correct and solves the problem, mark correctness as TRUE
-- If the code has minor issues but the core logic is sound, mark correctness as TRUE
-- Only mark correctness as FALSE if there are significant logical errors or the solution doesn't solve the problem
-- Be generous with correctness - if the solution works for the given problem, it's correct
+FEEDBACK STRUCTURE (KEEP IT SHORT):
+1. Brief correctness explanation (1-2 sentences)
+2. 2-3 clear improvement points (one sentence each)
+3. One simple logic-building tip (1 sentence)
+4. Short motivation message (1-2 sentences)
 
-Be fair, constructive, and educational. Always provide a complete correct solution."""
+DO NOT generate:
+- Long paragraphs or essays
+- Repeated improvement suggestions
+- Redundant logic explanations
+- Duplicate motivation messages
+- Complex analysis sections"""
             
-            user_prompt = f"""Evaluate this coding solution comprehensively and provide detailed analysis:
+            user_prompt = f"""Evaluate this coding solution and provide SHORT, CLEAN feedback:
 
 QUESTION:
 {question_text}
@@ -290,32 +291,25 @@ EXECUTION RESULTS:
 
 DIFFICULTY LEVEL: {difficulty_level or "Medium"}
 
-Analyze the solution and provide a comprehensive evaluation in JSON format:
+Provide evaluation in JSON format with SHORT, CONCISE feedback:
 {{
-  "correctness": true/false,  // CRITICAL: TRUE if solution is logically correct and solves the problem, FALSE only if there are significant logical errors. Be generous - if the solution works, mark it as TRUE.
-  "score": 0-100,  // Score based on correctness (0-40), code quality (0-30), efficiency (0-20), edge cases (0-10)
-  "feedback": "COMPREHENSIVE FEEDBACK with these sections:\n\n1. EXECUTION ANALYSIS:\n   - Did the code execute successfully?\n   - Any runtime errors? Explain them clearly.\n   - What output was produced?\n\n2. CORRECTNESS ASSESSMENT:\n   - Is the algorithm/logic correct?\n   - Does it solve the problem as intended?\n   - What specific parts are correct?\n   - What specific parts are wrong?\n\n3. ERROR & BUG EXPLANATION:\n   - List ALL errors found (syntax, logic, runtime)\n   - Explain WHY each error occurred\n   - Explain HOW to fix each error\n   - Point out common mistakes (off-by-one, boundary conditions, etc.)\n\n4. CODE QUALITY ANALYSIS:\n   - Code readability and structure\n   - Variable naming\n   - Code organization\n   - Best practices followed or violated\n\n5. TIME & SPACE COMPLEXITY:\n   - Time Complexity: O(...) with detailed explanation\n   - Space Complexity: O(...) with detailed explanation\n   - Is this optimal? If not, what's better?\n\n6. EDGE CASES:\n   - Which edge cases are handled?\n   - Which edge cases are missing?\n   - How to handle missing edge cases?\n\n7. IMPROVEMENT SUGGESTIONS:\n   - Specific, actionable improvements\n   - Better algorithms or approaches\n   - Code refactoring suggestions\n   - Performance optimizations\n\n8. LOGIC-BUILDING GUIDE:\n   - How to approach similar problems\n   - Key concepts to master\n   - Problem-solving strategies\n   - Practice recommendations\n\n9. MOTIVATION MESSAGE:\n   - If CORRECT: Celebrate their success! Appreciate their effort, highlight what they did well, encourage them to keep practicing.\n   - If INCORRECT: Be encouraging! Acknowledge their attempt, explain that mistakes are learning opportunities, provide hope and motivation to improve.",
-  "correct_solution": "Complete, clean, canonical solution code in {programming_language} with:\n- Clear comments explaining the approach\n- Step-by-step logic explanation\n- Why this solution is optimal\n- How it handles edge cases",
-  "test_cases_passed": number,  // How many test cases are logically correct (even if output format differs)
+  "correctness": true/false,  // TRUE if solution is logically correct, FALSE only if significant errors
+  "score": 0-100,  // Score based on correctness, quality, efficiency
+  "feedback": "SHORT feedback with ONLY these 4 sections (1-2 sentences each, NO long paragraphs):\n\n✅ CORRECTNESS:\n[1-2 sentences: Brief explanation of whether solution works correctly]\n\n💡 IMPROVEMENTS:\n[2-3 bullet points: Specific, actionable improvements - one sentence each]\n\n🧠 LOGIC TIP:\n[1 sentence: Simple tip for approaching similar problems]\n\n💪 MOTIVATION:\n[1-2 sentences: Encouraging message - celebrate if correct, support if incorrect]",
+  "correct_solution": "Complete, clean solution code in {programming_language} with brief comments",
+  "test_cases_passed": number,
   "total_test_cases": {len(test_results) if test_results else 0},
-  "time_complexity": "O(...) - detailed explanation",
-  "space_complexity": "O(...) - detailed explanation",
-  "improvements": ["specific improvement 1", "specific improvement 2", ...],
-  "missing_concepts": ["concept 1 if missing", "concept 2 if missing", ...],
-  "edge_cases_handled": true/false,
-  "code_quality_score": 0-100,
-  "errors_found": ["error 1 with explanation", "error 2 with explanation", ...],
-  "bugs_explained": ["bug 1: why it happens and how to fix", "bug 2: why it happens and how to fix", ...],
-  "motivation_message": "Personal, encouraging message. If correct: celebrate and appreciate. If incorrect: be supportive and motivating."
+  "time_complexity": "O(...) - brief",
+  "space_complexity": "O(...) - brief",
+  "improvements": ["improvement 1", "improvement 2", "improvement 3"],  // MAX 3 improvements, one sentence each
+  "motivation_message": "Short encouraging message (1-2 sentences max)"
 }}
 
-CRITICAL REQUIREMENTS:
-1. Determine correctness based on LOGIC, not just string matching
-2. If the solution is CORRECT: Write a celebratory, appreciative motivation message
-3. If the solution is INCORRECT: Write a supportive, encouraging motivation message
-4. Explain EVERY error and bug clearly with HOW TO FIX
-5. Provide actionable improvement suggestions
-6. Be educational and constructive, never harsh or discouraging"""
+CRITICAL: Keep ALL feedback SHORT:
+- Feedback field: MAX 10-15 lines total
+- Each improvement: ONE sentence only
+- Motivation: 1-2 sentences max
+- NO long paragraphs, NO repetition, NO duplicate sections"""
             
             response = client.chat.completions.create(
                 model=model,
@@ -361,59 +355,37 @@ CRITICAL REQUIREMENTS:
                     # Default score based on correctness
                     result["score"] = 85 if correctness_value else 40
             
-            # Build comprehensive feedback from LLM response
-            feedback_parts = []
-            
-            # Add execution analysis
-            if result["execution_output"]:
-                if "Error" in result["execution_output"]:
-                    feedback_parts.append(f"❌ EXECUTION ERROR:\n{result['execution_output']}\n")
-                else:
-                    feedback_parts.append(f"✅ EXECUTION STATUS: Code executed successfully.\nOutput: {result['execution_output']}\n")
-            
-            # Add LLM feedback (which should include all sections)
+            # ✅ FIX: Build SHORT, CLEAN feedback (avoid duplication)
+            # Use LLM feedback as primary source (it should already contain all sections)
             llm_feedback = ai_response.get("feedback", "")
-            if llm_feedback:
-                feedback_parts.append(llm_feedback)
             
-            # Add errors and bugs if provided
-            errors_found = ai_response.get("errors_found", [])
-            bugs_explained = ai_response.get("bugs_explained", [])
+            # Only add execution status if there's an error (success is implied in feedback)
+            if result["execution_output"] and "Error" in result["execution_output"]:
+                # Prepend brief error info only if critical
+                error_msg = result['execution_output'].split('\n')[0]  # First line only
+                result["feedback"] = f"❌ Execution Error: {error_msg}\n\n{llm_feedback}" if llm_feedback else f"❌ Execution Error: {error_msg}"
+            else:
+                # Use LLM feedback directly (it's already structured and short)
+                result["feedback"] = llm_feedback
             
-            if errors_found:
-                feedback_parts.append("\n🔍 ERRORS DETECTED:\n" + "\n".join(f"• {e}" for e in errors_found))
+            # Limit improvements to max 3 (already handled in prompt, but ensure here too)
+            improvements = ai_response.get("improvements", [])[:3]  # Max 3 improvements
             
-            if bugs_explained:
-                feedback_parts.append("\n🐛 BUG EXPLANATIONS:\n" + "\n".join(f"• {b}" for b in bugs_explained))
-            
-            # Add improvements
-            improvements = ai_response.get("improvements", [])
-            if improvements:
-                feedback_parts.append("\n💡 IMPROVEMENT SUGGESTIONS:\n" + "\n".join(f"• {imp}" for imp in improvements))
-            
-            # Add complexity analysis
-            time_complexity = ai_response.get("time_complexity", "")
-            space_complexity = ai_response.get("space_complexity", "")
-            if time_complexity or space_complexity:
-                feedback_parts.append("\n⏱️ COMPLEXITY ANALYSIS:")
-                if time_complexity:
-                    feedback_parts.append(f"Time Complexity: {time_complexity}")
-                if space_complexity:
-                    feedback_parts.append(f"Space Complexity: {space_complexity}")
-            
-            # Add motivation message (if provided separately, otherwise it should be in feedback)
+            # Get motivation (should be short from prompt)
             motivation = ai_response.get("motivation_message", "")
-            if motivation:
-                feedback_parts.append(f"\n💪 MOTIVATION & ENCOURAGEMENT:\n{motivation}")
             
-            result["feedback"] = "\n\n".join(feedback_parts) if feedback_parts else llm_feedback
+            # Store additional fields for display (keep minimal)
+            result["errors_found"] = ai_response.get("errors_found", [])[:2]  # Max 2 errors
+            result["bugs_explained"] = ai_response.get("bugs_explained", [])[:2]  # Max 2 bugs
+            result["time_complexity"] = ai_response.get("time_complexity", "")
+            result["space_complexity"] = ai_response.get("space_complexity", "")
             
-            # Ensure feedback is never empty
+            # ✅ FIX: Ensure feedback is never empty (keep it short)
             if not result["feedback"] or result["feedback"].strip() == "":
                 if correctness_value:
-                    result["feedback"] = "✅ Your solution is correct! Great job implementing the algorithm correctly."
+                    result["feedback"] = "✅ CORRECTNESS:\nYour solution works correctly and handles the main requirement efficiently.\n\n💪 MOTIVATION:\nGreat job! Keep practicing to improve consistency."
                 else:
-                    result["feedback"] = "Please review your solution. Check the execution output and test cases for details."
+                    result["feedback"] = "✅ CORRECTNESS:\nYour solution needs some adjustments. Review the execution output for details.\n\n💡 IMPROVEMENTS:\n• Check the error messages carefully\n• Verify your logic handles all test cases\n\n💪 MOTIVATION:\nKeep practicing! Mistakes are learning opportunities."
             
             result["correct_solution"] = ai_response.get("correct_solution", "")
             if not result["correct_solution"] or result["correct_solution"].strip() == "":
@@ -433,12 +405,8 @@ CRITICAL REQUIREMENTS:
             else:
                 result["total_test_cases"] = len(test_results) if test_results else 0
             
-            # Store additional fields for detailed display
-            result["errors_found"] = errors_found
-            result["bugs_explained"] = bugs_explained
+            # ✅ FIX: Store additional fields for display (already defined above)
             result["improvements"] = improvements
-            result["time_complexity"] = time_complexity
-            result["space_complexity"] = space_complexity
             result["motivation_message"] = motivation
             result["code_quality_score"] = ai_response.get("code_quality_score", 0)
             result["edge_cases_handled"] = ai_response.get("edge_cases_handled", False)
@@ -456,36 +424,27 @@ CRITICAL REQUIREMENTS:
         import traceback
         logger.error(f"LLM Error traceback: {traceback.format_exc()}")
         
-        # Provide comprehensive fallback feedback
+        # ✅ FIX: Provide SHORT fallback feedback
         if result.get("execution_output") and "Error" in result["execution_output"]:
-            error_msg = result['execution_output']
-            result["feedback"] = f"""❌ EXECUTION ERROR ANALYSIS:
+            error_msg = result['execution_output'].split('\n')[0]  # First line only
+            result["feedback"] = f"""✅ CORRECTNESS:
+Your code encountered an execution error: {error_msg}
 
-Your code encountered an error during execution:
-{error_msg}
+💡 IMPROVEMENTS:
+• Check syntax errors (missing brackets, colons, parentheses)
+• Verify all variables are defined before use
+• Test with simple inputs first
 
-🔍 COMMON ISSUES TO CHECK:
-1. Syntax errors (missing brackets, colons, parentheses, etc.)
-2. Undefined variables or functions
-3. Type mismatches
-4. Index out of bounds errors
-5. Import errors or missing modules
-6. Indentation errors (Python)
-7. Missing return statements
+🧠 LOGIC TIP:
+Read error messages carefully - they usually point to the exact issue.
 
-💡 HOW TO FIX:
-- Read the error message carefully - it usually tells you the line number and type of error
-- Check the syntax around the error line
-- Verify all variables are defined before use
-- Ensure all required imports are present
-- Test your code with simple inputs first
-
-Please review the error message above and fix the issues in your code."""
+💪 MOTIVATION:
+Don't worry! Errors are part of learning. Review the error and try again."""
             
             result["errors_found"] = [error_msg]
-            result["bugs_explained"] = [f"Runtime error occurred: {error_msg}. Check syntax, variable definitions, and logic flow."]
-            result["improvements"] = ["Fix syntax errors", "Check variable definitions", "Verify logic flow", "Test with simple inputs first"]
-            result["motivation_message"] = "Don't worry! Errors are part of learning. Review the error message, understand what went wrong, and try again. Every programmer faces errors - the key is learning from them! 💪"
+            result["bugs_explained"] = [f"Runtime error: {error_msg}"]
+            result["improvements"] = ["Fix syntax errors", "Check variable definitions", "Verify logic flow"]
+            result["motivation_message"] = "Keep practicing! Every programmer faces errors - the key is learning from them."
         elif test_results:
             # More lenient matching - check if outputs are logically equivalent
             passed = 0
@@ -2762,6 +2721,51 @@ async def get_hr_interview_feedback(
         # Use only rows with complete data
         answers = answers_with_data
         
+        # ✅ FIX: Detect empty/very short answers (< 3-5 meaningful words)
+        def is_valid_answer(answer_text: str) -> bool:
+            """Check if answer is valid (not empty, not 'No Answer', and has at least 3 meaningful words)"""
+            if not answer_text or not isinstance(answer_text, str):
+                return False
+            answer_text = answer_text.strip()
+            if answer_text == "" or answer_text == "No Answer":
+                return False
+            # Count meaningful words (exclude very short words like "a", "an", "the", "I", "is", etc.)
+            words = [w for w in answer_text.split() if len(w) > 2]
+            return len(words) >= 3
+        
+        # Check if ALL answers are empty/No Answer/too short
+        valid_answers = []
+        empty_answers = []
+        for row in answers:
+            user_answer = row.get("user_answer", "")
+            if is_valid_answer(user_answer):
+                valid_answers.append(row)
+            else:
+                empty_answers.append(row)
+        
+        # If NO valid answers exist, return 0 scores with appropriate feedback
+        if len(valid_answers) == 0:
+            logger.warning(f"[HR FEEDBACK] ⚠️  No valid answers found - all {len(answers)} answers are empty/No Answer/too short")
+            return {
+                "overall_score": 0.0,
+                "communication_score": 0.0,
+                "cultural_fit_score": 0.0,
+                "motivation_score": 0.0,
+                "clarity_score": 0.0,
+                "feedback_summary": "Interview ended early with no valid responses.",
+                "strengths": ["No valid response detected."],
+                "areas_for_improvement": ["Please provide spoken answers to receive accurate feedback."],
+                "recommendations": ["Try answering all HR questions with clear, structured responses."],
+                "question_count": len(answers),
+            }
+        
+        # If some answers are valid but some are empty, log warning but continue with valid ones
+        if len(empty_answers) > 0:
+            logger.warning(f"[HR FEEDBACK] ⚠️  {len(empty_answers)} empty/too short answers detected, using {len(valid_answers)} valid answers for feedback")
+        
+        # Use only valid answers for scoring and feedback
+        answers = valid_answers
+        
         # Get conversation history from hr_round table
         conversation_history = []
         questions_asked = []
@@ -2810,93 +2814,217 @@ async def get_hr_interview_feedback(
         avg_clarity = sum(all_clarity_scores) / len(all_clarity_scores) if all_clarity_scores else 0
         avg_overall = sum(all_overall_scores) / len(all_overall_scores) if all_overall_scores else 0
         
-        # Generate HR-specific feedback using AI
-        feedback_summary = ""
-        strengths = []
-        areas_for_improvement = []
-        recommendations = []
-        
-        # Analyze by HR category
-        if avg_communication >= 75:
-            strengths.append("Excellent communication skills and clarity of expression")
-        elif avg_communication < 60:
-            areas_for_improvement.append("Communication clarity can be improved")
-            recommendations.append("Practice articulating thoughts clearly and concisely")
-        
-        if avg_cultural_fit >= 75:
-            strengths.append("Strong alignment with company values and culture")
-        elif avg_cultural_fit < 60:
-            areas_for_improvement.append("Cultural fit could be enhanced")
-            recommendations.append("Research company values and demonstrate alignment in responses")
-        
-        if avg_motivation >= 75:
-            strengths.append("High motivation and enthusiasm for the role")
-        elif avg_motivation < 60:
-            areas_for_improvement.append("Motivation and enthusiasm could be stronger")
-            recommendations.append("Prepare specific examples of why you're interested in this role")
-        
-        if avg_clarity >= 75:
-            strengths.append("Clear and structured responses")
-        elif avg_clarity < 60:
-            areas_for_improvement.append("Response structure and clarity need improvement")
-            recommendations.append("Practice organizing answers with clear beginning, middle, and end")
-        
-        # Generate AI feedback summary if OpenAI is available
+        # --- Generate HR-specific feedback using AI (fully personalized) ---
+        feedback_summary: str = ""
+        strengths: List[str] = []
+        areas_for_improvement: List[str] = []
+        recommendations: List[str] = []
+
+        # Build a rich but compact per-question summary for the LLM so it can
+        # base feedback STRICTLY on the candidate's actual answers.
+        qa_summaries: List[str] = []
+        for idx, row in enumerate(answers, 1):
+            q_text = (row.get("question_text") or "").strip()
+            a_text = (row.get("user_answer") or "").strip()
+            qa_scores = {
+                "communication": row.get("communication_score"),
+                "cultural_fit": row.get("cultural_fit_score"),
+                "motivation": row.get("motivation_score"),
+                "clarity": row.get("clarity_score"),
+                "overall": row.get("overall_score"),
+            }
+            score_str = ", ".join(
+                f"{name}={value:.1f}"
+                for name, value in qa_scores.items()
+                if isinstance(value, (int, float))
+            )
+            qa_summaries.append(
+                f"Q{idx}: {q_text}\nA{idx}: {a_text or 'No Answer'}\nScores: {score_str or 'n/a'}"
+            )
+
+        qa_block = "\n\n".join(qa_summaries)
+
+        # Prefer LLM-based feedback when OpenAI is available
         if technical_interview_engine.openai_available and technical_interview_engine.client is not None:
             try:
-                system_prompt = """You are an experienced HR interviewer providing final interview feedback.
-Generate a comprehensive but concise summary (3-4 sentences) of the candidate's HR interview performance.
-Focus on communication, cultural fit, motivation, and clarity aspects."""
+                system_prompt = """
+You are an experienced HR interviewer and assessment specialist.
+You will receive a full HR interview transcript with question-by-question scores.
+Your job is to produce a SHORT, CLEAR, and FULLY PERSONALIZED evaluation.
 
-                user_prompt = f"""HR Interview Summary:
-- Overall Score: {avg_overall:.1f}/100
-- Communication Average: {avg_communication:.1f}/100
-- Cultural Fit Average: {avg_cultural_fit:.1f}/100
-- Motivation Average: {avg_motivation:.1f}/100
-- Clarity Average: {avg_clarity:.1f}/100
-- Total Questions Answered: {len(answers)}
+STRICT RULES:
+- Base everything ONLY on the candidate's actual answers and scores.
+- Avoid generic boilerplate; reference what the candidate actually did well or poorly.
+- Keep language professional, constructive, and easy to understand.
 
-Conversation History:
-{chr(10).join([f"{msg.get('role', 'unknown').upper()}: {msg.get('content', '')[:200]}" for msg in conversation_history[-10:]])}
+EVALUATION DIMENSIONS (scores are 0–100):
+- Communication clarity & structure
+- Cultural fit & values alignment
+- Motivation & ownership mindset
+- Behavioral skills (teamwork, conflict resolution, leadership)
+"""
 
-Generate a professional, constructive HR feedback summary (3-4 sentences) that highlights communication, cultural fit, motivation, and clarity."""
+                # ✅ FIX: Check if all answers are empty/No Answer/too short for LLM prompt
+                all_empty = all(
+                    not is_valid_answer(row.get("user_answer", ""))
+                    for row in answers
+                )
+                
+                if all_empty:
+                    # Special prompt for empty answers case
+                    user_prompt = f"""
+HR INTERVIEW SESSION SUMMARY
+-----------------------------
+CRITICAL: All answers provided were empty, "No Answer", or too short (< 3 meaningful words).
+
+Overall averages (0–100):
+- Overall: {avg_overall:.1f}
+- Communication: {avg_communication:.1f}
+- Cultural Fit: {avg_cultural_fit:.1f}
+- Motivation: {avg_motivation:.1f}
+- Clarity / Structure: {avg_clarity:.1f}
+
+Total questions asked: {len(answers)}
+Valid answers provided: 0
+
+Per-question detail:
+{qa_block}
+
+TASK:
+Since NO valid answers were provided, generate a JSON object with the following shape:
+{{
+  "strengths": ["No valid response detected."],
+  "areas_for_improvement": ["Please provide spoken answers to receive accurate feedback."],
+  "recommendations": ["Try answering all HR questions with clear, structured responses."],
+  "summary": "Interview ended early with no valid responses."
+}}
+"""
+                else:
+                    user_prompt = f"""
+HR INTERVIEW SESSION SUMMARY
+-----------------------------
+Overall averages (0–100):
+- Overall: {avg_overall:.1f}
+- Communication: {avg_communication:.1f}
+- Cultural Fit: {avg_cultural_fit:.1f}
+- Motivation: {avg_motivation:.1f}
+- Clarity / Structure: {avg_clarity:.1f}
+
+Total questions answered: {len(answers)}
+
+Conversation History (chronological):
+{chr(10).join([f"{msg.get('role', 'unknown').upper()}: {msg.get('content', '')[:300]}" for msg in conversation_history])}
+
+Per-question detail with scores:
+{qa_block}
+
+TASK:
+Using ONLY this information, generate a JSON object with the following shape:
+{{
+  "strengths": [
+    "2–5 bullet points highlighting concrete strengths based on their answers"
+  ],
+  "areas_for_improvement": [
+    "2–5 bullet points pointing out where answers were weak, vague, shallow or off-topic"
+  ],
+  "recommendations": [
+    "2–5 specific practice recommendations (e.g., use STAR format, add metrics, give clearer examples)"
+  ],
+  "summary": "3–5 sentences summarising their HR performance, tone, and behavioral fit in natural language"
+}}
+
+CONSTRAINTS:
+- Every bullet must be specific to THIS candidate's answers (no generic phrases like 'work on your skills').
+- Mention communication, examples, structure (STAR), teamwork/conflict and motivation where relevant.
+- The summary should read like a real HR interview report.
+"""
 
                 response = technical_interview_engine.client.chat.completions.create(
                     model="gpt-3.5-turbo",
                     messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
+                        {"role": "system", "content": system_prompt.strip()},
+                        {"role": "user", "content": user_prompt.strip()},
                     ],
-                    temperature=0.7,
-                    max_tokens=250
+                    temperature=0.5,
+                    max_tokens=600,
                 )
-                
-                feedback_summary = response.choices[0].message.content.strip()
-                logger.info(f"[HR FEEDBACK] ✅ AI feedback summary generated")
+
+                raw_content = response.choices[0].message.content.strip()
+
+                # Robust JSON parsing: handle optional markdown fences
+                try:
+                    feedback_data = json.loads(raw_content)
+                except json.JSONDecodeError:
+                    try:
+                        start = raw_content.find("{")
+                        end = raw_content.rfind("}")
+                        if start != -1 and end != -1 and end > start:
+                            feedback_data = json.loads(raw_content[start : end + 1])
+                        else:
+                            raise
+                    except Exception:
+                        logger.warning(
+                            "[HR FEEDBACK] AI returned non-JSON content, falling back to rule-based text"
+                        )
+                        feedback_data = {}
+
+                strengths = feedback_data.get("strengths") or []
+                areas_for_improvement = feedback_data.get("areas_for_improvement") or []
+                recommendations = feedback_data.get("recommendations") or []
+                feedback_summary = feedback_data.get("summary") or ""
+
+                logger.info("[HR FEEDBACK] ✅ AI HR feedback (strengths/improvements/recommendations/summary) generated")
                 
             except Exception as e:
-                logger.warning(f"[HR FEEDBACK] Could not generate AI feedback: {str(e)}")
-                # Fallback to basic summary
-                feedback_summary = f"Overall HR interview performance score: {avg_overall:.1f}/100. "
-                if strengths:
-                    feedback_summary += f"Strengths include: {', '.join(strengths[:2])}. "
-                if areas_for_improvement:
-                    feedback_summary += f"Areas to improve: {', '.join(areas_for_improvement[:2])}."
+                logger.warning(f"[HR FEEDBACK] Could not generate AI feedback: {str(e)}", exc_info=True)
+                # If AI fails, we'll fall back to a simple deterministic text below.
+
+        # Fallback when OpenAI is not available OR AI parsing failed.
+        if not feedback_summary or not (strengths or areas_for_improvement or recommendations):
+            # ✅ FIX: Check if all answers are empty/No Answer/too short
+            all_empty_fallback = all(
+                not is_valid_answer(row.get("user_answer", ""))
+                for row in answers
+            )
+            
+            if all_empty_fallback or avg_overall == 0:
+                # All answers are empty - return appropriate feedback
+                feedback_summary = "Interview ended early with no valid responses."
+                strengths = ["No valid response detected."]
+                areas_for_improvement = ["Please provide spoken answers to receive accurate feedback."]
+                recommendations = ["Try answering all HR questions with clear, structured responses."]
         else:
-            # Fallback when OpenAI is not available
+            # Lightweight rule-based summary that is still driven by the real scores.
             feedback_summary = f"Overall HR interview performance score: {avg_overall:.1f}/100. "
+            if avg_communication >= 75:
+                strengths.append("You communicated clearly and structured your answers well.")
+            elif avg_communication < 60:
+                areas_for_improvement.append("Your communication was sometimes unclear or unstructured.")
+
+            if avg_cultural_fit >= 75:
+                strengths.append("Your values and working style seem strongly aligned with the company culture.")
+            elif avg_cultural_fit < 60:
+                areas_for_improvement.append("You could show stronger alignment with the company's values and culture.")
+
+            if avg_motivation >= 75:
+                strengths.append("You demonstrated strong motivation and enthusiasm for the role.")
+            elif avg_motivation < 60:
+                areas_for_improvement.append("Your motivation for this role was not always clear or convincing.")
+
+            if avg_clarity >= 75:
+                strengths.append("Your answers were clear, well‑structured, and easy to follow.")
+            elif avg_clarity < 60:
+                areas_for_improvement.append("Your answers would benefit from clearer structure and more focused messaging.")
+
             if strengths:
-                feedback_summary += f"Strengths include: {', '.join(strengths[:2])}. "
+                feedback_summary += f"Key strengths: {', '.join(strengths[:2])}. "
             if areas_for_improvement:
-                feedback_summary += f"Areas to improve: {', '.join(areas_for_improvement[:2])}."
+                feedback_summary += f"Key areas to improve: {', '.join(areas_for_improvement[:2])}."
         
-        # Ensure we have at least some feedback
-        if not strengths:
-            strengths.append("Good effort in the HR interview")
-        if not areas_for_improvement:
-            areas_for_improvement.append("Continue practicing HR interview responses")
         if not recommendations:
-            recommendations.append("Keep practicing and preparing for HR interviews")
+            recommendations.append(
+                "Practice answering HR questions using the STAR (Situation–Task–Action–Result) format with concrete examples."
+            )
         
         # Update session status
         supabase.table("interview_sessions").update({"session_status": "completed"}).eq("id", session_id).execute()
@@ -2913,7 +3041,7 @@ Generate a professional, constructive HR feedback summary (3-4 sentences) that h
             "strengths": strengths[:5],
             "areas_for_improvement": areas_for_improvement[:5],
             "recommendations": recommendations[:5],
-            "question_count": len(answers)
+            "question_count": len(answers),
         }
         
     except HTTPException:
@@ -6681,27 +6809,83 @@ async def get_star_interview_feedback(
         if not answers:
             raise HTTPException(status_code=400, detail="No answers found for this session. Please complete the interview first.")
         
-        # Calculate average scores
-        total_star_structure = 0
-        total_situation = 0
-        total_task = 0
-        total_action = 0
-        total_result = 0
-        total_overall = 0
+        # --- Detect valid vs. empty/too-short answers ---
+        def is_valid_answer(answer_text: str) -> bool:
+            """A STAR answer is valid if it has at least ~3 meaningful words (not empty/'No Answer')."""
+            if not answer_text or not isinstance(answer_text, str):
+                return False
+            answer_text = answer_text.strip()
+            if answer_text == "" or answer_text == "No Answer":
+                return False
+            words = [w for w in answer_text.split() if len(w) > 2]
+            return len(words) >= 3
+        
+        valid_answers = []
+        empty_answers = []
+        for row in answers:
+            user_answer = row.get("user_answer", "")
+            if is_valid_answer(user_answer) and row.get("overall_score") is not None:
+                valid_answers.append(row)
+            else:
+                empty_answers.append(row)
+        
+        # If NO valid answers at all → score = 0 and fixed feedback
+        if len(valid_answers) == 0:
+            logger.warning(f"[STAR FEEDBACK] ⚠️  No valid answers found - all {len(answers)} answers are empty/No Answer/too short")
+            return {
+                "overall_score": 0.0,
+                "star_structure_score": 0.0,
+                "situation_score": 0.0,
+                "task_score": 0.0,
+                "action_score": 0.0,
+                "result_score": 0.0,
+                "feedback_summary": "Interview ended early with no valid responses.",
+                "strengths": ["No valid response detected."],
+                "areas_for_improvement": ["Please provide spoken answers to receive accurate feedback."],
+                "recommendations": ["Try answering all STAR questions with clear Situation, Task, Action, and Result."],
+                "question_count": len(answers),
+            }
+        
+        if len(empty_answers) > 0:
+            logger.warning(f"[STAR FEEDBACK] ⚠️  {len(empty_answers)} empty/too short answers detected, using {len(valid_answers)} valid answers for feedback")
+        
+        # Use only valid answers for scoring and feedback
+        answers = valid_answers
+        
+        # Calculate average scores from valid answers only
+        total_star_structure = 0.0
+        total_situation = 0.0
+        total_task = 0.0
+        total_action = 0.0
+        total_result = 0.0
+        total_overall = 0.0
         count = 0
         
         for answer in answers:
-            if answer.get("overall_score") is not None:
-                total_star_structure += answer.get("star_structure_score", 0) or 0
-                total_situation += answer.get("situation_score", 0) or 0
-                total_task += answer.get("task_score", 0) or 0
-                total_action += answer.get("action_score", 0) or 0
-                total_result += answer.get("result_score", 0) or 0
-                total_overall += answer.get("overall_score", 0) or 0
-                count += 1
+            total_star_structure += answer.get("star_structure_score", 0) or 0
+            total_situation += answer.get("situation_score", 0) or 0
+            total_task += answer.get("task_score", 0) or 0
+            total_action += answer.get("action_score", 0) or 0
+            total_result += answer.get("result_score", 0) or 0
+            total_overall += answer.get("overall_score", 0) or 0
+            count += 1
         
         if count == 0:
-            raise HTTPException(status_code=400, detail="No scored answers found for this session.")
+            # Safety: should not happen because of valid_answers check above
+            logger.error("[STAR FEEDBACK] No scored valid answers after filtering")
+            return {
+                "overall_score": 0.0,
+                "star_structure_score": 0.0,
+                "situation_score": 0.0,
+                "task_score": 0.0,
+                "action_score": 0.0,
+                "result_score": 0.0,
+                "feedback_summary": "Interview ended early with no valid responses.",
+                "strengths": ["No valid response detected."],
+                "areas_for_improvement": ["Please provide spoken answers to receive accurate feedback."],
+                "recommendations": ["Try answering all STAR questions with clear Situation, Task, Action, and Result."],
+                "question_count": len(answers),
+            }
         
         avg_star_structure = total_star_structure / count
         avg_situation = total_situation / count
@@ -6710,59 +6894,175 @@ async def get_star_interview_feedback(
         avg_result = total_result / count
         avg_overall = total_overall / count
         
-        # Generate feedback summary using OpenAI
+        # Build conversation history & per-question summaries for LLM (personalised feedback)
+        conversation_history: List[Dict[str, str]] = []
+        qa_summaries: List[str] = []
+        for idx, row in enumerate(answers, 1):
+            q_text = (row.get("question_text") or "").strip()
+            a_text = (row.get("user_answer") or "").strip()
+            if q_text:
+                conversation_history.append({"role": "ai", "content": q_text})
+            if a_text:
+                conversation_history.append({"role": "user", "content": a_text})
+            scores = {
+                "star_structure": row.get("star_structure_score"),
+                "situation": row.get("situation_score"),
+                "task": row.get("task_score"),
+                "action": row.get("action_score"),
+                "result": row.get("result_score"),
+                "overall": row.get("overall_score"),
+            }
+            score_str = ", ".join(
+                f"{name}={value:.1f}"
+                for name, value in scores.items()
+                if isinstance(value, (int, float))
+            )
+            qa_summaries.append(
+                f"Q{idx}: {q_text}\nA{idx}: {a_text or 'No Answer'}\nScores: {score_str or 'n/a'}"
+            )
+        qa_block = "\n\n".join(qa_summaries)
+        
+        # Generate feedback summary using OpenAI (JSON structure)
         feedback_summary = ""
-        strengths = []
-        areas_for_improvement = []
-        recommendations = []
+        strengths: List[str] = []
+        areas_for_improvement: List[str] = []
+        recommendations: List[str] = []
         
         try:
             from app.services.technical_interview_engine import technical_interview_engine
             if technical_interview_engine.openai_available and technical_interview_engine.client is not None:
-                system_prompt = """You are an expert behavioral interview coach. Analyze STAR interview performance and provide:
-1. A 2-3 paragraph feedback summary
-2. List of strengths (3-5 items)
-3. List of areas for improvement (3-5 items)
-4. Specific recommendations (3-5 actionable items)
+                system_prompt = """
+You are an expert behavioral interviewer and STAR-method coach.
+You will receive the candidate's STAR interview transcript plus per-question STAR scores.
+Your job is to produce a SHORT, CLEAR, and FULLY PERSONALIZED evaluation.
 
-Focus on STAR method structure, behavioral examples, and communication."""
+FOCUS AREAS (0–100 scores):
+- STAR structure completeness (did they cover Situation, Task, Action, Result?)
+- Clarity of each STAR component
+- Relevance and impact of examples
+- Communication and reflection.
+
+YOU MUST output a JSON object only.
+"""
                 
-                user_prompt = f"""STAR Interview Performance:
-- STAR Structure Score: {avg_star_structure}/100
-- Situation Score: {avg_situation}/100
-- Task Score: {avg_task}/100
-- Action Score: {avg_action}/100
-- Result Score: {avg_result}/100
-- Overall Score: {avg_overall}/100
-- Questions Answered: {len(answers)}
+                user_prompt = f"""
+STAR INTERVIEW SESSION SUMMARY
+------------------------------
+Overall averages (0–100):
+- Overall: {avg_overall:.1f}
+- STAR Structure: {avg_star_structure:.1f}
+- Situation: {avg_situation:.1f}
+- Task: {avg_task:.1f}
+- Action: {avg_action:.1f}
+- Result: {avg_result:.1f}
 
-Provide comprehensive feedback as specified."""
+Total STAR questions answered: {len(answers)}
+
+Conversation History (chronological):
+{chr(10).join([f"{msg.get('role', 'unknown').upper()}: {msg.get('content', '')[:300]}" for msg in conversation_history])}
+
+Per-question detail with scores:
+{qa_block}
+
+TASK:
+Using ONLY this information, return a JSON object with this shape:
+{{
+  "strengths": [
+    "2–5 bullet points describing concrete strengths based on their STAR answers"
+  ],
+  "areas_for_improvement": [
+    "2–5 bullet points pointing out missing/weak STAR components (S/T/A/R), vagueness, or poor examples"
+  ],
+  "recommendations": [
+    "2–5 specific practice recommendations (e.g., add metrics, sharpen Situation, clarify Result, etc.)"
+  ],
+  "summary": "3–5 sentences summarising their overall STAR interview performance in natural language"
+}}
+
+CONSTRAINTS:
+- Every bullet must be specific to THIS candidate's answers.
+- Call out clearly if they often miss Situation, Task, Action, or Result.
+- Mention clarity, relevance, and communication style where appropriate.
+"""
                 
                 response = technical_interview_engine.client.chat.completions.create(
                     model="gpt-3.5-turbo",
                     messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
+                        {"role": "system", "content": system_prompt.strip()},
+                        {"role": "user", "content": user_prompt.strip()},
                     ],
-                    temperature=0.7,
-                    max_tokens=500
+                    temperature=0.5,
+                    max_tokens=650,
                 )
                 
-                feedback_text = response.choices[0].message.content.strip()
+                raw_content = response.choices[0].message.content.strip()
                 
-                # Parse feedback (simple extraction)
-                lines = feedback_text.split('\n')
-                feedback_summary = feedback_text[:300]  # First 300 chars as summary
-                strengths = [line.strip('- ').strip() for line in lines if line.strip().startswith('-') or line.strip().startswith('•')][:5]
-                areas_for_improvement = [line.strip('- ').strip() for line in lines if 'improve' in line.lower() or 'weak' in line.lower()][:5]
-                recommendations = [line.strip('- ').strip() for line in lines if 'recommend' in line.lower() or 'suggest' in line.lower()][:5]
+                try:
+                    feedback_data = json.loads(raw_content)
+                except json.JSONDecodeError:
+                    try:
+                        start = raw_content.find("{")
+                        end = raw_content.rfind("}")
+                        if start != -1 and end != -1 and end > start:
+                            feedback_data = json.loads(raw_content[start : end + 1])
+                        else:
+                            raise
+                    except Exception:
+                        logger.warning("[STAR FEEDBACK] AI returned non-JSON content, falling back to rule-based text")
+                        feedback_data = {}
+                
+                strengths = feedback_data.get("strengths") or []
+                areas_for_improvement = feedback_data.get("areas_for_improvement") or []
+                recommendations = feedback_data.get("recommendations") or []
+                feedback_summary = feedback_data.get("summary") or ""
                 
         except Exception as e:
-            logger.warning(f"[STAR FEEDBACK] Could not generate AI feedback: {str(e)}")
-            feedback_summary = f"Your STAR interview performance shows an overall score of {avg_overall}/100. Continue practicing to improve your behavioral interview skills."
-            strengths = ["Good effort in completing the interview"]
-            areas_for_improvement = ["Continue practicing STAR method structure"]
-            recommendations = ["Practice more behavioral interview questions"]
+            logger.warning(f"[STAR FEEDBACK] Could not generate AI feedback: {str(e)}", exc_info=True)
+        
+        # Fallback or supplement when OpenAI is not available OR AI parsing failed.
+        if not feedback_summary or not (strengths or areas_for_improvement or recommendations):
+            # If everything scored extremely low, treat as almost no effective answer
+            if avg_overall <= 1:
+                feedback_summary = "Interview ended early with no valid responses."
+                strengths = ["No valid response detected."]
+                areas_for_improvement = ["Please provide spoken answers to receive accurate feedback."]
+                recommendations = ["Try answering all STAR questions with clear Situation, Task, Action, and Result."]
+            else:
+                feedback_summary = f"Overall STAR interview performance score: {avg_overall:.1f}/100. "
+                # Simple rule-based analysis of STAR dimensions
+                if avg_star_structure >= 75:
+                    strengths.append("You generally followed the STAR structure and kept your stories organised.")
+                elif avg_star_structure < 60:
+                    areas_for_improvement.append("Your answers did not consistently cover all STAR parts (Situation, Task, Action, Result).")
+                    recommendations.append("Practice structuring each answer explicitly into Situation, Task, Action, and Result.")
+                
+                if avg_situation >= 75:
+                    strengths.append("You set up the Situation clearly so the listener understood the context.")
+                elif avg_situation < 60:
+                    areas_for_improvement.append("Situations were sometimes vague or missing important context.")
+                
+                if avg_task >= 75:
+                    strengths.append("You explained your responsibilities and goals in each story well.")
+                elif avg_task < 60:
+                    areas_for_improvement.append("Tasks or objectives were not always clearly described.")
+                
+                if avg_action >= 75:
+                    strengths.append("You described your Actions in good detail, showing what you personally did.")
+                elif avg_action < 60:
+                    areas_for_improvement.append("Actions were sometimes high-level; add more specific steps you took.")
+                
+                if avg_result >= 75:
+                    strengths.append("You highlighted strong Results and impact in your examples.")
+                elif avg_result < 60:
+                    areas_for_improvement.append("Results were often missing or lacked clear outcomes/metrics.")
+                
+                if strengths:
+                    feedback_summary += f"Key strengths: {', '.join(strengths[:2])}. "
+                if areas_for_improvement:
+                    feedback_summary += f"Key areas to improve: {', '.join(areas_for_improvement[:2])}."
+                
+                if not recommendations:
+                    recommendations.append("Prepare 3–5 STAR stories with clear outcomes and practice saying them out loud.")
         
         return {
             "overall_score": round(avg_overall, 2),

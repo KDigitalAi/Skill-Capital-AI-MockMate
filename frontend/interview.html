@@ -600,7 +600,7 @@
 
                 <!-- Summary Section -->
                 <div id="summarySection" class="summary-section hidden">
-                    <h2>Interview Summary</h2>
+                    <h2>Technical Interview Report</h2>
                     <div class="loading-state" id="summaryLoading">
                         <div class="spinner"></div>
                         <p>Generating your interview summary...</p>
@@ -609,7 +609,7 @@
                         <div class="score-display">
                             <div style="font-size: 18px; color: var(--text-light);">Overall Technical Score</div>
                             <div class="score-value" id="overallScore">0</div>
-                            <div style="font-size: 14px; color: var(--text-light);">out of 5.0</div>
+                            <div style="font-size: 14px; color: var(--text-light);">out of 100</div>
                         </div>
 
                         <div class="summary-item">
@@ -677,6 +677,16 @@
         let audioChunks = [];
         let interviewActive = false;
         let currentAudioBlob = null;  // Store the current audio recording
+        
+        // ✅ FIX: Loading state tracking to prevent duplicate calls (Technical Interview only)
+        let isLoading = {
+            submitAnswer: false,
+            getNextQuestion: false
+        };
+
+        function setLoadingState(key, value) {
+            isLoading[key] = value;
+        }
 
         // Modal confirmation function (replaces browser confirm)
         function showConfirmation(title, message) {
@@ -1076,6 +1086,12 @@
                 return;
             }
 
+            // ✅ FIX: Prevent double submission
+            if (isLoading.submitAnswer) {
+                console.warn('[SUBMIT ANSWER] Submit answer already in progress, ignoring duplicate call');
+                return;
+            }
+
             // Disable voice button during submission
             const voiceButton = document.getElementById('voiceButton');
             if (voiceButton) {
@@ -1084,6 +1100,8 @@
             document.getElementById('voiceStatus').textContent = 'Submitting answer...';
 
             try {
+                setLoadingState('submitAnswer', true);
+                
                 // ✅ CONVERSATIONAL FLOW: Use the new submit-answer endpoint
                 const response = await fetch(`${getApiBase()}/api/interview/technical/${interviewSessionId}/submit-answer`, {
                     method: 'POST',
@@ -1101,20 +1119,15 @@
 
                 const data = await response.json();
 
-                // Display AI response if any
+                // ✅ FIX: Do NOT display ai_response as a question - it's just feedback
+                // ai_response should NOT trigger audio or be displayed as a separate message
+                // Only real questions from getNextQuestion() should be displayed with audio
                 if (data.ai_response) {
-                    conversationHistory.push({
-                        role: 'ai',
-                        content: data.ai_response,
-                        audio_url: data.ai_response_audio_url || data.audio_url
-                    });
-                    displayMessage('ai', data.ai_response, data.ai_response_audio_url || data.audio_url);
-                    
-                    if (data.ai_response_audio_url || data.audio_url) {
-                        playAudio(data.ai_response_audio_url || data.audio_url).catch(err => {
-                            // Audio playback failed
-                        });
-                    }
+                    // Log feedback but don't display it as a question message
+                    console.log('[SUBMIT ANSWER] AI feedback received (not displayed as question):', data.ai_response.substring(0, 50) + '...');
+                    // Do NOT add to conversationHistory as 'ai' role - it's feedback, not a question
+                    // Do NOT call displayMessage() for ai_response
+                    // Do NOT play audio for ai_response
                 }
 
                 // Check if interview is complete (10 questions for Technical - same as HR/STAR)
@@ -1122,10 +1135,15 @@
                 if (data.interview_completed || aiQuestionsCount >= 10) {
                     await showSummary();
                 } else {
-                    // ✅ CONVERSATIONAL FLOW: Get next question after a short delay
+                    // ✅ FIX: Get next question after a short delay with race condition check
                     // Pass the user's answer so backend can save it and use it for context-aware next question
                     setTimeout(() => {
-                        getNextQuestion(answerText);  // Pass the answer for context-aware question generation
+                        // ✅ FIX: Check if getNextQuestion is already in progress to prevent duplicate calls
+                        if (!isLoading.getNextQuestion) {
+                            getNextQuestion(answerText);  // Pass the answer for context-aware question generation
+                        } else {
+                            console.warn('[SUBMIT ANSWER] getNextQuestion already in progress, ignoring duplicate call');
+                        }
                     }, 2000);
                 }
 
@@ -1142,6 +1160,8 @@
                 if (voiceButton) {
                     voiceButton.disabled = false;
                 }
+            } finally {
+                setLoadingState('submitAnswer', false);
             }
         }
 
@@ -1152,7 +1172,15 @@
                 return;
             }
 
+            // ✅ FIX: Prevent duplicate calls (same as HR interview)
+            if (isLoading.getNextQuestion) {
+                console.warn('[TECHNICAL INTERVIEW] Get next question already in progress, ignoring duplicate call');
+                return;
+            }
+
             try {
+                setLoadingState('getNextQuestion', true);
+                
                 // ✅ CONVERSATIONAL FLOW: Call backend endpoint to get next AI-generated technical question
                 const requestBody = {};
                 if (userAnswer) {
@@ -1198,7 +1226,7 @@
                 // Display question with audio URL
                 displayMessage('ai', nextQuestion, audioUrl);
                 
-                // ✅ FIX: ALWAYS play audio for every question
+                // ✅ FIX: ALWAYS play audio for every question (only real questions, not feedback)
                 setTimeout(() => {
                     if (audioUrl && audioUrl.trim()) {
                         playAudio(audioUrl).catch(err => {
@@ -1218,6 +1246,8 @@
                 console.error('[TECHNICAL INTERVIEW] ❌ Get question error:', error);
                 showError(`Failed to get question: ${error.message || 'Please try again.'}`);
                 document.getElementById('voiceStatus').textContent = 'Error occurred. Please try recording again.';
+            } finally {
+                setLoadingState('getNextQuestion', false);
             }
         }
 

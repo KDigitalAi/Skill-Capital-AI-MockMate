@@ -101,14 +101,94 @@ class CodingInterviewEngine:
             "domains": resume_domains
         }
     
+    def _get_question_types_asked(self, previous_questions: List[str]) -> Dict[str, bool]:
+        """✅ FIX: Analyze previous questions to determine which types have been asked"""
+        question_types = {
+            "array": False,
+            "string": False,
+            "oop": False,
+            "sql": False,
+            "api": False,
+            "debugging": False,
+            "logic": False,
+            "dsa_pattern": False,
+            "real_world": False
+        }
+        
+        for q in previous_questions:
+            q_lower = q.lower()
+            if any(word in q_lower for word in ["array", "list", "index", "element"]):
+                question_types["array"] = True
+            if any(word in q_lower for word in ["string", "substring", "character", "text"]):
+                question_types["string"] = True
+            if any(word in q_lower for word in ["class", "object", "method", "inheritance", "polymorphism", "encapsulation"]):
+                question_types["oop"] = True
+            if any(word in q_lower for word in ["sql", "database", "table", "query", "select", "join"]):
+                question_types["sql"] = True
+            if any(word in q_lower for word in ["api", "endpoint", "request", "response", "http", "rest"]):
+                question_types["api"] = True
+            if any(word in q_lower for word in ["bug", "debug", "error", "fix", "issue"]):
+                question_types["debugging"] = True
+            if any(word in q_lower for word in ["logic", "condition", "if", "loop", "algorithm"]):
+                question_types["logic"] = True
+            if any(word in q_lower for word in ["graph", "tree", "dynamic programming", "dp", "backtracking", "dijkstra", "bfs", "dfs"]):
+                question_types["dsa_pattern"] = True
+            if any(word in q_lower for word in ["project", "application", "system", "feature", "user", "real"]):
+                question_types["real_world"] = True
+        
+        return question_types
+    
+    def _suggest_question_type(self, question_types_asked: Dict[str, bool], experience_level: Optional[str], question_number: int) -> str:
+        """✅ FIX: Suggest which question type to generate next to ensure variety"""
+        years = self._parse_experience_years(experience_level) or 0
+        
+        # For freshers (0-1 years), prioritize basic types and avoid heavy DSA
+        if years < 1:
+            # Prioritize: array, string, logic, real_world, debugging
+            # Avoid: complex DSA patterns, heavy OOP
+            priority_types = ["array", "string", "logic", "real_world", "debugging"]
+            for qtype in priority_types:
+                if not question_types_asked.get(qtype, False):
+                    return qtype
+            # If all basic types asked, allow simple OOP or API
+            if not question_types_asked.get("oop", False):
+                return "oop"
+            if not question_types_asked.get("api", False):
+                return "api"
+            # Last resort: return any unasked type
+            for qtype, asked in question_types_asked.items():
+                if not asked:
+                    return qtype
+            return "array"  # Default for freshers
+        
+        # For junior (1-3 years), balanced mix
+        elif years < 3:
+            # Rotate through all types
+            all_types = ["array", "string", "oop", "sql", "api", "debugging", "logic", "dsa_pattern", "real_world"]
+            for qtype in all_types:
+                if not question_types_asked.get(qtype, False):
+                    return qtype
+            # If all types asked, return least recently asked
+            return "array"  # Default rotation
+        
+        # For senior (3+ years), all types including advanced DSA
+        else:
+            all_types = ["array", "string", "oop", "sql", "api", "debugging", "logic", "dsa_pattern", "real_world"]
+            for qtype in all_types:
+                if not question_types_asked.get(qtype, False):
+                    return qtype
+            return "dsa_pattern"  # Default for seniors
+    
     def generate_coding_question(
         self,
         session_data: Dict[str, Any],
         previous_questions: List[str]
     ) -> Dict[str, Any]:
         """
-        Generate a coding question based on resume skills
-        Returns question with test cases and expected output
+        ✅ FIX: Generate a coding question based on resume skills
+        Ensures ALL types of questions are generated (array, string, OOP, SQL, API, debugging, logic, DSA, real-world)
+        Difficulty scales with experience: 0-1 years (basic), 1-3 years (medium), 3+ years (advanced)
+        Prevents question repeats
         """
         coding_skills = session_data.get("coding_skills", [])
         experience_level = session_data.get("experience_level")
@@ -116,21 +196,24 @@ class CodingInterviewEngine:
         resume_domains = session_data.get("domains", [])
         skills_context = ", ".join(coding_skills[:10]) if coding_skills else "general programming"
         
-        # Check if SQL skills are present
+        # ✅ FIX: Track question types to ensure variety
+        question_types_asked = self._get_question_types_asked(previous_questions)
+        question_number = len(previous_questions) + 1
+        suggested_type = self._suggest_question_type(question_types_asked, experience_level, question_number)
+        
+        # Check if SQL skills are present and SQL question type is suggested
         sql_skills = ['sql', 'mysql', 'postgresql', 'postgres', 'database', 'oracle', 'sqlite']
         has_sql_skills = any(skill.lower() in sql_skills for skill in coding_skills)
         
-        # If SQL skills detected and we haven't asked SQL questions yet, generate SQL question
-        if has_sql_skills and len(previous_questions) < 3:
-            # Check if we've already asked SQL questions
-            sql_question_asked = any('sql' in q.lower() or 'database' in q.lower() or 'table' in q.lower() 
-                                   for q in previous_questions)
+        # If SQL type suggested and skills present, generate SQL question
+        if suggested_type == "sql" and has_sql_skills:
+            sql_question_asked = question_types_asked.get("sql", False)
             if not sql_question_asked:
                 return self._generate_sql_question(session_data, previous_questions)
         
         # Fallback questions if OpenAI is not available
         if not self.openai_available or self.client is None:
-            return self._get_fallback_coding_question(session_data, previous_questions)
+            return self._get_fallback_coding_question(session_data, previous_questions, suggested_type)
         
         try:
             # Check which data science libraries are actually available
@@ -144,48 +227,123 @@ class CodingInterviewEngine:
             else:
                 lib_message = "Data science libraries (pandas, numpy, matplotlib, seaborn, scikit-learn) are NOT available. DO NOT generate questions that require these libraries. Use only Python standard library."
             
+            # ✅ FIX: Enhanced system prompt with difficulty guidance
+            years_for_prompt = self._parse_experience_years(experience_level) or 0
+            difficulty_guidance = ""
+            if years_for_prompt < 1:
+                difficulty_guidance = """
+FOR FRESHERS (0-1 years experience):
+- Generate BASIC level problems only
+- Focus on: simple array/string manipulation, basic loops & conditions, simple logic building
+- Include: basic SQL queries, simple API/CRUD tasks, basic debugging questions
+- Include: small real-world practical tasks (e.g., "Write a function to validate email")
+- AVOID: Heavy DSA (graphs, DP, backtracking, complex trees)
+- AVOID: Complex OOP design patterns
+- Problem statements should be simple and easy to understand
+- Examples should be clear and straightforward"""
+            elif years_for_prompt < 3:
+                difficulty_guidance = """
+FOR JUNIOR DEVELOPERS (1-3 years experience):
+- Generate MEDIUM level problems
+- Include balanced mix of: DSA, OOP, SQL, API tasks, real-world project-based questions
+- Include: array/string problems, logic building, debugging scenarios
+- Moderate complexity only
+- NO heavy system-design-level problems"""
+            else:
+                difficulty_guidance = """
+FOR SENIOR DEVELOPERS (3+ years experience):
+- Generate HARD/ADVANCED level problems
+- Include all types: complex DSA patterns, advanced OOP, complex SQL, API design, system-level debugging
+- Include: advanced algorithms, optimization problems, real-world system challenges
+- High complexity and depth expected"""
+            
             system_prompt = f"""You are a coding interview question generator. Generate coding problems suitable for online coding tests.
-Each question should:
-1. Be based on Data Structures and Algorithms (arrays, strings, linked lists, trees, graphs, dynamic programming, etc.)
-2. Have clear problem statement
-3. Include example input/output
-4. Include test cases (at least 2-3)
-5. Specify time and space complexity expectations
-6. Be appropriate for the candidate's skill level
-7. **IMPORTANT: The execution environment supports the following:**
+
+✅ CRITICAL REQUIREMENTS:
+1. Generate ALL TYPES of coding problems to ensure variety:
+   - Array manipulation problems
+   - String processing problems
+   - Object-Oriented Programming (OOP) design questions
+   - SQL/database query problems
+   - API/CRUD task problems
+   - Debugging and error-fixing problems
+   - Logic building and algorithmic thinking problems
+   - DSA pattern problems (trees, graphs, DP, etc.)
+   - Real-world practical coding tasks
+
+2. {difficulty_guidance}
+
+3. Each question must:
+   - Have clear problem statement
+   - Include example input/output
+   - Include test cases (at least 2-3)
+   - Specify constraints
+   - Be appropriate for the candidate's experience level
+   - NEVER repeat any previous question (check the previous questions list)
+
+4. **IMPORTANT: The execution environment supports:**
    - Python standard library (math, collections, itertools, heapq, bisect, functools, operator, etc.)
    - {lib_message}
-8. **CRITICAL: Only generate questions that use libraries that are actually available. If data science libraries are not available, use only Python standard library.**
-9. **For algorithm questions, prefer standard library, but data science libraries can be used if available and appropriate**
+   - **CRITICAL: Only generate questions that use libraries that are actually available.**
+
+5. **Question Type Variety:**
+   - Ensure you generate different types of problems across the interview
+   - Mix array, string, OOP, SQL, API, debugging, logic, DSA patterns, and real-world tasks
+   - Suggested question type for this round: {suggested_type}
 
 Return JSON with this structure:
-{
+{{
   "problem": "Problem statement",
-  "examples": [{"input": "...", "output": "...", "explanation": "..."}],
-  "test_cases": [{"input": "...", "output": "..."}],
+  "examples": [{{"input": "...", "output": "...", "explanation": "..."}}],
+  "test_cases": [{{"input": "...", "output": "..."}}],
   "constraints": "...",
   "difficulty": "Easy/Medium/Hard",
-  "topics": ["array", "string", etc.]
-}"""
+  "topics": ["array", "string", "OOP", "SQL", "API", "debugging", "logic", "DSA", "real-world"],
+  "question_type": "{suggested_type}"
+}}"""
 
-            # Get past performance for adaptive difficulty (passed from router)
+            # ✅ FIX: Calculate years for difficulty guidance
+            years = self._parse_experience_years(experience_level) or 0
+            
+            # Get past performance for adaptive difficulty
             past_performance = session_data.get("past_performance")
             difficulty_label = self._determine_difficulty(experience_level, coding_skills, past_performance)
             project_context = ", ".join(resume_projects[:2]) if resume_projects else "recent real-world projects"
             domain_context = ", ".join(resume_domains[:2]) if resume_domains else "software engineering"
 
-            user_prompt = f"""Generate a coding problem that mirrors the candidate's resume.
+            # ✅ FIX: Enhanced duplicate detection
+            previous_questions_summary = ""
+            if previous_questions:
+                previous_questions_summary = "\n".join([
+                    f"{i+1}. {q[:150]}..." if len(q) > 150 else f"{i+1}. {q}"
+                    for i, q in enumerate(previous_questions[:10])  # Show up to 10 previous questions
+                ])
+            else:
+                previous_questions_summary = "None - this is the first question"
 
-Key skills: {skills_context}
-Notable experience level: {experience_level or 'Not specified'}
-Projects/domains: {project_context} | {domain_context}
+            user_prompt = f"""Generate a coding problem for a candidate with these details:
 
-Previous questions asked: {len(previous_questions)}. Ensure the new problem is different from earlier ones.
-Previous questions (to avoid duplicates):
-{chr(10).join([f"- {q[:100]}..." if len(q) > 100 else f"- {q}" for q in previous_questions[:5]]) if previous_questions else "None"}
+CANDIDATE PROFILE:
+- Key skills: {skills_context}
+- Experience level: {experience_level or 'Not specified'} ({years} years)
+- Projects/domains: {project_context} | {domain_context}
+- Question number: {question_number}
 
-Generate a {difficulty_label} level coding problem that references at least one of the skills or project contexts mentioned above.
-**CRITICAL: The new problem must be completely different from all previous questions listed above. Do not repeat any problem statement, concept, or approach.**"""
+PREVIOUS QUESTIONS (DO NOT REPEAT ANY OF THESE):
+{previous_questions_summary}
+
+QUESTION TYPE TO GENERATE: {suggested_type}
+
+REQUIREMENTS:
+1. Generate a {difficulty_label} level coding problem
+2. Question type should be: {suggested_type}
+3. Reference at least one skill or project context from the candidate's profile
+4. **CRITICAL: The problem must be COMPLETELY DIFFERENT from all previous questions listed above**
+5. Do NOT repeat any problem statement, concept, approach, or pattern from previous questions
+6. Ensure the problem matches the experience level ({years} years) and difficulty ({difficulty_label})
+7. Include clear examples and test cases
+
+Generate a unique, personalized coding problem now."""
 
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
@@ -193,7 +351,70 @@ Generate a {difficulty_label} level coding problem that references at least one 
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.7,
+                temperature=0.8,  # Slightly higher for more variety
+                response_format={"type": "json_object"}
+            )
+            
+            content = response.choices[0].message.content
+            question_data = json.loads(content)
+            
+            # ✅ FIX: Validate question is not a duplicate
+            new_problem = question_data.get("problem", "")
+            if new_problem:
+                # Check for similarity with previous questions
+                for prev_q in previous_questions:
+                    # Simple similarity check: if >50% words match, flag as potential duplicate
+                    new_words = set(new_problem.lower().split())
+                    prev_words = set(prev_q.lower().split())
+                    if len(new_words) > 0 and len(prev_words) > 0:
+                        similarity = len(new_words & prev_words) / len(new_words | prev_words)
+                        if similarity > 0.5:  # More than 50% similarity
+                            # Regenerate with stronger duplicate warning
+                            return self._regenerate_with_duplicate_warning(
+                                session_data, previous_questions, suggested_type, difficulty_label, skills_context
+                            )
+            
+            return {
+                "problem": question_data.get("problem", ""),
+                "examples": question_data.get("examples", []),
+                "test_cases": question_data.get("test_cases", []),
+                "constraints": question_data.get("constraints", ""),
+                "difficulty": question_data.get("difficulty", difficulty_label),
+                "topics": question_data.get("topics", [suggested_type]),
+                "question_type": question_data.get("question_type", suggested_type)
+            }
+            
+        except Exception as e:
+            return self._get_fallback_coding_question(session_data, previous_questions, suggested_type)
+    
+    def _regenerate_with_duplicate_warning(
+        self,
+        session_data: Dict[str, Any],
+        previous_questions: List[str],
+        suggested_type: str,
+        difficulty_label: str,
+        skills_context: str
+    ) -> Dict[str, Any]:
+        """✅ FIX: Regenerate question with stronger duplicate warning"""
+        if not self.openai_available or self.client is None:
+            return self._get_fallback_coding_question(session_data, previous_questions, suggested_type)
+        
+        try:
+            user_prompt = f"""⚠️ DUPLICATE DETECTED - Generate a COMPLETELY NEW and DIFFERENT coding problem.
+
+Previous questions (DO NOT REPEAT):
+{chr(10).join([f"- {q[:100]}..." for q in previous_questions[:5]])}
+
+Generate a {difficulty_label} level {suggested_type} problem for skills: {skills_context}
+The new problem must be UNIQUE and NOT similar to any previous question."""
+            
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "Generate a unique coding problem. Ensure it's completely different from previous questions."},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.9,  # Higher temperature for more variety
                 response_format={"type": "json_object"}
             )
             
@@ -205,12 +426,12 @@ Generate a {difficulty_label} level coding problem that references at least one 
                 "examples": question_data.get("examples", []),
                 "test_cases": question_data.get("test_cases", []),
                 "constraints": question_data.get("constraints", ""),
-                "difficulty": question_data.get("difficulty", "Medium"),
-                "topics": question_data.get("topics", [])
+                "difficulty": question_data.get("difficulty", difficulty_label),
+                "topics": question_data.get("topics", [suggested_type]),
+                "question_type": suggested_type
             }
-            
-        except Exception as e:
-            return self._get_fallback_coding_question(session_data, previous_questions)
+        except Exception:
+            return self._get_fallback_coding_question(session_data, previous_questions, suggested_type)
     
     def _determine_difficulty(
         self, 
@@ -218,26 +439,26 @@ Generate a {difficulty_label} level coding problem that references at least one 
         skills: List[str],
         past_performance: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Determine difficulty based on experience level and past performance:
-        - Fresher (0 years) → Easy or Medium
-        - 1-2 years → Medium
-        - 3+ years → Hard
+        """✅ FIX: Determine difficulty based on experience level with proper scaling:
+        - Fresher (0-1 years) → Easy (basic problems only)
+        - Junior (1-3 years) → Medium (balanced mix)
+        - Senior (3+ years) → Hard (advanced problems)
         
         Adaptive adjustment based on past performance:
-        - If solved most questions correctly → increase difficulty
+        - If solved most questions correctly → increase difficulty slightly
         - If struggled → decrease difficulty
         """
         import random
         
-        # Base difficulty from experience
+        # ✅ FIX: Base difficulty from experience with proper scaling
         base_difficulty = None
         years = self._parse_experience_years(experience_level)
         if years is not None:
-            if years < 1:  # Fresher
-                base_difficulty = random.choice(["Easy", "Medium"])
-            elif years < 3:  # 1-2 years
+            if years < 1:  # Fresher (0-1 years) - Basic level only
+                base_difficulty = "Easy"
+            elif years < 3:  # Junior (1-3 years) - Medium level
                 base_difficulty = "Medium"
-            else:  # 3+ years
+            else:  # Senior (3+ years) - Hard level
                 base_difficulty = "Hard"
         else:
             # Fallback to skills-based difficulty if experience level not available
@@ -248,21 +469,21 @@ Generate a {difficulty_label} level coding problem that references at least one 
             else:
                 base_difficulty = "Easy"
         
-        # Adaptive adjustment based on past performance
+        # Adaptive adjustment based on past performance (slight adjustments only)
         if past_performance:
             accuracy = past_performance.get("accuracy", 0)
             average_score = past_performance.get("average_score", 0)
             
-            # If user performed well (accuracy > 70% or average score > 70), increase difficulty
-            if accuracy > 70 or average_score > 70:
+            # If user performed very well (accuracy > 80% or average score > 80), increase difficulty slightly
+            if accuracy > 80 or average_score > 80:
                 if base_difficulty == "Easy":
                     return "Medium"
                 elif base_difficulty == "Medium":
                     return "Hard"
                 # Already Hard, keep it
                 return "Hard"
-            # If user struggled (accuracy < 40% or average score < 40), decrease difficulty
-            elif accuracy < 40 or average_score < 40:
+            # If user struggled significantly (accuracy < 30% or average score < 30), decrease difficulty
+            elif accuracy < 30 or average_score < 30:
                 if base_difficulty == "Hard":
                     return "Medium"
                 elif base_difficulty == "Medium":
@@ -295,7 +516,8 @@ Generate a {difficulty_label} level coding problem that references at least one 
     def _get_fallback_coding_question(
         self,
         session_data: Dict[str, Any],
-        previous_questions: List[str]
+        previous_questions: List[str],
+        suggested_type: Optional[str] = None
     ) -> Dict[str, Any]:
         """Fallback coding questions that remain resume-aware"""
         coding_skills = session_data.get("coding_skills", []) or []

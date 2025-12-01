@@ -4,7 +4,10 @@
  * 
  * NOTE: This file requires api-config.js to be loaded first
  * api-config.js provides: getApiBase(), ensureApiBaseReady(), API_BASE
+ * 
+ * VERSION: 2.0 - Custom Modal Implementation (STAR End Interview)
  */
+console.log('[STAR INTERVIEW] Script loaded - Version 2.0 with Custom Modal');
 
 // State
 let currentUserId = null;
@@ -995,31 +998,74 @@ async function generateFeedback() {
 }
 
 function generateBasicFeedback() {
-    // Generate basic feedback based on conversation history
-    const strengths = [
-        'Good communication skills demonstrated',
-        'Clear articulation of thoughts',
-        'Professional demeanor maintained'
-    ];
-    
-    const improvements = [
-        'Consider providing more specific examples',
-        'Work on structuring answers using STAR method',
-        'Practice STAR method for behavioral questions'
-    ];
-    
-    const recommendations = [
-        'Continue practicing STAR interview questions',
-        'Prepare more examples from your experience',
-        'Focus on STAR structure: Situation, Task, Action, Result'
-    ];
-    
-    document.getElementById('overallScore').textContent = '75';
+    // Generate fallback feedback when backend STAR feedback endpoint is unavailable.
+    // This uses the actual conversation history so it still reflects what happened in the interview.
+    const userMessages = conversationHistory.filter(m => m.role === 'user');
+    const answerCount = userMessages.length;
+
+    function isValidAnswer(answerText) {
+        if (!answerText || typeof answerText !== 'string') return false;
+        const trimmed = answerText.trim();
+        if (trimmed === '' || trimmed === 'No Answer') return false;
+        const words = trimmed.split(/\s+/).filter(w => w.length > 2);
+        return words.length >= 3;
+    }
+
+    const validAnswers = userMessages.filter(m => isValidAnswer(m.content));
+    const validAnswerCount = validAnswers.length;
+
+    // If no valid answers, show 0 score and clear guidance
+    if (validAnswerCount === 0) {
+        document.getElementById('overallScore').textContent = '0';
+        document.getElementById('strengthsList').innerHTML = '<li>No valid response detected.</li>';
+        document.getElementById('improvementsList').innerHTML = '<li>Please provide spoken answers to receive accurate STAR feedback.</li>';
+        document.getElementById('recommendationsList').innerHTML = '<li>Try answering all STAR questions with clear Situation, Task, Action, and Result.</li>';
+        document.getElementById('feedbackSummary').textContent = 'Interview ended early with no valid responses.';
+        document.getElementById('feedbackLoading').classList.add('hidden');
+        document.getElementById('feedbackContent').classList.remove('hidden');
+        return;
+    }
+
+    const totalWords = validAnswers.reduce((sum, m) => {
+        if (!m.content) return sum;
+        return sum + m.content.split(/\s+/).filter(Boolean).length;
+    }, 0);
+    const avgWords = validAnswerCount > 0 ? totalWords / validAnswerCount : 0;
+
+    // Heuristic score based on depth and number of valid answers (kept conservative)
+    let score = 0;
+    if (validAnswerCount >= 4) score += 20;
+    else if (validAnswerCount >= 2) score += 10;
+    if (avgWords >= 50) score += 25;
+    else if (avgWords >= 30) score += 18;
+    else if (avgWords >= 15) score += 8;
+    score = Math.max(0, Math.min(85, Math.round(score)));
+
+    const strengths = [];
+    const improvements = [];
+    const recommendations = [];
+
+    strengths.push(`You provided ${validAnswerCount} STAR example${validAnswerCount > 1 ? 's' : ''} during the interview.`);
+
+    if (avgWords >= 35) {
+        strengths.push('Your answers had reasonable detail and context for behavioral situations.');
+    } else if (avgWords >= 15) {
+        improvements.push('Some answers were quite brief; adding more detail for Situation, Task, Action, and Result will make them stronger.');
+    } else {
+        improvements.push('Answers were very short; try expanding each story with more context, actions, and results.');
+    }
+
+    improvements.push('Make sure each answer clearly covers all four STAR parts: Situation, Task, Action, and Result.');
+
+    recommendations.push('Write down 3–5 STAR stories and practice telling them out loud with clear outcomes and metrics.');
+
+    document.getElementById('overallScore').textContent = String(score);
     document.getElementById('strengthsList').innerHTML = strengths.map(s => `<li>${s}</li>`).join('');
     document.getElementById('improvementsList').innerHTML = improvements.map(a => `<li>${a}</li>`).join('');
     document.getElementById('recommendationsList').innerHTML = recommendations.map(r => `<li>${r}</li>`).join('');
-    document.getElementById('feedbackSummary').textContent = 'You completed the STAR interview. Continue practicing to improve your behavioral interview skills using the STAR method.';
-    
+    document.getElementById('feedbackSummary').textContent =
+        'We could not load the full AI report, so this quick summary is based on how many STAR examples you shared and how detailed they were. For a richer, fully personalized report, please try the interview again when your connection is stable.';
+
     document.getElementById('feedbackLoading').classList.add('hidden');
     document.getElementById('feedbackContent').classList.remove('hidden');
 }
@@ -1453,8 +1499,86 @@ function showError(message) {
     container.scrollTop = container.scrollHeight;
 }
 
+// Modal confirmation function (replaces browser confirm)
+function showConfirmation(title, message) {
+    console.log('[STAR INTERVIEW] showConfirmation called with:', { title, message });
+    return new Promise((resolve) => {
+        const modal = document.getElementById('confirmationModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalMessage = document.getElementById('modalMessage');
+        const confirmBtn = document.getElementById('modalConfirmBtn');
+        const cancelBtn = document.getElementById('modalCancelBtn');
+
+        // Error check: ensure all elements exist
+        if (!modal || !modalTitle || !modalMessage || !confirmBtn || !cancelBtn) {
+            console.error('[STAR INTERVIEW] Modal elements not found:', {
+                modal: !!modal,
+                modalTitle: !!modalTitle,
+                modalMessage: !!modalMessage,
+                confirmBtn: !!confirmBtn,
+                cancelBtn: !!cancelBtn
+            });
+            // DO NOT fallback to browser confirm - this is the old behavior we're replacing
+            // Instead, show error and resolve false
+            alert('Error: Modal elements not found. Please refresh the page.');
+            resolve(false);
+            return;
+        }
+
+        // Set modal content
+        modalTitle.textContent = title;
+        modalMessage.textContent = message;
+
+        // Show modal
+        modal.classList.add('show');
+
+        // Handle confirm - use once: true to auto-remove after first click
+        const handleConfirm = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            modal.classList.remove('show');
+            resolve(true);
+        };
+
+        // Handle cancel - use once: true to auto-remove after first click
+        const handleCancel = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            modal.classList.remove('show');
+            resolve(false);
+        };
+
+        // Remove any existing listeners by cloning and replacing buttons
+        const newConfirmBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+        
+        const newCancelBtn = cancelBtn.cloneNode(true);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+        
+        // Get fresh references to the new buttons
+        const finalConfirmBtn = document.getElementById('modalConfirmBtn');
+        const finalCancelBtn = document.getElementById('modalCancelBtn');
+        
+        // Add event listeners to the new buttons
+        finalConfirmBtn.addEventListener('click', handleConfirm, { once: true });
+        finalCancelBtn.addEventListener('click', handleCancel, { once: true });
+
+        // Prevent closing by clicking outside (as per requirements)
+        // No event listener on overlay, so clicking outside won't close modal
+    });
+}
+
 async function endInterview() {
-    if (confirm('Are you sure you want to end the interview? Your progress will be saved.')) {
+    console.log('[STAR INTERVIEW] endInterview called');
+    
+    const confirmed = await showConfirmation(
+        'End STAR Interview?',
+        'Are you sure you want to end your STAR Interview? Your progress will be saved.'
+    );
+    
+    console.log('[STAR INTERVIEW] User confirmed:', confirmed);
+    
+    if (confirmed) {
         interviewActive = false;
         
         if (isRecording) {

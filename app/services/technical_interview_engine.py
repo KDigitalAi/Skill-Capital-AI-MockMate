@@ -10,6 +10,10 @@ from app.services.question_generator import question_generator
 from app.services.answer_evaluator import answer_evaluator
 import json
 import os
+import logging
+
+# Setup logger
+logger = logging.getLogger(__name__)
 
 # Try to import OpenAI components
 OPENAI_AVAILABLE = False
@@ -508,7 +512,8 @@ Keep it conversational and suitable for voice interaction."""
         all_scores: List[Dict[str, int]]
     ) -> Dict[str, Any]:
         """
-        Generate comprehensive interview feedback
+        Generate comprehensive, personalized interview feedback based on actual answers
+        Analyzes conversation history to provide specific, actionable feedback
         """
         if not all_scores:
             return {
@@ -519,14 +524,10 @@ Keep it conversational and suitable for voice interaction."""
                 "recommendations": []
             }
         
-        # Calculate overall score
-        overall_scores = [s.get("overall", 0) for s in all_scores if s.get("overall")]
-        avg_score = sum(overall_scores) / len(overall_scores) if overall_scores else 0
-        
-        # Analyze strengths and weaknesses
-        strengths = []
-        areas_for_improvement = []
-        recommendations = []
+        # ✅ FIX: Calculate overall score based on three key dimensions (out of 100)
+        # Knowledge (Technical Accuracy) - 40% weight
+        # Depth of Understanding (Relevance) - 35% weight  
+        # Communication of Technical Concepts - 25% weight
         
         # Analyze by category
         relevance_scores = [s.get("relevance", 0) for s in all_scores]
@@ -537,40 +538,115 @@ Keep it conversational and suitable for voice interaction."""
         avg_technical = sum(technical_scores) / len(technical_scores) if technical_scores else 0
         avg_communication = sum(communication_scores) / len(communication_scores) if communication_scores else 0
         
-        if avg_technical >= 75:
-            strengths.append("Strong technical knowledge and accuracy")
-        elif avg_technical < 60:
-            areas_for_improvement.append("Technical accuracy needs improvement")
-            recommendations.append("Review core technical concepts and practice explaining them clearly")
+        # ✅ FIX: Calculate weighted overall score (out of 100)
+        # Weighted average: Knowledge (40%) + Depth (35%) + Communication (25%)
+        avg_score = (avg_technical * 0.40) + (avg_relevance * 0.35) + (avg_communication * 0.25)
         
-        if avg_communication >= 75:
-            strengths.append("Clear and effective communication")
-        elif avg_communication < 60:
-            areas_for_improvement.append("Communication clarity can be improved")
-            recommendations.append("Practice explaining technical concepts in simple terms")
+        # Ensure score is between 0 and 100
+        avg_score = max(0, min(100, round(avg_score, 2)))
         
-        if avg_relevance >= 75:
-            strengths.append("Answers are relevant and on-topic")
-        elif avg_relevance < 60:
-            areas_for_improvement.append("Work on staying focused and relevant in answers")
-            recommendations.append("Practice structuring answers to directly address the question")
+        logger.info(f"[FEEDBACK] Score calculation - Technical: {avg_technical:.1f}, Relevance: {avg_relevance:.1f}, Communication: {avg_communication:.1f}, Overall: {avg_score:.1f}/100")
         
-        # Generate summary using AI if available
-        feedback_summary = f"Overall performance score: {avg_score:.1f}/100. "
+        # Build conversation context for AI analysis
+        # Extract Q&A pairs with scores for detailed analysis
+        qa_pairs = []
+        for i, score_data in enumerate(all_scores):
+            # Find corresponding question and answer from conversation history
+            # Questions are at even indices (0, 2, 4...), answers at odd (1, 3, 5...)
+            q_idx = i * 2
+            a_idx = i * 2 + 1
+            if q_idx < len(conversation_history) and a_idx < len(conversation_history):
+                question = conversation_history[q_idx].get("content", "")
+                answer = conversation_history[a_idx].get("content", "")
+                qa_pairs.append({
+                    "question": question[:300],  # Limit length
+                    "answer": answer[:500],  # Limit length
+                    "relevance": score_data.get("relevance", 0),
+                    "technical_accuracy": score_data.get("technical_accuracy", 0),
+                    "communication": score_data.get("communication", 0),
+                    "overall": score_data.get("overall", 0)
+                })
         
+        # Build full conversation context (last 20 messages for analysis)
+        conversation_context = ""
+        if conversation_history:
+            recent_history = conversation_history[-20:] if len(conversation_history) > 20 else conversation_history
+            conversation_context = "\n".join([
+                f"{msg.get('role', 'unknown').upper()}: {msg.get('content', '')[:400]}"
+                for msg in recent_history
+            ])
+        
+        # Get technical skills from session data
+        technical_skills = session_data.get("technical_skills", [])
+        skills_context = ", ".join(technical_skills[:15]) if technical_skills else "general technical skills"
+        experience_level = session_data.get("experience_level", "Intermediate")
+        
+        # Generate personalized feedback using AI if available
         if self.openai_available and self.client is not None:
             try:
-                system_prompt = """You are a technical interviewer providing final interview feedback.
-Generate a comprehensive but concise summary (3-4 sentences) of the candidate's performance."""
+                system_prompt = """You are an experienced technical interviewer providing comprehensive, personalized feedback after a technical interview.
 
-                user_prompt = f"""Interview Summary:
-- Overall Score: {avg_score:.1f}/100
+Your task is to analyze the candidate's actual answers and provide:
+1. SPECIFIC strengths based on what they actually said (not generic)
+2. SPECIFIC areas for improvement based on their actual weaknesses
+3. PERSONALIZED recommendations tailored to their performance
+4. A human-like summary that reflects their actual interview performance
+
+CRITICAL REQUIREMENTS:
+- Base ALL feedback on the actual conversation history - reference specific answers
+- Strengths must mention what they did well (e.g., "You demonstrated strong understanding of Django when you explained...")
+- Weaknesses must reference what they struggled with (e.g., "Your explanation of database indexing could be clearer...")
+- Recommendations must be actionable and specific to their gaps
+- Summary must feel like a real human interviewer wrote it
+- Be encouraging and constructive, never harsh or demotivating
+- Focus on growth and learning opportunities
+
+Format your response as JSON with these exact keys:
+{
+  "strengths": ["strength1", "strength2", "strength3"],
+  "areas_for_improvement": ["area1", "area2", "area3"],
+  "recommendations": ["recommendation1", "recommendation2", "recommendation3"],
+  "summary": "2-3 paragraph human-like summary"
+}
+
+Each strength/weakness/recommendation should be 1-2 sentences and reference specific content from their answers."""
+
+                # Build detailed Q&A analysis for the prompt
+                qa_analysis = ""
+                for idx, qa in enumerate(qa_pairs[:10], 1):  # Analyze up to 10 Q&A pairs
+                    qa_analysis += f"""
+Question {idx}: {qa['question']}
+Answer: {qa['answer']}
+Scores - Relevance: {qa['relevance']}/100, Technical: {qa['technical_accuracy']}/100, Communication: {qa['communication']}/100, Overall: {qa['overall']}/100
+"""
+
+                user_prompt = f"""Analyze this technical interview and provide personalized feedback.
+
+CANDIDATE'S BACKGROUND:
+- Technical Skills: {skills_context}
+- Experience Level: {experience_level}
+
+INTERVIEW PERFORMANCE METRICS:
+- Overall Average Score: {avg_score:.1f}/100
 - Technical Accuracy Average: {avg_technical:.1f}/100
 - Communication Average: {avg_communication:.1f}/100
 - Relevance Average: {avg_relevance:.1f}/100
-- Total Questions: {len(all_scores)}
+- Total Questions Answered: {len(all_scores)}
 
-Generate a professional, constructive feedback summary (3-4 sentences)."""
+QUESTION & ANSWER ANALYSIS (with scores):
+{qa_analysis if qa_analysis else "No detailed Q&A pairs available."}
+
+FULL CONVERSATION CONTEXT:
+{conversation_context if conversation_context else "Limited conversation history available."}
+
+Generate personalized feedback that:
+1. References specific answers and examples from the conversation
+2. Identifies real strengths (what they did well, specific skills demonstrated)
+3. Points out specific weaknesses (what they struggled with, where they were unclear)
+4. Provides actionable recommendations (what to learn, practice, or improve)
+5. Writes a human-like summary that feels like a real interviewer's evaluation
+
+Be specific, constructive, and encouraging. Reference actual content from their answers."""
 
                 response = self.client.chat.completions.create(
                     model="gpt-3.5-turbo",
@@ -579,32 +655,165 @@ Generate a professional, constructive feedback summary (3-4 sentences)."""
                         {"role": "user", "content": user_prompt}
                     ],
                     temperature=0.7,
-                    max_tokens=200
+                    max_tokens=1000,  # Increased for detailed feedback
+                    response_format={"type": "json_object"}  # Force JSON response
                 )
                 
-                feedback_summary = response.choices[0].message.content.strip()
+                # Extract and parse JSON response
+                content = response.choices[0].message.content.strip()
                 
+                # Handle cases where JSON might be wrapped in markdown code blocks
+                if "```json" in content:
+                    content = content.split("```json")[1].split("```")[0].strip()
+                elif "```" in content:
+                    content = content.split("```")[1].split("```")[0].strip()
+                
+                feedback_json = json.loads(content)
+                
+                strengths = feedback_json.get("strengths", [])
+                areas_for_improvement = feedback_json.get("areas_for_improvement", [])
+                recommendations = feedback_json.get("recommendations", [])
+                feedback_summary = feedback_json.get("summary", "")
+                
+                # Validate and ensure we have feedback
+                if not strengths or len(strengths) == 0:
+                    # Fallback: generate from scores
+                    if avg_technical >= 75:
+                        strengths.append("Strong technical knowledge demonstrated throughout the interview")
+                    if avg_communication >= 75:
+                        strengths.append("Clear and effective communication of technical concepts")
+                    if avg_relevance >= 75:
+                        strengths.append("Answers were relevant and directly addressed the questions")
+                    if not strengths:
+                        strengths.append("Good effort and engagement throughout the interview")
+                
+                if not areas_for_improvement or len(areas_for_improvement) == 0:
+                    # Fallback: generate from scores
+                    if avg_technical < 70:
+                        areas_for_improvement.append("Technical accuracy and depth of knowledge need improvement")
+                    if avg_communication < 70:
+                        areas_for_improvement.append("Communication clarity and structure could be enhanced")
+                    if avg_relevance < 70:
+                        areas_for_improvement.append("Focus on providing more direct and relevant answers")
+                    if not areas_for_improvement:
+                        areas_for_improvement.append("Continue building on your technical foundation")
+                
+                if not recommendations or len(recommendations) == 0:
+                    # Fallback: generate from scores
+                    if avg_technical < 70:
+                        recommendations.append("Review core technical concepts and practice explaining them clearly")
+                    if avg_communication < 70:
+                        recommendations.append("Practice structuring technical explanations with clear examples")
+                    if not recommendations:
+                        recommendations.append("Continue practicing technical interviews and reviewing key concepts")
+                
+                if not feedback_summary or len(feedback_summary.strip()) < 50:
+                    # Fallback summary
+                    feedback_summary = f"Overall performance score: {avg_score:.1f}/100. "
+                    if strengths:
+                        feedback_summary += f"Your strengths include {strengths[0].lower()}. "
+                    if areas_for_improvement:
+                        feedback_summary += f"Focus on improving {areas_for_improvement[0].lower()}. "
+                    feedback_summary += "Keep practicing and building your technical skills."
+                
+                logger.info(f"[FEEDBACK] ✅ Generated personalized feedback with {len(strengths)} strengths, {len(areas_for_improvement)} improvements, {len(recommendations)} recommendations")
+                
+            except json.JSONDecodeError as json_error:
+                logger.error(f"[FEEDBACK] ❌ Failed to parse JSON feedback: {str(json_error)}")
+                # Fall through to fallback logic
+                strengths = []
+                areas_for_improvement = []
+                recommendations = []
+                feedback_summary = ""
             except Exception as e:
-                feedback_summary = f"Overall performance score: {avg_score:.1f}/100. "
-                if strengths:
-                    feedback_summary += f"Strengths include: {', '.join(strengths[:2])}. "
-                if areas_for_improvement:
-                    feedback_summary += f"Areas to improve: {', '.join(areas_for_improvement[:2])}."
+                logger.error(f"[FEEDBACK] ❌ Error generating AI feedback: {str(e)}")
+                # Fall through to fallback logic
+                strengths = []
+                areas_for_improvement = []
+                recommendations = []
+                feedback_summary = ""
+        else:
+            # No AI available - use score-based fallback
+            strengths = []
+            areas_for_improvement = []
+            recommendations = []
+            feedback_summary = ""
         
-        # Ensure we have at least some feedback
+        # Fallback: Generate feedback from scores if AI failed or not available
+        if not strengths or not areas_for_improvement or not recommendations or not feedback_summary:
+            # Analyze by category with more detail
+            strengths = []
+            areas_for_improvement = []
+            recommendations = []
+            
+            # Technical accuracy analysis
+            if avg_technical >= 80:
+                strengths.append("Excellent technical knowledge and accuracy in your answers")
+            elif avg_technical >= 70:
+                strengths.append("Good technical understanding demonstrated in most answers")
+            elif avg_technical >= 60:
+                areas_for_improvement.append("Technical accuracy needs improvement - review core concepts")
+                recommendations.append("Focus on strengthening your foundational technical knowledge through practice and study")
+            else:
+                areas_for_improvement.append("Significant gaps in technical accuracy - prioritize core concept review")
+                recommendations.append("Consider taking structured courses or tutorials on fundamental technical concepts")
+            
+            # Communication analysis
+            if avg_communication >= 80:
+                strengths.append("Outstanding communication skills - clear and well-structured explanations")
+            elif avg_communication >= 70:
+                strengths.append("Good communication - your explanations were generally clear")
+            elif avg_communication >= 60:
+                areas_for_improvement.append("Communication clarity can be improved - practice structuring your answers")
+                recommendations.append("Practice explaining technical concepts step-by-step with concrete examples")
+            else:
+                areas_for_improvement.append("Communication needs significant improvement - focus on clarity and structure")
+                recommendations.append("Practice organizing your thoughts before speaking - use frameworks like 'situation, approach, result'")
+            
+            # Relevance analysis
+            if avg_relevance >= 80:
+                strengths.append("Answers were highly relevant and directly addressed the questions")
+            elif avg_relevance >= 70:
+                strengths.append("Good relevance - most answers stayed on topic")
+            elif avg_relevance >= 60:
+                areas_for_improvement.append("Work on staying more focused and directly addressing questions")
+                recommendations.append("Practice listening carefully to questions and structuring answers to directly answer what was asked")
+            else:
+                areas_for_improvement.append("Answers often went off-topic - focus on relevance")
+                recommendations.append("Practice pausing to understand the question fully before answering")
+            
+            # Generate summary
+            if not feedback_summary:
+                feedback_summary = f"Overall performance score: {avg_score:.1f}/100. "
+                if avg_score >= 75:
+                    feedback_summary += "You demonstrated strong technical knowledge and communication skills throughout the interview. "
+                elif avg_score >= 60:
+                    feedback_summary += "You showed good understanding in several areas, with room for improvement in others. "
+                else:
+                    feedback_summary += "This interview highlighted areas where you can focus your learning and practice. "
+                
+                if strengths:
+                    feedback_summary += f"Your strengths include {', '.join([s.lower() for s in strengths[:2]])}. "
+                if areas_for_improvement:
+                    feedback_summary += f"Focus on improving {', '.join([a.lower() for a in areas_for_improvement[:2]])}. "
+                feedback_summary += "Continue practicing and building your technical interview skills."
+        
+        # Ensure we have at least some feedback (final safety net)
         if not strengths:
-            strengths.append("Good effort in the interview")
+            strengths.append("Good effort and engagement throughout the interview")
         if not areas_for_improvement:
-            areas_for_improvement.append("Continue practicing technical interviews")
+            areas_for_improvement.append("Continue building on your technical foundation")
         if not recommendations:
-            recommendations.append("Keep practicing and reviewing technical concepts")
+            recommendations.append("Keep practicing technical interviews and reviewing key concepts")
+        if not feedback_summary or len(feedback_summary.strip()) < 30:
+            feedback_summary = f"Overall performance score: {avg_score:.1f}/100. Review your answers and continue practicing to improve."
         
         return {
             "overall_score": round(avg_score, 2),
             "feedback_summary": feedback_summary,
-            "strengths": strengths[:5],
-            "areas_for_improvement": areas_for_improvement[:5],
-            "recommendations": recommendations[:5]
+            "strengths": strengths[:5],  # Limit to top 5
+            "areas_for_improvement": areas_for_improvement[:5],  # Limit to top 5
+            "recommendations": recommendations[:5]  # Limit to top 5
         }
     
     def _get_fallback_question(

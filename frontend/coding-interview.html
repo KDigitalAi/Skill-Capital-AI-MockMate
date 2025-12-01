@@ -24,7 +24,7 @@
         body {
             margin: 0;
             padding: 0;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #FFEAF3;
             min-height: 100vh;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
@@ -41,13 +41,13 @@
 
         /* Question Panel - Enhanced */
         .question-panel {
-            background: #ffffff;
+            background: #FFFFFF;
             border-radius: 16px;
             padding: 32px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 20px rgba(255, 0, 106, 0.08);
             overflow-y: auto;
             max-height: calc(100vh - 48px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 0, 106, 0.1);
         }
 
         .question-panel::-webkit-scrollbar {
@@ -55,17 +55,19 @@
         }
 
         .question-panel::-webkit-scrollbar-track {
-            background: #f1f1f1;
+            background: #F7F7F7;
             border-radius: 10px;
         }
 
         .question-panel::-webkit-scrollbar-thumb {
-            background: #888;
+            background: #FF006A;
             border-radius: 10px;
+            opacity: 0.3;
         }
 
         .question-panel::-webkit-scrollbar-thumb:hover {
-            background: #555;
+            background: #FF006A;
+            opacity: 0.5;
         }
 
         .question-header {
@@ -74,11 +76,11 @@
             align-items: center;
             margin-bottom: 28px;
             padding-bottom: 20px;
-            border-bottom: 2px solid #e8eaf6;
+            border-bottom: 2px solid #FFEAF3;
         }
 
         .question-header h2 {
-            color: #1a237e;
+            color: #1E1E1E;
             font-size: 28px;
             font-weight: 700;
             margin: 0;
@@ -102,25 +104,28 @@
         }
 
         .difficulty-badge.easy {
-            background: linear-gradient(135deg, #c8e6c9 0%, #a5d6a7 100%);
-            color: #1b5e20;
+            background: #FFEAF3;
+            color: #FF006A;
+            border: 1px solid rgba(255, 0, 106, 0.2);
         }
 
         .difficulty-badge.medium {
-            background: linear-gradient(135deg, #fff9c4 0%, #fff59d 100%);
-            color: #e65100;
+            background: #E8F1FF;
+            color: #FF006A;
+            border: 1px solid rgba(255, 0, 106, 0.2);
         }
 
         .difficulty-badge.hard {
-            background: linear-gradient(135deg, #ffcdd2 0%, #ef9a9a 100%);
-            color: #b71c1c;
+            background: #FFEAF3;
+            color: #FF006A;
+            border: 1px solid rgba(255, 0, 106, 0.3);
         }
 
         .progress-indicator {
             font-size: 13px;
-            color: #546e7a;
+            color: #1E1E1E;
             font-weight: 600;
-            background: #f5f5f5;
+            background: #F7F7F7;
             padding: 6px 14px;
             border-radius: 12px;
         }
@@ -130,7 +135,7 @@
         }
 
         .question-content h3 {
-            color: #283593;
+            color: #1E1E1E;
             font-size: 20px;
             font-weight: 600;
             margin-bottom: 16px;
@@ -143,7 +148,7 @@
         }
 
         .question-content p {
-            color: #37474f;
+            color: #1E1E1E;
             line-height: 1.8;
             margin-bottom: 20px;
             font-size: 15px;
@@ -151,22 +156,22 @@
 
         /* Enhanced Example Box */
         .example-box {
-            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
-            border-left: 5px solid #2196f3;
+            background: #E8F1FF;
+            border-left: 5px solid #FF006A;
             padding: 20px;
             border-radius: 10px;
             margin: 20px 0;
-            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.15);
+            box-shadow: 0 2px 8px rgba(255, 0, 106, 0.1);
             transition: transform 0.2s, box-shadow 0.2s;
         }
 
         .example-box:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(33, 150, 243, 0.2);
+            box-shadow: 0 4px 12px rgba(255, 0, 106, 0.15);
         }
 
         .example-box h4 {
-            color: #1565c0;
+            color: #FF006A;
             font-size: 15px;
             margin-bottom: 12px;
             font-weight: 700;
@@ -181,41 +186,41 @@
         }
 
         .example-box pre {
-            background: #ffffff;
+            background: #FFFFFF;
             padding: 14px;
             border-radius: 8px;
             overflow-x: auto;
             font-size: 13px;
             margin: 10px 0;
-            border: 1px solid #e1f5fe;
+            border: 1px solid rgba(255, 0, 106, 0.1);
             font-family: 'Courier New', 'Monaco', monospace;
             line-height: 1.6;
         }
 
         .example-box pre strong {
-            color: #0277bd;
+            color: #FF006A;
             font-weight: 600;
         }
 
         .example-box p {
             margin-top: 12px;
             font-size: 13px;
-            color: #546e7a;
+            color: #1E1E1E;
             font-style: italic;
         }
 
         /* Enhanced Constraints Box */
         .constraints-box {
-            background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
-            border-left: 5px solid #ff9800;
+            background: #FFEAF3;
+            border-left: 5px solid #FF006A;
             padding: 18px;
             border-radius: 10px;
             margin: 20px 0;
-            box-shadow: 0 4px 12px rgba(255, 152, 0, 0.15);
+            box-shadow: 0 2px 8px rgba(255, 0, 106, 0.1);
         }
 
         .constraints-box h4 {
-            color: #e65100;
+            color: #FF006A;
             font-size: 15px;
             margin-bottom: 10px;
             font-weight: 700;
@@ -230,7 +235,7 @@
         }
 
         .constraints-box p {
-            color: #bf360c;
+            color: #1E1E1E;
             font-size: 14px;
             margin: 0;
             line-height: 1.6;
@@ -240,12 +245,12 @@
         .topics-container {
             margin-top: 24px;
             padding-top: 20px;
-            border-top: 1px solid #e8eaf6;
+            border-top: 1px solid #FFEAF3;
         }
 
         .topics-label {
             font-size: 13px;
-            color: #546e7a;
+            color: #1E1E1E;
             font-weight: 600;
             margin-bottom: 12px;
             text-transform: uppercase;
@@ -259,13 +264,13 @@
         }
 
         .topic-tag {
-            background: linear-gradient(135deg, #e8eaf6 0%, #c5cae9 100%);
-            color: #3f51b5;
+            background: #FFEAF3;
+            color: #FF006A;
             padding: 6px 14px;
             border-radius: 16px;
             font-size: 12px;
             font-weight: 600;
-            border: 1px solid #9fa8da;
+            border: 1px solid rgba(255, 0, 106, 0.2);
         }
 
         /* Editor Panel - Enhanced */
@@ -280,14 +285,14 @@
         }
 
         .editor-header {
-            background: #ffffff;
+            background: #FFFFFF;
             border-radius: 16px;
             padding: 20px 28px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 20px rgba(255, 0, 106, 0.08);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 0, 106, 0.1);
         }
 
         .language-selector {
@@ -297,48 +302,48 @@
         }
 
         .language-selector label {
-            color: #37474f;
+            color: #1E1E1E;
             font-weight: 600;
             font-size: 15px;
         }
 
         .language-selector select {
             padding: 10px 16px;
-            border: 2px solid #e0e0e0;
+            border: 2px solid #F7F7F7;
             border-radius: 10px;
-            background: #ffffff;
-            color: #37474f;
+            background: #FFFFFF;
+            color: #1E1E1E;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
             min-width: 160px;
             transition: all 0.3s;
             appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2337474f' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23FF006A' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
             background-repeat: no-repeat;
             background-position: right 12px center;
             padding-right: 40px;
         }
 
         .language-selector select:hover {
-            border-color: #2196f3;
-            box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);
+            border-color: #FF006A;
+            box-shadow: 0 2px 8px rgba(255, 0, 106, 0.15);
         }
 
         .language-selector select:focus {
             outline: none;
-            border-color: #2196f3;
-            box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+            border-color: #FF006A;
+            box-shadow: 0 0 0 3px rgba(255, 0, 106, 0.1);
         }
 
         .editor-container {
-            background: #ffffff;
+            background: #FFFFFF;
             border-radius: 16px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 20px rgba(255, 0, 106, 0.08);
             overflow: hidden;
             flex: 1;
             min-height: 450px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 0, 106, 0.1);
         }
 
         #codeEditor {
@@ -348,18 +353,18 @@
 
         /* Enhanced IO Panel */
         .io-panel {
-            background: #ffffff;
+            background: #FFFFFF;
             border-radius: 16px;
             padding: 24px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 20px rgba(255, 0, 106, 0.08);
+            border: 1px solid rgba(255, 0, 106, 0.1);
             min-height: 280px;
             display: flex;
             flex-direction: column;
         }
 
         .io-panel h3 {
-            color: #283593;
+            color: #1E1E1E;
             font-size: 18px;
             font-weight: 700;
             margin-bottom: 16px;
@@ -370,8 +375,8 @@
             display: flex;
             gap: 4px;
             margin-bottom: 16px;
-            border-bottom: 2px solid #e8eaf6;
-            background: #f5f5f5;
+            border-bottom: 2px solid #FFEAF3;
+            background: #F7F7F7;
             padding: 4px;
             border-radius: 10px;
         }
@@ -380,7 +385,7 @@
             padding: 10px 20px;
             background: transparent;
             border: none;
-            color: #546e7a;
+            color: #1E1E1E;
             cursor: pointer;
             font-size: 14px;
             font-weight: 600;
@@ -390,14 +395,14 @@
         }
 
         .io-tab:hover {
-            background: rgba(33, 150, 243, 0.1);
-            color: #2196f3;
+            background: rgba(255, 0, 106, 0.1);
+            color: #FF006A;
         }
 
         .io-tab.active {
-            background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+            background: #FF006A;
             color: white;
-            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+            box-shadow: 0 4px 12px rgba(255, 0, 106, 0.2);
         }
 
         .io-content {
@@ -412,37 +417,44 @@
         }
 
         .io-content::-webkit-scrollbar-track {
-            background: #f1f1f1;
+            background: #F7F7F7;
             border-radius: 10px;
         }
 
         .io-content::-webkit-scrollbar-thumb {
-            background: #888;
+            background: #FF006A;
             border-radius: 10px;
+            opacity: 0.3;
+        }
+
+        .io-content::-webkit-scrollbar-thumb:hover {
+            background: #FF006A;
+            opacity: 0.5;
         }
 
         .io-content textarea {
             width: 100%;
             min-height: 180px;
             padding: 14px;
-            border: 2px solid #e0e0e0;
+            border: 2px solid #F7F7F7;
             border-radius: 10px;
             font-family: 'Courier New', 'Monaco', monospace;
             font-size: 13px;
             resize: vertical;
             transition: border-color 0.3s;
-            background: #fafafa;
+            background: #FFFFFF;
+            color: #1E1E1E;
         }
 
         .io-content textarea:focus {
             outline: none;
-            border-color: #2196f3;
-            background: #ffffff;
-            box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+            border-color: #FF006A;
+            background: #FFFFFF;
+            box-shadow: 0 0 0 3px rgba(255, 0, 106, 0.1);
         }
 
         .io-content pre {
-            background: #f5f5f5;
+            background: #F7F7F7;
             padding: 16px;
             border-radius: 10px;
             font-family: 'Courier New', 'Monaco', monospace;
@@ -452,18 +464,19 @@
             margin: 0;
             line-height: 1.6;
             border: 2px solid transparent;
+            color: #1E1E1E;
         }
 
         .io-content .error {
-            color: #b71c1c;
-            background: #ffebee;
-            border-color: #ef5350;
+            color: #FF006A;
+            background: #FFEAF3;
+            border-color: rgba(255, 0, 106, 0.3);
         }
 
         .io-content .success {
-            color: #1b5e20;
-            background: #e8f5e9;
-            border-color: #66bb6a;
+            color: #FF006A;
+            background: #E8F1FF;
+            border-color: rgba(255, 0, 106, 0.2);
         }
 
         /* Enhanced Action Buttons */
@@ -508,13 +521,14 @@
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+            background: #FF006A;
             color: white;
         }
 
         .btn-primary:hover:not(:disabled) {
             transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(33, 150, 243, 0.4);
+            box-shadow: 0 8px 20px rgba(255, 0, 106, 0.3);
+            background: #E6005C;
         }
 
         .btn-primary:active:not(:disabled) {
@@ -528,13 +542,14 @@
         }
 
         .btn-success {
-            background: linear-gradient(135deg, #66bb6a 0%, #43a047 100%);
+            background: #FF006A;
             color: white;
         }
 
         .btn-success:hover:not(:disabled) {
             transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(102, 187, 106, 0.4);
+            box-shadow: 0 8px 20px rgba(255, 0, 106, 0.3);
+            background: #E6005C;
         }
 
         .btn-success:active:not(:disabled) {
@@ -542,13 +557,14 @@
         }
 
         .btn-danger {
-            background: linear-gradient(135deg, #ef5350 0%, #e53935 100%);
+            background: #1E1E1E;
             color: white;
         }
 
         .btn-danger:hover {
             transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(239, 83, 80, 0.4);
+            box-shadow: 0 8px 20px rgba(30, 30, 30, 0.3);
+            background: #333333;
         }
 
         .btn-danger:active {
@@ -589,7 +605,7 @@
         }
 
         .loading-state p {
-            color: #546e7a;
+            color: #1E1E1E;
             font-size: 16px;
             font-weight: 500;
         }
@@ -602,7 +618,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(30, 30, 30, 0.4);
             backdrop-filter: blur(4px);
             z-index: 1000;
             align-items: center;
@@ -642,7 +658,7 @@
         }
 
         .modal-header {
-            background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+            background: #FF006A;
             color: white;
             padding: 24px;
             font-size: 20px;
@@ -651,7 +667,7 @@
 
         .modal-body {
             padding: 24px;
-            color: #37474f;
+            color: #1E1E1E;
             font-size: 15px;
             line-height: 1.6;
         }
@@ -661,8 +677,8 @@
             display: flex;
             gap: 12px;
             justify-content: flex-end;
-            border-top: 1px solid #e0e0e0;
-            background: #fafafa;
+            border-top: 1px solid #FFEAF3;
+            background: #F7F7F7;
         }
 
         .modal-btn {
@@ -676,32 +692,34 @@
         }
 
         .modal-btn-primary {
-            background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+            background: #FF006A;
             color: white;
         }
 
         .modal-btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+            box-shadow: 0 4px 12px rgba(255, 0, 106, 0.3);
+            background: #E6005C;
         }
 
         .modal-btn-secondary {
-            background: #e0e0e0;
-            color: #37474f;
+            background: #F7F7F7;
+            color: #1E1E1E;
+            border: 1px solid rgba(255, 0, 106, 0.2);
         }
 
         .modal-btn-secondary:hover {
-            background: #d0d0d0;
+            background: #FFEAF3;
         }
 
         .toast {
             position: fixed;
             top: 24px;
             right: 24px;
-            background: #ffffff;
+            background: #FFFFFF;
             padding: 16px 24px;
             border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 4px 20px rgba(255, 0, 106, 0.15);
             z-index: 2000;
             display: none;
             align-items: center;
@@ -715,15 +733,15 @@
         }
 
         .toast.success {
-            border-left: 4px solid #66bb6a;
+            border-left: 4px solid #FF006A;
         }
 
         .toast.error {
-            border-left: 4px solid #ef5350;
+            border-left: 4px solid #FF006A;
         }
 
         .toast.info {
-            border-left: 4px solid #2196f3;
+            border-left: 4px solid #FF006A;
         }
 
         .toast-icon {
@@ -732,7 +750,7 @@
 
         .toast-message {
             flex: 1;
-            color: #37474f;
+            color: #1E1E1E;
             font-size: 14px;
             font-weight: 500;
         }
@@ -1123,8 +1141,8 @@ int main() {
                 console.error('[CODING] Error starting interview:', error);
                 document.getElementById('questionContent').innerHTML = `
                     <div style="text-align: center; padding: 60px 40px;">
-                        <h3 style="color: #c62828; margin-bottom: 16px;">Error Starting Interview</h3>
-                        <p style="color: #546e7a; margin-bottom: 24px;">${error.message}</p>
+                        <h3 style="color: #FF006A; margin-bottom: 16px;">Error Starting Interview</h3>
+                        <p style="color: #1E1E1E; margin-bottom: 24px;">${error.message}</p>
                         <button class="btn btn-primary" onclick="location.reload()">Retry</button>
                     </div>
                 `;
@@ -1135,7 +1153,7 @@ int main() {
         function displayQuestion(question) {
             if (!question) {
                 console.error('[CODING] displayQuestion called with null/undefined question');
-                document.getElementById('questionContent').innerHTML = '<p style="color: #c62828;">Error: No question data available. Please refresh the page.</p>';
+                document.getElementById('questionContent').innerHTML = '<p style="color: #FF006A;">Error: No question data available. Please refresh the page.</p>';
                 return;
             }
 
@@ -1161,7 +1179,7 @@ int main() {
             // For SQL questions, show table setup
             if (question.table_setup) {
                 html += '<h3>Database Schema</h3>';
-                html += `<pre style="background: #f5f5f5; padding: 12px; border-radius: 4px; overflow-x: auto; font-size: 13px;">${question.table_setup}</pre>`;
+                html += `<pre style="background: #F7F7F7; padding: 12px; border-radius: 4px; overflow-x: auto; font-size: 13px; color: #1E1E1E;">${question.table_setup}</pre>`;
             }
 
             if (question.examples && question.examples.length > 0) {
@@ -1172,9 +1190,9 @@ int main() {
                         html += `
                         <div class="example-box">
                             <h4>Example ${idx + 1}</h4>
-                            <pre style="background: #f5f5f5; padding: 8px; margin: 8px 0; border-radius: 4px; font-size: 13px;"><strong>Query:</strong> ${example.query}</pre>
-                            <pre style="background: #e8f5e9; padding: 8px; margin: 8px 0; border-radius: 4px; font-size: 13px;"><strong>Expected Output:</strong> ${example.output || 'N/A'}</pre>
-                            ${example.explanation ? `<p style="color: #546e7a; font-size: 13px; margin-top: 8px;"><em>${example.explanation}</em></p>` : ''}
+                            <pre style="background: #FFFFFF; padding: 8px; margin: 8px 0; border-radius: 4px; font-size: 13px; color: #1E1E1E;"><strong>Query:</strong> ${example.query}</pre>
+                            <pre style="background: #E8F1FF; padding: 8px; margin: 8px 0; border-radius: 4px; font-size: 13px; color: #1E1E1E;"><strong>Expected Output:</strong> ${example.output || 'N/A'}</pre>
+                            ${example.explanation ? `<p style="color: #1E1E1E; font-size: 13px; margin-top: 8px;"><em>${example.explanation}</em></p>` : ''}
                         </div>`;
                     } else {
                         html += `
@@ -1465,8 +1483,8 @@ int main() {
                 console.error('Initialization failed:', e);
                 document.getElementById('questionContent').innerHTML = `
                     <div style="text-align: center; padding: 60px 40px;">
-                        <h3 style="color: #c62828; margin-bottom: 16px;">Error</h3>
-                        <p style="color: #546e7a; margin-bottom: 24px;">${e.message}</p>
+                        <h3 style="color: #FF006A; margin-bottom: 16px;">Error</h3>
+                        <p style="color: #1E1E1E; margin-bottom: 24px;">${e.message}</p>
                         <button class="btn btn-primary" onclick="location.reload()">Retry</button>
                     </div>
                 `;

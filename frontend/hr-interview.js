@@ -4,7 +4,10 @@
  * 
  * NOTE: This file requires api-config.js to be loaded first
  * api-config.js provides: getApiBase(), ensureApiBaseReady(), API_BASE
+ * 
+ * VERSION: 2.0 - Custom Modal Implementation (2025-01-12)
  */
+console.log('[HR INTERVIEW] Script loaded - Version 2.0 with Custom Modal');
 
 // State
 let currentUserId = null;
@@ -993,30 +996,76 @@ async function generateFeedback() {
 }
 
 function generateBasicFeedback() {
-    // Generate basic feedback based on conversation history
-    const strengths = [
-        'Good communication skills demonstrated',
-        'Clear articulation of thoughts',
-        'Professional demeanor maintained'
-    ];
+    // Generate a simple, data-driven fallback based on the actual conversation
+    // This is only used when the backend HR feedback endpoint is unavailable.
+    const userMessages = conversationHistory.filter(m => m.role === 'user');
+    const answerCount = userMessages.length;
     
-    const improvements = [
-        'Consider providing more specific examples',
-        'Work on structuring answers more clearly',
-        'Practice STAR method for behavioral questions'
-    ];
+    // ✅ FIX: Check if answers are valid (not empty, not "No Answer", and have at least 3 meaningful words)
+    function isValidAnswer(answerText) {
+        if (!answerText || typeof answerText !== 'string') return false;
+        const trimmed = answerText.trim();
+        if (trimmed === '' || trimmed === 'No Answer') return false;
+        // Count meaningful words (exclude very short words)
+        const words = trimmed.split(/\s+/).filter(w => w.length > 2);
+        return words.length >= 3;
+    }
     
-    const recommendations = [
-        'Continue practicing HR interview questions',
-        'Prepare more examples from your experience',
-        'Focus on cultural fit and motivation'
-    ];
+    const validAnswers = userMessages.filter(m => isValidAnswer(m.content));
+    const validAnswerCount = validAnswers.length;
     
-    document.getElementById('overallScore').textContent = '75';
+    // ✅ FIX: If NO valid answers, return 0 score with appropriate feedback
+    if (validAnswerCount === 0) {
+        document.getElementById('overallScore').textContent = '0';
+        document.getElementById('strengthsList').innerHTML = '<li>No valid response detected.</li>';
+        document.getElementById('improvementsList').innerHTML = '<li>Please provide spoken answers to receive accurate feedback.</li>';
+        document.getElementById('recommendationsList').innerHTML = '<li>Try answering all HR questions with clear, structured responses.</li>';
+        document.getElementById('feedbackSummary').textContent = 'Interview ended early with no valid responses.';
+        document.getElementById('feedbackLoading').classList.add('hidden');
+        document.getElementById('feedbackContent').classList.remove('hidden');
+        return;
+    }
+    
+    // Calculate word count only for valid answers
+    const totalWords = validAnswers.reduce((sum, m) => {
+        if (!m.content) return sum;
+        return sum + m.content.split(/\s+/).filter(Boolean).length;
+    }, 0);
+    const avgWords = validAnswerCount > 0 ? totalWords / validAnswerCount : 0;
+
+    // ✅ FIX: Heuristic score based on valid answers only (start from 0, not 60)
+    let score = 0;
+    if (validAnswerCount >= 4) score += 20;
+    else if (validAnswerCount >= 2) score += 10;
+    if (avgWords >= 40) score += 25;
+    else if (avgWords >= 20) score += 15;
+    else if (avgWords >= 10) score += 5;
+    // Ensure score is reasonable but never artificially high for empty answers
+    score = Math.max(0, Math.min(85, Math.round(score)));
+
+    const strengths = [];
+    const improvements = [];
+    const recommendations = [];
+
+    if (validAnswerCount > 0) {
+        strengths.push(`You completed ${validAnswerCount} question${validAnswerCount > 1 ? 's' : ''} and stayed engaged throughout the interview.`);
+    }
+    if (avgWords >= 35) {
+        strengths.push('Your answers showed good depth and you provided reasonably detailed explanations.');
+    } else if (avgWords >= 10) {
+        improvements.push('Some answers were quite short; adding more specific examples would make them stronger.');
+    }
+
+    improvements.push('Try to structure answers clearly (Situation → Task → Action → Result) so your stories are easy to follow.');
+
+    recommendations.push('Pick 3–5 common HR questions and practice answering them out loud using real examples from your experience.');
+
+    document.getElementById('overallScore').textContent = String(score);
     document.getElementById('strengthsList').innerHTML = strengths.map(s => `<li>${s}</li>`).join('');
     document.getElementById('improvementsList').innerHTML = improvements.map(a => `<li>${a}</li>`).join('');
     document.getElementById('recommendationsList').innerHTML = recommendations.map(r => `<li>${r}</li>`).join('');
-    document.getElementById('feedbackSummary').textContent = 'You completed the HR interview. Continue practicing to improve your communication and presentation skills.';
+    document.getElementById('feedbackSummary').textContent =
+        'We could not load the full AI report, so this quick summary is based on how many questions you answered and how detailed your responses were. For a richer, fully personalized report, please try the interview again when your connection is stable.';
     
     document.getElementById('feedbackLoading').classList.add('hidden');
     document.getElementById('feedbackContent').classList.remove('hidden');
@@ -1451,8 +1500,86 @@ function showError(message) {
     container.scrollTop = container.scrollHeight;
 }
 
+// Modal confirmation function (replaces browser confirm)
+function showConfirmation(title, message) {
+    console.log('[HR INTERVIEW] showConfirmation called with:', { title, message });
+    return new Promise((resolve) => {
+        const modal = document.getElementById('confirmationModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalMessage = document.getElementById('modalMessage');
+        const confirmBtn = document.getElementById('modalConfirmBtn');
+        const cancelBtn = document.getElementById('modalCancelBtn');
+
+        // Error check: ensure all elements exist
+        if (!modal || !modalTitle || !modalMessage || !confirmBtn || !cancelBtn) {
+            console.error('[HR INTERVIEW] Modal elements not found:', {
+                modal: !!modal,
+                modalTitle: !!modalTitle,
+                modalMessage: !!modalMessage,
+                confirmBtn: !!confirmBtn,
+                cancelBtn: !!cancelBtn
+            });
+            // DO NOT fallback to browser confirm - this is the old behavior we're replacing
+            // Instead, show error and resolve false
+            alert('Error: Modal elements not found. Please refresh the page.');
+            resolve(false);
+            return;
+        }
+
+        // Set modal content
+        modalTitle.textContent = title;
+        modalMessage.textContent = message;
+
+        // Show modal
+        modal.classList.add('show');
+
+        // Handle confirm - use once: true to auto-remove after first click
+        const handleConfirm = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            modal.classList.remove('show');
+            resolve(true);
+        };
+
+        // Handle cancel - use once: true to auto-remove after first click
+        const handleCancel = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            modal.classList.remove('show');
+            resolve(false);
+        };
+
+        // Remove any existing listeners by cloning and replacing buttons
+        const newConfirmBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+        
+        const newCancelBtn = cancelBtn.cloneNode(true);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+        
+        // Get fresh references to the new buttons
+        const finalConfirmBtn = document.getElementById('modalConfirmBtn');
+        const finalCancelBtn = document.getElementById('modalCancelBtn');
+        
+        // Add event listeners to the new buttons
+        finalConfirmBtn.addEventListener('click', handleConfirm, { once: true });
+        finalCancelBtn.addEventListener('click', handleCancel, { once: true });
+
+        // Prevent closing by clicking outside (as per requirements)
+        // No event listener on overlay, so clicking outside won't close modal
+    });
+}
+
 async function endInterview() {
-    if (confirm('Are you sure you want to end the interview? Your progress will be saved.')) {
+    console.log('[HR INTERVIEW] endInterview called');
+    
+    const confirmed = await showConfirmation(
+        'End Interview?',
+        'Are you sure you want to end your HR Interview? Your progress will be saved.'
+    );
+    
+    console.log('[HR INTERVIEW] User confirmed:', confirmed);
+    
+    if (confirmed) {
         interviewActive = false;
         
         if (isRecording) {
