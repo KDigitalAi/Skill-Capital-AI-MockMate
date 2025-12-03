@@ -2,7 +2,7 @@
 Dashboard routes for performance analytics
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from supabase import Client
 from app.db.client import get_supabase_client
 from app.schemas.dashboard import (
@@ -13,9 +13,11 @@ from app.schemas.dashboard import (
     TrendDataPoint
 )
 from app.utils.exceptions import NotFoundError, DatabaseError
+from app.utils.rate_limiter import rate_limit_by_user_id
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +26,21 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 @router.get("/performance/{user_id}", response_model=PerformanceDashboardResponse)
 async def get_performance_dashboard(
     user_id: str,
-    supabase: Client = Depends(get_supabase_client)
+    page: Optional[int] = Query(None, description="Page number for pagination (1-indexed)"),
+    limit: Optional[int] = Query(None, description="Number of items per page"),
+    supabase: Client = Depends(get_supabase_client),
+    _: None = Depends(rate_limit_by_user_id)
 ):
+    # Validate user_id format: alphanumeric, hyphen, underscore only
+    if not re.match(r'^[a-zA-Z0-9_-]+$', user_id):
+        raise HTTPException(status_code=400, detail="Invalid user_id format")
+    
+    # Validate pagination parameters if provided
+    if page is not None and page < 1:
+        raise HTTPException(status_code=400, detail="page must be >= 1")
+    if limit is not None and limit < 1:
+        raise HTTPException(status_code=400, detail="limit must be >= 1")
+    
     """Get performance dashboard data for a user"""
     try:
         # Get all interview sessions for user
@@ -34,7 +49,7 @@ async def get_performance_dashboard(
             sessions = sessions_response.data if sessions_response.data else []
         except Exception as db_err:
             # If table doesn't exist or query fails, return empty dashboard
-            logger.warning(f"Failed to fetch interview sessions: {str(db_err)}")
+            logger.warning(f"[DASHBOARD][PERFORMANCE] Failed to fetch interview sessions: {str(db_err)}")
             sessions = []
         
         if not sessions:
@@ -77,13 +92,23 @@ async def get_performance_dashboard(
                         if answers_response.data:
                             # Map to common format for dashboard
                             for row in answers_response.data:
-                                # Only include rows with answers (user_answer is not empty)
-                                if row.get("user_answer"):
+                                # Include rows that have scores OR user_answer (for coding, check final_score)
+                                # This ensures we capture all evaluated answers, even if user_answer is empty
+                                has_score = row.get("overall_score") is not None
+                                has_coding_score = (round_table == "coding_round" and row.get("final_score") is not None)
+                                has_user_answer = row.get("user_answer") and row.get("user_answer").strip() not in ["", "No Answer"]
+                                
+                                if has_score or has_coding_score or has_user_answer:
+                                    # For coding interviews, use final_score as overall_score
+                                    overall_score = row.get("overall_score")
+                                    if round_table == "coding_round" and overall_score is None:
+                                        overall_score = row.get("final_score", 0)
+                                    
                                     mapped_answer = {
                                         "session_id": session_id,
                                         "question_number": row.get("question_number", 0),
-                                        "question_type": row.get("question_type") or row.get("question_category") or "Technical",
-                                        "overall_score": row.get("overall_score", 0),
+                                        "question_type": row.get("question_type") or row.get("question_category") or session_type.title(),
+                                        "overall_score": overall_score if overall_score is not None else 0,
                                         "relevance_score": row.get("relevance_score"),
                                         "technical_accuracy_score": row.get("technical_accuracy_score"),
                                         "communication_score": row.get("communication_score"),
@@ -91,10 +116,10 @@ async def get_performance_dashboard(
                                     }
                                     all_answers.append(mapped_answer)
                     except Exception as round_err:
-                        logger.warning(f"Failed to fetch from {round_table} for session {session_id}: {str(round_err)}")
+                        logger.warning(f"[DASHBOARD][PERFORMANCE] Failed to fetch from {round_table} for session {session_id}: {str(round_err)}")
                         continue
             except Exception as db_err:
-                logger.warning(f"Failed to batch fetch answers: {str(db_err)}")
+                logger.warning(f"[DASHBOARD][PERFORMANCE] Failed to batch fetch answers: {str(db_err)}")
         
         # Create answer lookup dictionary for O(1) access instead of O(n) filtering
         # Time Complexity: O(n) to build, O(1) to access
@@ -128,13 +153,18 @@ async def get_performance_dashboard(
                         round_table = "technical_round"
                     
                     try:
-                        questions_response = supabase.table(round_table).select("question_number").eq("session_id", session_id).execute()
-                        # Count unique question_numbers (questions with question_text)
+                        # Count all questions asked for this session
+                        # Each row in the round table represents a question that was asked
+                        questions_response = supabase.table(round_table).select("question_number, question_text").eq("session_id", session_id).execute()
+                        # Count unique question_numbers (each question_number represents one question asked)
                         unique_questions = set()
                         for row in (questions_response.data or []):
-                            if row.get("question_text"):
-                                unique_questions.add(row.get("question_number", 0))
-                        question_counts[session_id] = len(unique_questions)
+
+                            question_number = row.get("question_number")
+                            # Include all rows with valid question_number (questions were asked)
+                            if question_number is not None:
+                                unique_questions.add(question_number)
+                        question_counts[session_id] = len(unique_questions) if unique_questions else 0
                     except Exception:
                         # Fallback: use answer counts as approximation
                         question_counts[session_id] = len(answers_by_session.get(session_id, []))
@@ -143,14 +173,16 @@ async def get_performance_dashboard(
                 for sid in session_ids:
                     question_counts[sid] = len(answers_by_session.get(sid, []))
         
-        # Calculate average score
-        # Time Complexity: O(n) where n = number of recent sessions (max 10)
+        # Calculate average score across ALL sessions (not just last 10)
+        # Time Complexity: O(n) where n = number of sessions
         # Space Complexity: O(1) - only storing aggregates
         total_score = 0
         score_count = 0
         recent_interviews_list = []
         
-        for session in sessions[:10]:  # Get last 10 interviews
+        # Process all sessions for average calculation
+        # Build complete list first, then paginate if needed
+        for session in sessions:
             session_id = session["id"]
             # Use dictionary lookup instead of filtering (O(1) vs O(n))
             session_answers = answers_by_session.get(session_id, [])
@@ -165,7 +197,8 @@ async def get_performance_dashboard(
                 
                 for answer in session_answers:
                     score = answer.get("overall_score")
-                    if score:
+                    # Include scores that are 0 (valid scores) - only exclude None
+                    if score is not None:
                         score_sum += score
                         score_count_session += 1
                     # Track latest answer time in same loop (use created_at from new schema)
@@ -184,6 +217,7 @@ async def get_performance_dashboard(
                     # Get question count from pre-fetched dictionary
                     total_questions = question_counts.get(session_id, len(session_answers))
                     
+                    # Add all sessions to list (will paginate later if needed)
                     recent_interviews_list.append(InterviewSummary(
                         session_id=session_id,
                         role=session.get("role", "Unknown"),
@@ -195,6 +229,20 @@ async def get_performance_dashboard(
                         session_status=session.get("session_status", "completed")
                     ))
         
+        # Apply pagination if parameters are provided, otherwise return last 10 (current behavior)
+        if page is not None and limit is not None:
+            # Calculate pagination
+            start_index = (page - 1) * limit
+            end_index = start_index + limit
+            recent_interviews_list = recent_interviews_list[start_index:end_index]
+        elif page is not None or limit is not None:
+            # If only one parameter is provided, raise error
+            raise HTTPException(status_code=400, detail="Both page and limit must be provided together for pagination")
+        else:
+            # No pagination: return last 10 (original behavior)
+            recent_interviews_list = recent_interviews_list[:10]
+        
+        # Calculate average across ALL sessions with scores
         average_score = total_score / score_count if score_count > 0 else 0.0
         
         # Calculate completion rate using pre-fetched data
@@ -222,7 +270,7 @@ async def get_performance_dashboard(
                     "has_resume": bool(profile.get("resume_url"))
                 }
         except Exception as db_err:
-            logger.warning(f"Failed to fetch user profile: {str(db_err)}")
+            logger.warning(f"[DASHBOARD][PERFORMANCE] Failed to fetch user profile: {str(db_err)}")
             resume_summary = None
         
         return PerformanceDashboardResponse(
@@ -242,14 +290,19 @@ async def get_performance_dashboard(
         status_code = e.status_code if hasattr(e, 'status_code') else 500
         raise HTTPException(status_code=status_code, detail=str(e))
     except Exception as e:
-        logger.exception("Performance dashboard error")
+        logger.exception("[DASHBOARD][PERFORMANCE] Performance dashboard error")
         raise HTTPException(status_code=500, detail=f"Error fetching performance dashboard: {str(e)}")
 
 @router.get("/trends/{user_id}", response_model=TrendsDashboardResponse)
 async def get_trends_dashboard(
     user_id: str,
-    supabase: Client = Depends(get_supabase_client)
+    supabase: Client = Depends(get_supabase_client),
+    _: None = Depends(rate_limit_by_user_id)
 ):
+    # Validate user_id format: alphanumeric, hyphen, underscore only
+    if not re.match(r'^[a-zA-Z0-9_-]+$', user_id):
+        raise HTTPException(status_code=400, detail="Invalid user_id format")
+    
     """Get trends dashboard data for a user"""
     try:
         # Get all interview sessions for user
@@ -257,7 +310,7 @@ async def get_trends_dashboard(
             sessions_response = supabase.table("interview_sessions").select("*").eq("user_id", user_id).order("created_at", desc=False).execute()
             sessions = sessions_response.data if sessions_response.data else []
         except Exception as db_err:
-            logger.warning(f"Failed to fetch interview sessions: {str(db_err)}")
+            logger.warning(f"[DASHBOARD][TRENDS] Failed to fetch interview sessions: {str(db_err)}")
             sessions = []
         
         if not sessions:
@@ -306,10 +359,10 @@ async def get_trends_dashboard(
                                     }
                                     all_answers_trends.append(mapped_answer)
                     except Exception as round_err:
-                        logger.warning(f"Failed to fetch from {round_table} for trends: {str(round_err)}")
+                        logger.warning(f"[DASHBOARD][TRENDS] Failed to fetch from {round_table} for trends: {str(round_err)}")
                         continue
             except Exception as db_err:
-                logger.warning(f"Failed to batch fetch answers for trends: {str(db_err)}")
+                logger.warning(f"[DASHBOARD][TRENDS] Failed to batch fetch answers for trends: {str(db_err)}")
         
         # Create answer lookup dictionary for O(1) access
         # Time Complexity: O(n) to build, O(1) to access
@@ -439,7 +492,7 @@ async def get_trends_dashboard(
         status_code = e.status_code if hasattr(e, 'status_code') else 500
         raise HTTPException(status_code=status_code, detail=str(e))
     except Exception as e:
-        logger.exception("Trends dashboard error")
+        logger.exception("[DASHBOARD][TRENDS] Trends dashboard error")
         raise HTTPException(status_code=500, detail=f"Error fetching trends dashboard: {str(e)}")
 
 def analyze_skills(all_answers: List[Dict], sessions: List[Dict]) -> SkillAnalysis:
@@ -461,9 +514,10 @@ def analyze_skills(all_answers: List[Dict], sessions: List[Dict]) -> SkillAnalys
     
     for answer in all_answers:
         q_type = answer.get("question_type", "Unknown")
-        score = answer.get("overall_score", 0)
+        score = answer.get("overall_score")
         
-        if score > 0:  # Only count non-zero scores
+        # Include all scores (including 0) - only exclude None
+        if score is not None:
             if q_type not in type_sums:
                 type_sums[q_type] = 0
                 type_counts[q_type] = 0

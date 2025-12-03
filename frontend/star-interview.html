@@ -191,61 +191,388 @@
             background: #c62828;
         }
 
+        /* STAR Result Page - Modern User-Friendly Design */
         .feedback-section {
             background: var(--bg-secondary);
-            border-radius: 16px;
-            padding: 25px;
+            border-radius: 20px;
+            padding: 0;
             margin-top: 30px;
-            box-shadow: 0 2px 8px var(--shadow-sm);
+            box-shadow: 0 4px 20px var(--shadow-md);
+            overflow: hidden;
         }
 
-        .feedback-section h2 {
-            color: var(--text-secondary);
-            margin-bottom: 20px;
-        }
-
-        .score-display {
+        .feedback-header {
+            background: linear-gradient(135deg, #fafbfc 0%, #f5f7fa 100%);
+            padding: 40px 30px;
             text-align: center;
-            padding: 20px;
-            background: var(--bg-tertiary);
-            border-radius: 12px;
-            margin-bottom: 20px;
+            border-bottom: 2px solid var(--border-light);
+        }
+
+        .feedback-header h2 {
+            color: var(--text-secondary);
+            margin: 0 0 12px 0;
+            font-size: 32px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        .feedback-header p {
+            color: var(--text-light);
+            margin: 0;
+            font-size: 16px;
+            font-weight: 400;
+        }
+
+        .feedback-content-wrapper {
+            padding: 40px 30px;
+        }
+
+        /* Score Section - Centered Modern Card */
+        .score-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 30px;
+            margin-bottom: 40px;
+            background: linear-gradient(135deg, #ffffff 0%, #fafbfc 100%);
+            border-radius: 20px;
+            border: 2px solid var(--border-light);
+            box-shadow: 0 4px 16px var(--shadow-sm);
+        }
+
+        .score-label {
+            font-size: 16px;
+            color: var(--text-light);
+            margin-bottom: 16px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .score-value {
-            font-size: 48px;
+            font-size: 72px;
             font-weight: 700;
             color: var(--primary-dark);
-            margin: 10px 0;
+            margin: 0;
+            line-height: 1;
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
-        .feedback-item {
-            margin-bottom: 15px;
-            padding: 15px;
-            background: var(--bg-tertiary);
-            border-radius: 8px;
+        .score-out-of {
+            font-size: 18px;
+            color: var(--text-light);
+            margin-top: 12px;
+            font-weight: 400;
         }
 
-        .feedback-item h3 {
-            color: var(--text-secondary);
-            margin-bottom: 10px;
+        .score-badge {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 24px;
+            background: linear-gradient(135deg, var(--accent-light) 0%, #f3e5f5 100%);
+            border-radius: 25px;
             font-size: 16px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            border: 1px solid var(--accent);
+            box-shadow: 0 2px 8px var(--shadow-sm);
         }
 
-        .feedback-item ul {
-            list-style: none;
-            padding-left: 0;
+        .score-message {
+            margin-top: 16px;
+            font-size: 16px;
+            color: var(--text-light);
+            font-style: italic;
         }
 
-        .feedback-item li {
-            padding: 5px 0;
+        /* Welcome Message */
+        .welcome-message {
+            text-align: center;
+            padding: 24px;
+            margin-bottom: 32px;
+            background: linear-gradient(135deg, #e3f2fd 0%, #e8eaf6 100%);
+            border-radius: 16px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .welcome-message p {
+            margin: 0;
+            font-size: 18px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            line-height: 1.6;
+        }
+
+        /* Participation Stats */
+        .participation-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            margin-bottom: 20px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #fafbfc 0%, #f5f7fa 100%);
+            border-radius: 12px;
+            border: 1px solid var(--border-light);
+        }
+
+        .stat-item .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--primary-dark);
+            margin-bottom: 8px;
+        }
+
+        .stat-item .stat-label {
+            font-size: 14px;
+            color: var(--text-light);
+            font-weight: 500;
+        }
+
+        .participation-note {
+            margin-top: 16px;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            border-left: 3px solid #4caf50;
+        }
+
+        /* Performance Breakdown */
+        .performance-intro {
+            margin-bottom: 24px;
+            color: var(--text-primary);
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        .performance-breakdown {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .performance-item {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .performance-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .performance-icon {
+            font-size: 20px;
+        }
+
+        .performance-bar-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .performance-bar {
+            flex: 1;
+            height: 12px;
+            background: var(--border-light);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .performance-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary) 0%, var(--primary-dark) 100%);
+            border-radius: 10px;
+            transition: width 0.8s ease;
+            box-shadow: 0 2px 8px rgba(142, 197, 252, 0.4);
+        }
+
+        .performance-score {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            min-width: 45px;
+            text-align: right;
+        }
+
+        .section-intro {
+            margin-bottom: 16px;
+            color: var(--text-light);
+            font-size: 14px;
+            font-style: italic;
+        }
+
+        /* Feedback Cards - Modern Card Style */
+        .feedback-card {
+            background: linear-gradient(135deg, #ffffff 0%, #fafbfc 100%);
+            border-radius: 16px;
+            padding: 28px;
+            margin-bottom: 24px;
+            border: 1.5px solid var(--border-light);
+            box-shadow: 0 2px 12px var(--shadow-sm);
+            transition: all 0.3s ease;
+        }
+
+        .feedback-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px var(--shadow-md);
+            border-color: var(--primary);
+        }
+
+        .feedback-card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid var(--border-light);
+        }
+
+        .feedback-card-icon {
+            font-size: 28px;
+            line-height: 1;
+        }
+
+        .feedback-card-title {
+            color: var(--text-secondary);
+            margin: 0;
+            font-size: 22px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+        }
+
+        .feedback-card-content {
             color: var(--text-primary);
         }
 
-        .feedback-item li:before {
-            content: "• ";
-            color: var(--primary);
-            font-weight: bold;
+        /* Strengths Section - Motivational Style */
+        .strengths-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .strengths-list li {
+            padding: 14px 16px 14px 48px;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+            border-radius: 12px;
+            color: var(--text-primary);
+            line-height: 1.6;
+            position: relative;
+            border-left: 4px solid #4caf50;
+            box-shadow: 0 1px 4px var(--shadow-sm);
+            transition: all 0.2s ease;
+        }
+
+        .strengths-list li:hover {
+            transform: translateX(4px);
+            box-shadow: 0 2px 8px var(--shadow-sm);
+        }
+
+        .strengths-list li:before {
+            content: "✅";
+            position: absolute;
+            left: 16px;
+            top: 14px;
+            font-size: 18px;
+        }
+
+        /* Areas for Improvement - Soft Warning Style */
+        .improvements-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .improvements-list li {
+            padding: 14px 16px 14px 48px;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, #fff3e0 0%, #fff8e1 100%);
+            border-radius: 12px;
+            color: var(--text-primary);
+            line-height: 1.6;
+            position: relative;
+            border-left: 4px solid #ff9800;
+            box-shadow: 0 1px 4px var(--shadow-sm);
+            transition: all 0.2s ease;
+        }
+
+        .improvements-list li:hover {
+            transform: translateX(4px);
+            box-shadow: 0 2px 8px var(--shadow-sm);
+        }
+
+        .improvements-list li:before {
+            content: "⚠️";
+            position: absolute;
+            left: 16px;
+            top: 14px;
+            font-size: 18px;
+        }
+
+        /* Recommendations - Check-list Style */
+        .recommendations-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .recommendations-list li {
+            padding: 14px 16px 14px 48px;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, #e3f2fd 0%, #e8eaf6 100%);
+            border-radius: 12px;
+            color: var(--text-primary);
+            line-height: 1.6;
+            position: relative;
+            border-left: 4px solid #2196f3;
+            box-shadow: 0 1px 4px var(--shadow-sm);
+            transition: all 0.2s ease;
+        }
+
+        .recommendations-list li:hover {
+            transform: translateX(4px);
+            box-shadow: 0 2px 8px var(--shadow-sm);
+        }
+
+        .recommendations-list li:before {
+            content: "💡";
+            position: absolute;
+            left: 16px;
+            top: 14px;
+            font-size: 18px;
+        }
+
+        /* Summary Section - Paragraph Format */
+        .summary-content {
+            color: var(--text-primary);
+            line-height: 1.8;
+            font-size: 16px;
+            padding: 20px;
+            background: linear-gradient(135deg, #fafbfc 0%, #f5f7fa 100%);
+            border-radius: 12px;
+            border-left: 4px solid var(--primary);
+            box-shadow: 0 1px 4px var(--shadow-sm);
+        }
+
+        .summary-content p {
+            margin: 0;
         }
 
         .hidden {
@@ -492,6 +819,77 @@
             .modal-btn {
                 width: 100%;
             }
+
+            /* Responsive STAR Result Page */
+            .feedback-header {
+                padding: 30px 20px;
+            }
+
+            .feedback-header h2 {
+                font-size: 24px;
+            }
+
+            .feedback-header p {
+                font-size: 14px;
+            }
+
+            .feedback-content-wrapper {
+                padding: 24px 16px;
+            }
+
+            .score-section {
+                padding: 30px 20px;
+            }
+
+            .score-value {
+                font-size: 56px;
+            }
+
+            .score-badge {
+                font-size: 14px;
+                padding: 8px 20px;
+            }
+
+            .feedback-card {
+                padding: 20px;
+            }
+
+            .feedback-card-title {
+                font-size: 20px;
+            }
+
+            .strengths-list li,
+            .improvements-list li,
+            .recommendations-list li {
+                padding: 12px 12px 12px 44px;
+                font-size: 14px;
+            }
+
+            .summary-content {
+                padding: 16px;
+                font-size: 15px;
+            }
+
+            .participation-stats {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .stat-item .stat-value {
+                font-size: 28px;
+            }
+
+            .welcome-message {
+                padding: 20px 16px;
+            }
+
+            .welcome-message p {
+                font-size: 16px;
+            }
+
+            .performance-breakdown {
+                gap: 16px;
+            }
         }
     </style>
 </head>
@@ -636,38 +1034,177 @@
 
                 <!-- Feedback Section (Hidden until interview ends) -->
                 <div id="feedbackSection" class="feedback-section hidden">
-                    <h2>Interview Feedback</h2>
-                    <div class="loading" id="feedbackLoading">Generating feedback...</div>
+                    <!-- Clean Header -->
+                    <div class="feedback-header">
+                        <h2>Your STAR Interview Results</h2>
+                        <p>Here is a personalized breakdown of your interview performance.</p>
+                    </div>
+
+                    <div class="loading" id="feedbackLoading">Generating your personalized feedback...</div>
                     <div id="feedbackContent" class="hidden">
-                        <div class="score-display">
-                            <div style="font-size: 18px; color: var(--text-light);">Overall Score</div>
-                            <div class="score-value" id="overallScore">0</div>
-                            <div style="font-size: 14px; color: var(--text-light);">out of 100</div>
-                        </div>
+                        <div class="feedback-content-wrapper">
+                            <!-- Personal Welcome Message -->
+                            <div class="welcome-message">
+                                <p id="welcomeText">Great job completing your STAR interview! Here's your personalized performance report.</p>
+                            </div>
 
-                        <div class="feedback-item">
-                            <h3>✨ Strengths</h3>
-                            <ul id="strengthsList"></ul>
-                        </div>
+                            <!-- Score Section - Centered, Modern Card -->
+                            <div class="score-section">
+                                <div class="score-label">Your Overall Performance</div>
+                                <div class="score-value" id="overallScore">0</div>
+                                <div class="score-out-of">out of 100</div>
+                                <div class="score-badge" id="scoreBadge">⭐ Beginner</div>
+                                <div class="score-message" id="scoreMessage">Keep practicing to improve your STAR responses!</div>
+                            </div>
 
-                        <div class="feedback-item">
-                            <h3>📈 Areas for Improvement</h3>
-                            <ul id="improvementsList"></ul>
-                        </div>
+                            <!-- Interview Participation Section -->
+                            <div class="feedback-card participation-card">
+                                <div class="feedback-card-header">
+                                    <span class="feedback-card-icon">📊</span>
+                                    <h3 class="feedback-card-title">Your Interview Participation</h3>
+                                </div>
+                                <div class="feedback-card-content">
+                                    <div class="participation-stats">
+                                        <div class="stat-item">
+                                            <div class="stat-value" id="questionsAnswered">0</div>
+                                            <div class="stat-label">Questions Answered</div>
+                                        </div>
+                                        <div class="stat-item">
+                                            <div class="stat-value" id="participationRate">0%</div>
+                                            <div class="stat-label">Participation Rate</div>
+                                        </div>
+                                    </div>
+                                    <p class="participation-note" id="participationNote">You actively engaged throughout the interview.</p>
+                                </div>
+                            </div>
 
-                        <div class="feedback-item">
-                            <h3>💡 Recommendations</h3>
-                            <ul id="recommendationsList"></ul>
-                        </div>
+                            <!-- Performance Breakdown Section -->
+                            <div class="feedback-card performance-card">
+                                <div class="feedback-card-header">
+                                    <span class="feedback-card-icon">📈</span>
+                                    <h3 class="feedback-card-title">How Well You Answered</h3>
+                                </div>
+                                <div class="feedback-card-content">
+                                    <p class="performance-intro">Here's how you performed across different STAR components:</p>
+                                    <div class="performance-breakdown">
+                                        <div class="performance-item">
+                                            <div class="performance-label">
+                                                <span class="performance-icon">📍</span>
+                                                <span>Situation</span>
+                                            </div>
+                                            <div class="performance-bar-container">
+                                                <div class="performance-bar" id="situationBar">
+                                                    <div class="performance-bar-fill" id="situationFill" style="width: 0%"></div>
+                                                </div>
+                                                <span class="performance-score" id="situationScore">0</span>
+                                            </div>
+                                        </div>
+                                        <div class="performance-item">
+                                            <div class="performance-label">
+                                                <span class="performance-icon">🎯</span>
+                                                <span>Task</span>
+                                            </div>
+                                            <div class="performance-bar-container">
+                                                <div class="performance-bar" id="taskBar">
+                                                    <div class="performance-bar-fill" id="taskFill" style="width: 0%"></div>
+                                                </div>
+                                                <span class="performance-score" id="taskScore">0</span>
+                                            </div>
+                                        </div>
+                                        <div class="performance-item">
+                                            <div class="performance-label">
+                                                <span class="performance-icon">⚡</span>
+                                                <span>Action</span>
+                                            </div>
+                                            <div class="performance-bar-container">
+                                                <div class="performance-bar" id="actionBar">
+                                                    <div class="performance-bar-fill" id="actionFill" style="width: 0%"></div>
+                                                </div>
+                                                <span class="performance-score" id="actionScore">0</span>
+                                            </div>
+                                        </div>
+                                        <div class="performance-item">
+                                            <div class="performance-label">
+                                                <span class="performance-icon">🏆</span>
+                                                <span>Result</span>
+                                            </div>
+                                            <div class="performance-bar-container">
+                                                <div class="performance-bar" id="resultBar">
+                                                    <div class="performance-bar-fill" id="resultFill" style="width: 0%"></div>
+                                                </div>
+                                                <span class="performance-score" id="resultScore">0</span>
+                                            </div>
+                                        </div>
+                                        <div class="performance-item">
+                                            <div class="performance-label">
+                                                <span class="performance-icon">⭐</span>
+                                                <span>STAR Structure</span>
+                                            </div>
+                                            <div class="performance-bar-container">
+                                                <div class="performance-bar" id="structureBar">
+                                                    <div class="performance-bar-fill" id="structureFill" style="width: 0%"></div>
+                                                </div>
+                                                <span class="performance-score" id="structureScore">0</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
-                        <div class="feedback-item">
-                            <h3>📝 Summary</h3>
-                            <p id="feedbackSummary" style="color: var(--text-primary); line-height: 1.6;"></p>
-                        </div>
+                            <!-- Strengths Section -->
+                            <div class="feedback-card">
+                                <div class="feedback-card-header">
+                                    <span class="feedback-card-icon">✅</span>
+                                    <h3 class="feedback-card-title">What You Did Well</h3>
+                                </div>
+                                <div class="feedback-card-content">
+                                    <p class="section-intro">These are your key strengths from this interview:</p>
+                                    <ul class="strengths-list" id="strengthsList"></ul>
+                                </div>
+                            </div>
 
-                        <div class="interview-actions" style="margin-top: 30px;">
-                            <button class="btn btn-primary" onclick="window.location.href='index.html'">Back to Dashboard</button>
-                            <button class="btn btn-secondary" id="restartInterviewBtn">Start New Interview</button>
+                            <!-- Areas for Improvement Section -->
+                            <div class="feedback-card">
+                                <div class="feedback-card-header">
+                                    <span class="feedback-card-icon">⚠️</span>
+                                    <h3 class="feedback-card-title">Areas You Can Improve</h3>
+                                </div>
+                                <div class="feedback-card-content">
+                                    <p class="section-intro">Focus on these areas to strengthen your STAR responses:</p>
+                                    <ul class="improvements-list" id="improvementsList"></ul>
+                                </div>
+                            </div>
+
+                            <!-- Recommendations Section -->
+                            <div class="feedback-card">
+                                <div class="feedback-card-header">
+                                    <span class="feedback-card-icon">💡</span>
+                                    <h3 class="feedback-card-title">Recommendations for You</h3>
+                                </div>
+                                <div class="feedback-card-content">
+                                    <p class="section-intro">Here's how you can improve for your next interview:</p>
+                                    <ul class="recommendations-list" id="recommendationsList"></ul>
+                                </div>
+                            </div>
+
+                            <!-- Summary Section -->
+                            <div class="feedback-card summary-card">
+                                <div class="feedback-card-header">
+                                    <span class="feedback-card-icon">📄</span>
+                                    <h3 class="feedback-card-title">Your Interview Summary</h3>
+                                </div>
+                                <div class="feedback-card-content">
+                                    <div class="summary-content">
+                                        <p id="feedbackSummary"></p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="interview-actions" style="margin-top: 40px;">
+                                <button class="btn btn-primary" onclick="window.location.href='index.html'">Back to Dashboard</button>
+                                <button class="btn btn-secondary" id="restartInterviewBtn">Start New Interview</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -700,6 +1237,7 @@
     <script src="api-config.js"></script>
     <!-- Cache-busting version param to ensure latest JS is loaded -->
     <script src="star-interview.js?v=2.0"></script>
+    
 </body>
 </html>
 

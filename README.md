@@ -1,11 +1,12 @@
 # 🎯 Skill Capital AI MockMate
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-orange.svg)](https://supabase.com/)
 [![OpenAI](https://img.shields.io/badge/OpenAI-GPT--3.5--turbo-purple.svg)](https://openai.com/)
+[![Vercel](https://img.shields.io/badge/Vercel-Serverless-black.svg)](https://vercel.com/)
 
-> **An AI-Powered Interview Preparation Platform** - Practice mock interviews with personalized questions, get real-time AI feedback, and track your performance over time.
+> **An AI-Powered Interview Preparation Platform** - Practice mock interviews with personalized questions, get real-time AI feedback, and track your performance over time. Supports Technical, Coding, HR, and STAR behavioral interviews with voice interaction and comprehensive analytics.
 
 ---
 
@@ -47,15 +48,18 @@
 
 ### Core Features
 
-- ✅ **FastAPI Backend** - RESTful API with automatic OpenAPI documentation
+- ✅ **FastAPI Backend** - RESTful API with automatic OpenAPI documentation (Swagger/ReDoc)
 - ✅ **Unified Frontend/Backend** - FastAPI serves both API and static frontend files
-- ✅ **Supabase Integration** - PostgreSQL database with Row Level Security (RLS)
-- ✅ **Resume Upload & Parsing** - Support for PDF and DOCX files with OCR fallback
+- ✅ **Supabase Integration** - PostgreSQL database with Row Level Security (RLS) and storage
+- ✅ **Resume Upload & Parsing** - Support for PDF and DOCX files with OCR fallback (Tesseract)
 - ✅ **AI-Powered Question Generation** - Context-aware questions using OpenAI GPT models via LangChain
 - ✅ **Multiple Interview Modes** - Technical, Coding, HR, and STAR (behavioral) interviews
-- ✅ **Real-time Answer Evaluation** - AI-powered scoring with detailed feedback
-- ✅ **Performance Dashboard** - Track progress with charts and analytics
-- ✅ **Voice Support** - Speech-to-text and text-to-speech for technical interviews
+- ✅ **Real-time Answer Evaluation** - AI-powered scoring with detailed feedback after each answer
+- ✅ **Performance Dashboard** - Track progress with charts, analytics, and skill analysis
+- ✅ **Voice Interaction** - Speech-to-text (Whisper) and text-to-speech for interviews
+- ✅ **Code Execution** - Secure code execution with Piston API fallback for multiple languages
+- ✅ **Rate Limiting** - In-memory rate limiting to prevent abuse
+- ✅ **Request Validation** - Input validation and request size limits
 
 ### Resume Analysis
 
@@ -79,16 +83,36 @@
 - ✅ **Conversational AI Interview** - Dynamic follow-up questions based on answers
 - ✅ **Speech-to-Text** - Voice input using OpenAI Whisper API
 - ✅ **Text-to-Speech** - Audio output for questions and feedback
-- ✅ **Real-time Evaluation** - AI evaluates answers and provides feedback
+- ✅ **Real-time Evaluation** - AI evaluates answers and provides immediate feedback
 - ✅ **Session Management** - Track conversation history and scores
+- ✅ **Audio Queue Management** - Prevents audio overlap, sequential playback
+- ✅ **No Answer Detection** - Handles empty recordings gracefully
 
 ### Coding Interview
 
-- ✅ **Code Execution** - Run Python code in secure environment
-- ✅ **Test Case Validation** - Automatic test case checking
+- ✅ **Multi-Language Support** - Python, Java, C, C++ code execution
+- ✅ **Code Execution** - Secure execution with Piston API fallback
+- ✅ **Test Case Validation** - Automatic test case checking with output normalization
 - ✅ **SQL Support** - SQL coding questions with table setup
 - ✅ **Difficulty Adaptation** - Adjusts difficulty based on performance
-- ✅ **Performance Metrics** - Execution time and test case results
+- ✅ **Performance Metrics** - Execution time, test case results, and correctness scoring
+- ✅ **Smart Scoring** - LLM-based evaluation with test case override logic
+
+### HR Interview
+
+- ✅ **Behavioral Questions** - HR-focused interview questions
+- ✅ **Voice Interaction** - Speech-to-text and text-to-speech support
+- ✅ **Real-time Feedback** - Immediate AI feedback after each answer
+- ✅ **No Answer Detection** - Handles empty recordings gracefully
+- ✅ **Session Tracking** - Complete interview history and evaluation
+
+### STAR Interview
+
+- ✅ **STAR Method** - Situation, Task, Action, Result structured interviews
+- ✅ **Performance Breakdown** - Detailed scoring across STAR components
+- ✅ **Personalized Feedback** - Candidate-focused results dashboard
+- ✅ **Participation Metrics** - Track engagement and completion rates
+- ✅ **Visual Analytics** - Progress bars and score visualization
 
 ### Dashboard & Analytics
 
@@ -222,8 +246,10 @@ python -m venv venv
 
 4. **Install dependencies**:
 ```bash
-pip install -r app/requirements.txt
+pip install -r requirements.txt
 ```
+
+   **Note**: The `requirements.txt` file is in the project root, not in the `app/` directory.
 
 5. **Install Tesseract OCR** (Optional but recommended):
 
@@ -280,10 +306,13 @@ The application will:
 
 The frontend is automatically served by FastAPI. No separate setup is required!
 
-- **Main Application**: `http://127.0.0.1:8000/`
+- **Main Dashboard**: `http://127.0.0.1:8000/` or `http://127.0.0.1:8000/index.html`
 - **Resume Analysis**: `http://127.0.0.1:8000/resume-analysis.html`
-- **Technical Interview**: `http://127.0.0.1:8000/technical-interview.html`
+- **Technical Interview**: `http://127.0.0.1:8000/interview.html` or `http://127.0.0.1:8000/technical-interview.html`
 - **Coding Interview**: `http://127.0.0.1:8000/coding-interview.html`
+- **Coding Results**: `http://127.0.0.1:8000/coding-result.html`
+- **HR Interview**: `http://127.0.0.1:8000/hr-interview.html`
+- **STAR Interview**: `http://127.0.0.1:8000/star-interview.html`
 
 ---
 
@@ -293,39 +322,62 @@ The frontend is automatically served by FastAPI. No separate setup is required!
 
 All configuration is done through environment variables in the `.env` file:
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `OPENAI_API_KEY` | OpenAI API key for AI features | Yes |
-| `SUPABASE_URL` | Supabase project URL | Yes |
-| `SUPABASE_KEY` | Supabase anon/public key | Yes |
-| `SUPABASE_SERVICE_KEY` | Supabase service role key | Yes |
-| `BACKEND_PORT` | Backend server port | No (default: 8000) |
-| `ENVIRONMENT` | Environment (development/production) | No (default: development) |
-| `CORS_ORIGINS` | Comma-separated CORS origins | No |
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| `OPENAI_API_KEY` | OpenAI API key for AI features | Yes | - |
+| `SUPABASE_URL` | Supabase project URL | Yes | - |
+| `SUPABASE_KEY` | Supabase anon/public key | Yes | - |
+| `SUPABASE_SERVICE_KEY` | Supabase service role key | Yes | - |
+| `BACKEND_PORT` | Backend server port | No | 8000 |
+| `ENVIRONMENT` | Environment (development/production) | No | development |
+| `CORS_ORIGINS` | Comma-separated CORS origins | No | Auto-detected |
+| `VERCEL_URL` | Vercel deployment URL (auto-set by Vercel) | No | - |
+| `FRONTEND_URL` | Frontend URL (for CORS) | No | - |
+| `LANGCHAIN_TRACING_V2` | Enable LangChain tracing | No | false |
+| `LANGCHAIN_PROJECT` | LangChain project name | No | - |
 
 ### Supabase Setup
 
 1. **Create a Supabase Project**:
    - Go to https://supabase.com
-   - Create a new project
+   - Create a new project (choose a region close to your users)
+   - Wait for project initialization (takes 1-2 minutes)
    - Note your project URL and API keys
 
 2. **Run Database Schema**:
    - Go to SQL Editor in Supabase Dashboard
-   - Copy and paste the entire content of `app/database/schema.sql`
-   - Execute the SQL script
-   - Verify tables are created (8 tables total)
+   - Click "New Query"
+   - Copy and paste the **entire content** of `app/database/schema.sql`
+   - Click "Run" to execute the SQL script
+   - Verify tables are created:
+     - `user_profiles`
+     - `interview_sessions`
+     - `technical_round`
+     - `coding_round`
+     - `hr_round`
+     - `star_round`
+     - `question_templates`
+     - `interview_transcripts`
+   - Check that RLS policies are enabled (should see 8+ policies)
 
 3. **Create Storage Bucket**:
    - Go to Storage in Supabase Dashboard
-   - Create a new bucket named `resumes`
-   - Set it to public access (or configure RLS policies)
+   - Click "New bucket"
+   - Name: `resumes`
+   - Set to **Public bucket** (or configure RLS policies for authenticated access)
+   - Click "Create bucket"
+   - Verify bucket is created and accessible
 
 4. **Get API Keys**:
    - Go to Settings → API
-   - Copy `URL` → `SUPABASE_URL`
-   - Copy `anon public` key → `SUPABASE_KEY`
-   - Copy `service_role` key → `SUPABASE_SERVICE_KEY`
+   - Copy `Project URL` → Use as `SUPABASE_URL` in `.env`
+   - Copy `anon public` key → Use as `SUPABASE_KEY` in `.env`
+   - Copy `service_role` key → Use as `SUPABASE_SERVICE_KEY` in `.env`
+   - **Important**: Keep `service_role` key secret - it bypasses RLS policies
+
+5. **Verify Setup**:
+   - Test database connection: `GET /api/health/database`
+   - Should return `{"status": "connected"}`
 
 ### LangChain + OpenAI Setup
 
@@ -350,10 +402,12 @@ All configuration is done through environment variables in the `.env` file:
 
 ### Profile Management
 
-- `GET /api/profile/{user_id}` - Get user profile
+- `GET /api/profile/current` - Get current user profile
+- `GET /api/profile/{user_id}` - Get user profile by ID
 - `POST /api/profile/` - Create user profile
 - `PUT /api/profile/{user_id}` - Update user profile
-- `POST /api/profile/{user_id}/upload-resume` - Upload and parse resume
+- `POST /api/profile/upload-resume` - Upload and parse resume (authenticated users)
+- `POST /api/profile/{user_id}/upload-resume` - Upload and parse resume (admin/manual upload)
 - `GET /api/profile/resume-analysis/{session_id}` - Get resume analysis data
 - `PUT /api/profile/resume-analysis/{session_id}/experience` - Update experience level
 
@@ -374,18 +428,39 @@ All configuration is done through environment variables in the `.env` file:
 
 - `POST /api/interview/technical/start` - Start technical interview session
 - `POST /api/interview/technical/{session_id}/next-question` - Get next technical question
-- `POST /api/interview/technical/{session_id}/submit-answer` - Submit technical answer
-- `GET /api/interview/technical/{session_id}/feedback` - Get final feedback
-- `POST /api/interview/technical/{session_id}/end` - End technical interview
-- `POST /api/interview/speech-to-text` - Convert speech audio to text (Whisper)
-- `GET /api/interview/text-to-speech` - Convert text to speech (TTS)
+- `POST /api/interview/technical/{session_id}/submit-answer` - Submit technical answer with immediate feedback
+- `GET /api/interview/technical/{session_id}/feedback` - Get final feedback summary
+- `GET /api/interview/technical/{session_id}/summary` - Get interview summary
+- `PUT /api/interview/technical/{session_id}/end` - End technical interview
+
+### HR Interview
+
+- `POST /api/interview/hr/start` - Start HR interview session
+- `POST /api/interview/hr/{session_id}/next-question` - Get next HR question
+- `POST /api/interview/hr/{session_id}/submit-answer` - Submit HR answer with immediate feedback
+- `GET /api/interview/hr/{session_id}/feedback` - Get final feedback summary
+- `PUT /api/interview/hr/{session_id}/end` - End HR interview
+
+### STAR Interview
+
+- `POST /api/interview/star/start` - Start STAR interview session
+- `POST /api/interview/star/{session_id}/next-question` - Get next STAR question
+- `POST /api/interview/star/{session_id}/submit-answer` - Submit STAR answer
+- `GET /api/interview/star/{session_id}/feedback` - Get final feedback with STAR breakdown
+- `PUT /api/interview/star/{session_id}/end` - End STAR interview
 
 ### Coding Interview
 
 - `POST /api/interview/coding/start` - Start coding interview session
-- `POST /api/interview/coding/{session_id}/question` - Get coding question
-- `POST /api/interview/coding/{session_id}/submit` - Submit code solution
-- `GET /api/interview/coding/{session_id}/results` - Get coding results
+- `POST /api/interview/coding/{session_id}/next` - Get next coding question
+- `POST /api/interview/coding/run` - Execute code (Python, Java, C, C++)
+- `GET /api/interview/coding/{session_id}/results` - Get coding results and scores
+
+### Speech Services
+
+- `POST /api/interview/speech-to-text` - Convert speech audio to text (Whisper)
+- `POST /api/interview/text-to-speech` - Convert text to speech (TTS) - POST with body
+- `GET /api/interview/text-to-speech?text=...` - Convert text to speech (TTS) - GET with query
 
 ### Dashboard
 
@@ -405,23 +480,47 @@ The application uses Supabase (PostgreSQL) with the following main tables:
 
 ### Core Tables
 
-- **user_profiles** - User profile information, skills, resume data
-- **interview_sessions** - Interview session metadata
-- **technical_round** - Technical interview questions and answers
-- **coding_round** - Coding interview questions and solutions
-- **hr_round** - HR interview questions and answers
-- **star_round** - STAR method behavioral interview data
-- **question_templates** - Admin-managed question templates
-- **interview_transcripts** - Interview transcripts for analytics
+- **user_profiles** - User profile information, skills, resume data, experience level
+- **interview_sessions** - Interview session metadata, status, scores, timestamps
+- **technical_round** - Technical interview questions, answers, scores, feedback
+- **coding_round** - Coding interview questions, code solutions, test results, scores
+- **hr_round** - HR interview questions, answers, scores, feedback
+- **star_round** - STAR method behavioral interview data with component scores
+- **question_templates** - Admin-managed question templates (optional)
+- **interview_transcripts** - Interview transcripts for analytics (optional)
+
+### Database Features
+
+- **Row Level Security (RLS)**: All tables have RLS enabled
+  - Users can only access their own data
+  - Service role can access all data (for backend operations)
+- **Automatic Timestamps**: `created_at` and `updated_at` managed by triggers
+- **Foreign Keys**: Proper relationships between tables
+- **Indexes**: Optimized for common queries (user_id, session_id)
+- **Data Types**: 
+  - `user_id`: TEXT (alphanumeric, hyphen, underscore)
+  - `session_id`: UUID
+  - `scores`: INTEGER (0-100)
+  - `skills`: TEXT[] (array of strings)
 
 ### Schema Details
 
 See `app/database/schema.sql` for the complete schema with:
-- Table definitions
-- Row Level Security (RLS) policies
-- Indexes for performance
-- Foreign key constraints
+- Table definitions with all columns and constraints
+- Row Level Security (RLS) policies for data access control
+- Indexes for performance optimization
+- Foreign key constraints for data integrity
 - Triggers for automatic timestamp updates
+- Migration scripts for existing databases
+
+### Database Integration
+
+The application uses:
+- **Supabase Python Client**: For database operations
+- **Singleton Pattern**: Single Supabase client instance
+- **Connection Pooling**: Handled by Supabase client
+- **Error Handling**: Custom exceptions for database errors
+- **Transaction Support**: Atomic updates for session status changes
 
 ---
 
@@ -429,23 +528,31 @@ See `app/database/schema.sql` for the complete schema with:
 
 ```
 Skill-Capital-AI-MockMate/
+├── api/                          # Vercel serverless entry point
+│   └── index.py                  # Vercel handler for FastAPI app
 ├── app/                          # Backend application
 │   ├── __init__.py
 │   ├── main.py                   # FastAPI application entry point
-│   ├── requirements.txt          # Python dependencies
 │   ├── config/                   # Configuration
 │   │   ├── __init__.py
 │   │   └── settings.py           # Environment settings and CORS config
 │   ├── database/                 # Database schema
 │   │   ├── __init__.py
-│   │   └── schema.sql            # Supabase database schema
+│   │   └── schema.sql            # Supabase database schema (complete)
 │   ├── db/                       # Database client
 │   │   ├── __init__.py
 │   │   └── client.py             # Supabase client singleton
 │   ├── routers/                  # API route handlers
 │   │   ├── __init__.py
 │   │   ├── profile.py            # User profile and resume upload
-│   │   ├── interview.py           # Interview endpoints
+│   │   ├── interview.py          # General interview endpoints
+│   │   ├── interview_common.py  # Common interview utilities
+│   │   ├── interview_utils.py    # Interview helper functions
+│   │   ├── technical_interview.py # Technical interview routes
+│   │   ├── coding_interview.py   # Coding interview routes
+│   │   ├── hr_interview.py       # HR interview routes
+│   │   ├── star_interview.py     # STAR interview routes
+│   │   ├── speech.py             # Speech-to-text and TTS routes
 │   │   └── dashboard.py          # Performance dashboard
 │   ├── schemas/                  # Pydantic models
 │   │   ├── __init__.py
@@ -454,11 +561,11 @@ Skill-Capital-AI-MockMate/
 │   │   └── dashboard.py          # Dashboard schemas
 │   ├── services/                 # Business logic
 │   │   ├── __init__.py
-│   │   ├── resume_parser.py      # Resume parsing service
-│   │   ├── question_generator.py # AI question generation
-│   │   ├── answer_evaluator.py   # Answer evaluation
+│   │   ├── resume_parser.py       # Resume parsing service
+│   │   ├── question_generator.py  # AI question generation
+│   │   ├── answer_evaluator.py    # Answer evaluation
 │   │   ├── interview_evaluator.py # Interview evaluation
-│   │   ├── topic_generator.py    # Topic generation
+│   │   ├── topic_generator.py     # Topic generation
 │   │   ├── coding_interview_engine.py # Coding interview engine
 │   │   └── technical_interview_engine.py # Technical interview engine
 │   └── utils/                    # Utility functions
@@ -467,20 +574,27 @@ Skill-Capital-AI-MockMate/
 │       ├── datetime_utils.py     # Date/time helpers
 │       ├── exceptions.py         # Custom exceptions
 │       ├── file_utils.py         # File handling
-│       └── resume_parser_util.py # Resume parser utilities
+│       ├── resume_parser_util.py # Resume parser utilities
+│       ├── rate_limiter.py       # Rate limiting utilities
+│       ├── request_validator.py   # Request validation
+│       └── url_utils.py          # URL utilities
 ├── frontend/                     # Frontend files (served by FastAPI)
-│   ├── index.html                # Main application page
+│   ├── index.html                # Main dashboard page
 │   ├── resume-analysis.html      # Resume analysis page
-│   ├── technical-interview.html  # Technical interview page
+│   ├── interview.html            # Technical interview page
 │   ├── coding-interview.html     # Coding interview page
+│   ├── coding-result.html         # Coding results page
+│   ├── hr-interview.html         # HR interview page
+│   ├── star-interview.html       # STAR interview page
 │   ├── styles.css                # CSS styles
 │   ├── app.js                    # Main JavaScript
-│   ├── technical-interview.js    # Technical interview JavaScript
+│   ├── hr-interview.js           # HR interview JavaScript
+│   ├── star-interview.js         # STAR interview JavaScript
+│   ├── api-config.js             # API configuration
 │   └── logo.png                  # Logo image
-├── architecture.tex             # LaTeX architecture document
-├── .env                          # Environment variables (create this)
-├── railway.json                  # Railway deployment config
-├── render.yaml                   # Render deployment config
+├── venv/                         # Python virtual environment (gitignored)
+├── .env                          # Environment variables (create this, gitignored)
+├── requirements.txt             # Python dependencies (root level)
 ├── vercel.json                   # Vercel deployment config
 └── README.md                     # This file
 ```
@@ -541,12 +655,45 @@ Skill-Capital-AI-MockMate/
 4. Set environment variables in Render dashboard
 5. Deploy!
 
-### Vercel
+### Vercel (Recommended for Serverless)
 
-1. Connect your GitHub repository to Vercel
-2. Vercel will auto-detect the `vercel.json` configuration
-3. Set environment variables in Vercel dashboard
-4. Deploy!
+1. **Connect Repository**:
+   - Go to [Vercel Dashboard](https://vercel.com)
+   - Click "New Project"
+   - Import your GitHub repository
+
+2. **Configure Project**:
+   - Vercel will auto-detect `vercel.json` configuration
+   - Framework Preset: Other
+   - Root Directory: `.` (project root)
+   - Build Command: (leave empty - no build needed)
+   - Output Directory: (leave empty)
+
+3. **Set Environment Variables**:
+   - Go to Project Settings → Environment Variables
+   - Add all required variables:
+     - `OPENAI_API_KEY`
+     - `SUPABASE_URL`
+     - `SUPABASE_KEY`
+     - `SUPABASE_SERVICE_KEY`
+     - `ENVIRONMENT=production` (optional)
+   - **Note**: `VERCEL_URL` is automatically set by Vercel
+
+4. **Deploy**:
+   - Click "Deploy"
+   - Wait for deployment to complete
+   - Your app will be available at `https://your-project.vercel.app`
+
+5. **Post-Deployment**:
+   - Ensure Supabase database schema is set up
+   - Create `resumes` storage bucket in Supabase
+   - Test the application at your Vercel URL
+
+**Important Notes for Vercel**:
+- Code execution uses Piston API fallback (no local compilers)
+- Tesseract OCR may not work (logs warning, continues without OCR)
+- All API routes are serverless functions
+- Frontend is served through FastAPI static file serving
 
 ### Manual Deployment
 
@@ -565,6 +712,48 @@ uvicorn app.main:app --host 0.0.0.0 --port $PORT
 
 ---
 
+## 📖 Usage Guide
+
+### Getting Started
+
+1. **Upload Your Resume**:
+   - Navigate to Resume Analysis page
+   - Upload PDF or DOCX resume
+   - Wait for analysis to complete
+   - Review extracted skills and experience level
+
+2. **Start an Interview**:
+   - Choose interview type: Technical, Coding, HR, or STAR
+   - Select your role and experience level
+   - Begin answering questions
+
+3. **During Interview**:
+   - **Technical/HR**: Use voice recording or type answers
+   - **Coding**: Write code in the editor, test with sample inputs
+   - **STAR**: Structure answers using Situation, Task, Action, Result format
+   - Receive immediate feedback after each answer
+
+4. **View Results**:
+   - Check performance dashboard for analytics
+   - Review detailed feedback and recommendations
+   - Track progress over time
+
+### Interview Types
+
+- **Technical Interview**: Conversational AI interview with voice support
+- **Coding Interview**: Solve coding problems in Python, Java, C, or C++
+- **HR Interview**: Behavioral questions with voice interaction
+- **STAR Interview**: Structured behavioral interviews using STAR method
+
+### Best Practices
+
+- Upload an updated resume for better question personalization
+- Speak clearly when using voice recording
+- Review feedback after each answer to improve
+- Practice regularly to track improvement over time
+
+---
+
 ## 🐛 Troubleshooting
 
 ### Common Issues
@@ -572,23 +761,43 @@ uvicorn app.main:app --host 0.0.0.0 --port $PORT
 1. **"Supabase configuration missing"**
    - Ensure `.env` file exists in project root
    - Check that `SUPABASE_URL` and `SUPABASE_KEY` are set correctly
+   - Verify credentials in Supabase Dashboard → Settings → API
 
 2. **"OpenAI API key not found"**
    - Set `OPENAI_API_KEY` in `.env` file
    - Restart the server after adding the key
+   - Verify key is active at https://platform.openai.com/api-keys
 
 3. **Resume parsing fails for LaTeX PDFs**
    - Install Tesseract OCR (see setup instructions)
    - Ensure Tesseract is in system PATH
+   - On Vercel, OCR may not work (system will continue without it)
 
 4. **CORS errors**
    - Check `CORS_ORIGINS` in `.env`
    - In development, the app allows all origins by default
+   - On Vercel, CORS is handled automatically
 
 5. **Database connection errors**
    - Verify Supabase credentials
-   - Check that database schema is set up correctly
+   - Check that database schema is set up correctly (`app/database/schema.sql`)
    - Ensure RLS policies allow service role access
+   - Test connection at `/api/health/database`
+
+6. **Code execution fails (Coding Interview)**
+   - System automatically uses Piston API fallback if local compilers not found
+   - Check internet connection for Piston API access
+   - Verify code syntax before submission
+
+7. **Audio overlap in interviews**
+   - System automatically queues audio playback
+   - Wait for current audio to finish before starting new recording
+   - Refresh page if audio issues persist
+
+8. **Rate limiting errors (429)**
+   - System limits: 30 requests/min per user, 60 requests/min per session
+   - Wait a moment before retrying
+   - Reduce request frequency if needed
 
 ---
 
@@ -632,4 +841,39 @@ For issues and questions, please open an issue on the repository.
 
 ---
 
-*Last Updated: 2024*
+---
+
+## 🔒 Security Features
+
+- **Input Validation**: All user inputs are validated (user_id format, request size limits)
+- **Rate Limiting**: In-memory rate limiting to prevent abuse
+- **Row Level Security**: Supabase RLS policies for data access control
+- **Error Handling**: Standardized error responses, no sensitive data leakage
+- **Request Size Limits**: 2MB limit on request bodies (except file uploads)
+- **Session Validation**: All interview endpoints validate session existence
+
+---
+
+## 🎯 Project Status
+
+**Current Version**: 1.0.0  
+**Completion**: ~95%  
+**Status**: Production-ready for deployment
+
+### Completed Features ✅
+- All interview types (Technical, Coding, HR, STAR)
+- Resume parsing and analysis
+- Voice interaction (STT/TTS)
+- Code execution with multi-language support
+- Performance dashboard and analytics
+- Rate limiting and request validation
+- Comprehensive API documentation
+
+### Known Limitations ⚠️
+- Tesseract OCR not available on Vercel (logs warning, continues without OCR)
+- Local code execution requires system compilers (Piston API fallback available)
+- In-memory rate limiting (resets on server restart)
+
+---
+
+*Last Updated: December 2025*

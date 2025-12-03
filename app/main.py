@@ -17,10 +17,10 @@ import webbrowser
 from pathlib import Path
 from datetime import datetime
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from dotenv import load_dotenv
 
 # Configure logging
@@ -42,6 +42,7 @@ else:
 
 # Import routers
 from app.routers import profile, interview, dashboard
+from app.routers.speech import router as speech_router
 
 # Import configuration
 from app.config.settings import get_cors_origins, settings
@@ -100,6 +101,18 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan
 )
+
+# Custom exception handler to standardize error responses to {'error': 'message'} format
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """
+    Custom exception handler to standardize all HTTPException responses
+    to {'error': 'message'} format instead of FastAPI's default {'detail': 'message'}
+    """
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": exc.detail}
+    )
 
 # Register health check endpoints FIRST (before routers) to ensure they're matched
 @app.get("/api/health")
@@ -193,6 +206,7 @@ app.add_middleware(
 app.include_router(profile.router)
 app.include_router(interview.router)
 app.include_router(dashboard.router)
+app.include_router(speech_router, prefix="/api/interview", tags=["speech"])
 
 
 @app.get("/api/config")

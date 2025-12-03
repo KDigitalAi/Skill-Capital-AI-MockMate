@@ -12,13 +12,16 @@ from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query
 from fastapi.responses import JSONResponse
 from supabase import Client
 from app.db.client import get_supabase_client
-from app.schemas.user import UserProfileCreate, UserProfileUpdate, UserProfileResponse
+from app.schemas.user import UserProfileCreate, UserProfileUpdate, UserProfileResponse, ResumeAnalysisResponse, ResumeUploadResponse, ExperienceUpdateResponse
 from app.utils.resume_parser_util import parse_pdf, parse_docx
 from app.services.resume_parser import resume_parser
 from app.config.settings import settings
 from app.utils.database import get_user_profile, get_authenticated_user
 from app.utils.file_utils import validate_file_type, extract_file_extension, save_temp_file, cleanup_temp_file
 from app.utils.exceptions import NotFoundError, ValidationError, DatabaseError
+from app.utils.rate_limiter import rate_limit_by_user_id
+from app.utils.request_validator import validate_request_size
+from fastapi import Request
 from typing import Optional
 from datetime import datetime
 
@@ -30,26 +33,22 @@ router = APIRouter(prefix="/api/profile", tags=["profile"])
 # In-memory storage for resume analysis (in production, use Redis or database)
 resume_analysis_cache = {}
 
-@router.get("/resume-analysis/{session_id}")
+@router.get("/resume-analysis/{session_id}", response_model=ResumeAnalysisResponse)
 async def get_resume_analysis(
     session_id: str
 ):
     """Get resume analysis data by session ID"""
     # Check if this is an error session (starts with "error_")
     if session_id.startswith("error_"):
-        logger.warning(f"Error session detected: {session_id}")
-        # Return a proper error response instead of 404
-        return JSONResponse(
-            status_code=200,
-            content={
-                "success": False,
-                "error": "Resume upload failed. Please try uploading again.",
-                "session_id": session_id
-            }
+        logger.warning(f"[PROFILE][RESUME-ANALYSIS] Error session detected: {session_id}")
+        # Raise HTTPException instead of returning JSONResponse
+        raise HTTPException(
+            status_code=400,
+            detail="Resume upload failed. Please try uploading again."
         )
     
     if session_id not in resume_analysis_cache:
-        logger.warning(f"Session not found in cache: {session_id}")
+        logger.warning(f"[PROFILE][RESUME-ANALYSIS] Session not found in cache: {session_id}")
         raise HTTPException(
             status_code=404, 
             detail=f"Resume analysis session not found. Session may have expired. Please upload your resume again."
@@ -58,9 +57,10 @@ async def get_resume_analysis(
     return resume_analysis_cache[session_id]
 
 
-@router.put("/resume-analysis/{session_id}/experience")
+@router.put("/resume-analysis/{session_id}/experience", response_model=ExperienceUpdateResponse)
 async def update_resume_experience(
     session_id: str,
+    http_request: Request,
     experience: str = Query(..., description="Experience level to update"),
     user_id: Optional[str] = Query(None, description="User ID (fallback if session not found)"),
     supabase: Client = Depends(get_supabase_client)
@@ -70,6 +70,10 @@ async def update_resume_experience(
     Updates both the cache and the user profile in Supabase database
     If session not found, uses user_id to update profile directly
     """
+    # Validate user_id format if provided: alphanumeric, hyphen, underscore only
+    if user_id and not re.match(r'^[a-zA-Z0-9_-]+$', user_id):
+        raise HTTPException(status_code=400, detail="Invalid user_id format")
+    
     try:
         session_found = session_id in resume_analysis_cache
         cached_data = None
@@ -79,20 +83,20 @@ async def update_resume_experience(
         if session_found:
             cached_data = resume_analysis_cache[session_id]
             resolved_user_id = cached_data.get("user_id")
-            logger.info(f"[EXPERIENCE_UPDATE] Session found in cache: {session_id}, user_id: {resolved_user_id}")
+            logger.info(f"[PROFILE][UPDATE-EXPERIENCE] Session found in cache: {session_id}, user_id: {resolved_user_id}")
         else:
-            logger.warning(f"[EXPERIENCE_UPDATE] Session not found in cache: {session_id}")
+            logger.warning(f"[PROFILE][UPDATE-EXPERIENCE] Session not found in cache: {session_id}")
         
         # Fallback to user_id from query parameter if not in cache
         if not resolved_user_id and user_id:
             resolved_user_id = user_id
-            logger.info(f"[EXPERIENCE_UPDATE] Using user_id from query parameter: {user_id}")
+            logger.info(f"[PROFILE][UPDATE-EXPERIENCE] Using user_id from query parameter: {user_id}")
         
         # If we have user_id, update the profile directly (even if session not in cache)
         if resolved_user_id:
             # Update or create session in cache for future use
             if not session_found:
-                logger.info(f"[EXPERIENCE_UPDATE] Recreating session in cache: {session_id}")
+                logger.info(f"[PROFILE][UPDATE-EXPERIENCE] Recreating session in cache: {session_id}")
                 resume_analysis_cache[session_id] = {
                     "user_id": resolved_user_id,
                     "experience_level": experience,
@@ -104,7 +108,7 @@ async def update_resume_experience(
             
             # Update user profile in Supabase database
             try:
-                logger.info(f"[EXPERIENCE_UPDATE] Updating experience for user {resolved_user_id} to: {experience}")
+                logger.info(f"[PROFILE][UPDATE-EXPERIENCE] Updating experience for user {resolved_user_id} to: {experience}")
                 
                 # Check if profile exists
                 existing_profile = await get_user_profile(supabase, resolved_user_id)
@@ -119,12 +123,12 @@ async def update_resume_experience(
                     )
                     
                     if not update_response.data or len(update_response.data) == 0:
-                        logger.warning(f"[EXPERIENCE_UPDATE] Profile update returned no data for user {resolved_user_id}")
+                        logger.warning(f"[PROFILE][UPDATE-EXPERIENCE] Profile update returned no data for user {resolved_user_id}")
                     else:
-                        logger.info(f"[EXPERIENCE_UPDATE] Successfully updated profile for user {resolved_user_id}")
+                        logger.info(f"[PROFILE][UPDATE-EXPERIENCE] Successfully updated profile for user {resolved_user_id}")
                 else:
                     # Create new profile with experience
-                    logger.info(f"[EXPERIENCE_UPDATE] Profile not found, creating new profile for user {resolved_user_id}")
+                    logger.info(f"[PROFILE][UPDATE-EXPERIENCE] Profile not found, creating new profile for user {resolved_user_id}")
                     create_response = (
                         supabase.table("user_profiles")
                         .insert({
@@ -135,40 +139,37 @@ async def update_resume_experience(
                     )
                     
                     if not create_response.data or len(create_response.data) == 0:
-                        logger.warning(f"[EXPERIENCE_UPDATE] Profile creation returned no data for user {resolved_user_id}")
+                        logger.warning(f"[PROFILE][UPDATE-EXPERIENCE] Profile creation returned no data for user {resolved_user_id}")
                     else:
-                        logger.info(f"[EXPERIENCE_UPDATE] Successfully created profile for user {resolved_user_id}")
+                        logger.info(f"[PROFILE][UPDATE-EXPERIENCE] Successfully created profile for user {resolved_user_id}")
             
             except Exception as db_error:
                 # Log the error but don't fail the request - cache is already updated
                 import traceback
                 error_traceback = traceback.format_exc()
-                logger.error(f"[EXPERIENCE_UPDATE] Failed to update Supabase profile for user {resolved_user_id}: {str(db_error)}")
-                logger.error(f"[EXPERIENCE_UPDATE] Traceback: {error_traceback}")
+                logger.error(f"[PROFILE][UPDATE-EXPERIENCE] Failed to update Supabase profile for user {resolved_user_id}: {str(db_error)}")
+                logger.error(f"[PROFILE][UPDATE-EXPERIENCE] Traceback: {error_traceback}")
                 # Continue - cache update succeeded
         
         else:
             # No user_id available - just update cache if session exists
             if session_found:
                 resume_analysis_cache[session_id]["experience_level"] = experience
-                logger.warning(f"[EXPERIENCE_UPDATE] No user_id available, only updated cache for session: {session_id}")
+                logger.warning(f"[PROFILE][UPDATE-EXPERIENCE] No user_id available, only updated cache for session: {session_id}")
             else:
-                logger.error(f"[EXPERIENCE_UPDATE] Session not found and no user_id provided: {session_id}")
+                logger.error(f"[PROFILE][UPDATE-EXPERIENCE] Session not found and no user_id provided: {session_id}")
                 raise HTTPException(
                     status_code=404, 
                     detail="Resume analysis session not found. Please provide user_id or upload resume again."
                 )
         
         # Return success response
-        return JSONResponse(
-            status_code=200,
-            content={
-                "status": "success",
-                "success": True,
-                "message": "Experience saved successfully",
-                "experience_level": experience,
-                "session_id": session_id
-            }
+        return ExperienceUpdateResponse(
+            status="success",
+            success=True,
+            message="Experience saved successfully",
+            experience_level=experience,
+            session_id=session_id
         )
     
     except HTTPException:
@@ -176,15 +177,16 @@ async def update_resume_experience(
     except Exception as e:
         import traceback
         error_traceback = traceback.format_exc()
-        logger.error(f"[EXPERIENCE_UPDATE] Unexpected error updating experience: {str(e)}")
-        logger.error(f"[EXPERIENCE_UPDATE] Traceback: {error_traceback}")
+        logger.error(f"[PROFILE][UPDATE-EXPERIENCE] Unexpected error updating experience: {str(e)}")
+        logger.error(f"[PROFILE][UPDATE-EXPERIENCE] Traceback: {error_traceback}")
         raise HTTPException(status_code=500, detail=f"Error updating experience: {str(e)}")
 
 
 @router.get("/current", response_model=UserProfileResponse)
 async def get_current_user(
     user_id: Optional[str] = Query(None, description="Optional user_id to fetch specific user profile"),
-    supabase: Client = Depends(get_supabase_client)
+    supabase: Client = Depends(get_supabase_client),
+    _: None = Depends(rate_limit_by_user_id)
 ):
     """
     Get current authenticated user from user_profiles table
@@ -213,15 +215,19 @@ async def get_current_user(
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
-        logger.error(f"Error getting current user: {error_details}")
+        logger.error(f"[PROFILE][CURRENT] Error getting current user: {error_details}")
         raise HTTPException(status_code=500, detail=f"Error getting current user: {str(e)}")
 
 
 @router.get("/{user_id}", response_model=UserProfileResponse)
 async def get_user_profile_by_id(
     user_id: str,
-    supabase: Client = Depends(get_supabase_client)
+    supabase: Client = Depends(get_supabase_client),
+    _: None = Depends(rate_limit_by_user_id)
 ):
+    # Validate user_id format: alphanumeric, hyphen, underscore only
+    if not re.match(r'^[a-zA-Z0-9_-]+$', user_id):
+        raise HTTPException(status_code=400, detail="Invalid user_id format")
     """
     Get user profile by user_id
     Time Complexity: O(1) - Single indexed query
@@ -258,7 +264,14 @@ async def get_user_profile_by_id(
         raise HTTPException(status_code=500, detail=f"Error getting user profile: {str(e)}")
 
 
-@router.post("/upload-resume")
+# ============================================================================
+# Resume Upload Endpoints
+# ============================================================================
+# POST /api/profile/upload-resume
+# Purpose: For authenticated users to upload their own resume
+# The backend automatically generates a stable user_id from the resume name
+# ============================================================================
+@router.post("/upload-resume", response_model=ResumeUploadResponse)
 async def upload_resume(
     file: UploadFile = File(...),
     ocr: bool = Query(False, description="Enable OCR mode for LaTeX/scanned PDFs"),
@@ -335,26 +348,23 @@ async def upload_resume(
         
         if not file.filename:
             logger.error(f"[UPLOAD] No filename provided in upload")
-            return build_error_response(
-                "No file was uploaded. Please select a file and try again.",
+            raise HTTPException(
                 status_code=400,
-                session_override=_session_id_container[0],
+                detail="No file was uploaded. Please select a file and try again."
             )
         
         if not file_extension:
             logger.error(f"[UPLOAD] No file extension found in filename: {file.filename}")
-            return build_error_response(
-                "Invalid file type. Only PDF and DOCX files are supported.",
+            raise HTTPException(
                 status_code=400,
-                session_override=_session_id_container[0],
+                detail="Invalid file type. Only PDF and DOCX files are supported."
             )
         
         if not validate_file_type(file_extension):
             logger.error(f"[UPLOAD] Invalid file extension: {file_extension}")
-            return build_error_response(
-                f"Invalid file type: {file_extension}. Only PDF and DOCX files are supported.",
+            raise HTTPException(
                 status_code=400,
-                session_override=_session_id_container[0],
+                detail=f"Invalid file type: {file_extension}. Only PDF and DOCX files are supported."
             )
         
         # Validate MIME type
@@ -367,10 +377,9 @@ async def upload_resume(
         if file.content_type and file.content_type not in allowed_mime_types:
             # Check if extension matches even if MIME type is wrong (some browsers send wrong MIME)
             if file_extension not in ['.pdf', '.docx', '.doc']:
-                return build_error_response(
-                    "Invalid file type. Only PDF and DOCX files are supported.",
+                raise HTTPException(
                     status_code=400,
-                    session_override=_session_id_container[0],
+                    detail="Invalid file type. Only PDF and DOCX files are supported."
                 )
         
         # Read file content (up to 2GB)
@@ -382,10 +391,9 @@ async def upload_resume(
             logger.info(f"[UPLOAD] File read successfully: {file.filename}, size: {len(file_content)} bytes")
         except Exception as read_error:
             logger.error(f"[UPLOAD] Failed to read file content: {str(read_error)}")
-            return build_error_response(
-                f"Failed to read file: {str(read_error)}. Please try uploading again.",
+            raise HTTPException(
                 status_code=400,
-                session_override=_session_id_container[0],
+                detail=f"Failed to read file: {str(read_error)}. Please try uploading again."
             )
         
         # Verify file is actually a PDF or DOCX by checking magic bytes
@@ -396,37 +404,33 @@ async def upload_resume(
             if not file_content.startswith(b'%PDF') and not file_start.startswith(b'%PDF'):
                 logger.error(f"[UPLOAD] File does not have PDF magic bytes. First 20 bytes: {file_content[:20]}")
                 logger.error(f"[UPLOAD] File size: {len(file_content)} bytes")
-                return build_error_response(
-                    "The file is not a valid PDF. Please upload a valid PDF file.",
+                raise HTTPException(
                     status_code=400,
-                    session_override=_session_id_container[0],
+                    detail="The file is not a valid PDF. Please upload a valid PDF file."
                 )
             logger.info(f"[UPLOAD] PDF magic bytes validated successfully")
         elif file_extension in ['.docx', '.doc']:
             # DOCX files start with PK (ZIP format)
             if not (file_content.startswith(b'PK') or file_content.startswith(b'\xd0\xcf\x11\xe0')):
                 logger.error(f"[UPLOAD] File does not have DOCX magic bytes. First 20 bytes: {file_content[:20]}")
-                return build_error_response(
-                    "The file is not a valid DOCX document. Please upload a valid DOCX file.",
+                raise HTTPException(
                     status_code=400,
-                    session_override=_session_id_container[0],
+                    detail="The file is not a valid DOCX document. Please upload a valid DOCX file."
                 )
         
         # Validate file size (max 2GB)
         max_size = 2 * 1024 * 1024 * 1024  # 2GB in bytes
         if len(file_content) > max_size:
-            return build_error_response(
-                "File size exceeds 2GB limit. Please upload a smaller file.",
+            raise HTTPException(
                 status_code=400,
-                session_override=_session_id_container[0],
+                detail="File size exceeds 2GB limit. Please upload a smaller file."
             )
         
         # Validate file is not empty
         if len(file_content) == 0:
-            return build_error_response(
-                "The uploaded file is empty. Please upload a valid resume file.",
+            raise HTTPException(
                 status_code=400,
-                session_override=_session_id_container[0],
+                detail="The uploaded file is empty. Please upload a valid resume file."
             )
         
         # Save to temporary file for parsing
@@ -437,20 +441,18 @@ async def upload_resume(
         # Validate temp file was created and has content
         if not temp_file_path or not os.path.exists(temp_file_path):
             logger.error(f"Temp file not created or doesn't exist: {temp_file_path}")
-            return build_error_response(
-                "Failed to save file for processing. Please try again.",
+            raise HTTPException(
                 status_code=500,
-                session_override=_session_id_container[0],
+                detail="Failed to save file for processing. Please try again."
             )
         
         # Verify file size matches
         temp_file_size = os.path.getsize(temp_file_path)
         if temp_file_size != len(file_content):
             logger.error(f"File size mismatch! Temp: {temp_file_size}, Original: {len(file_content)}")
-            return build_error_response(
-                "File was not saved correctly. Please try again.",
+            raise HTTPException(
                 status_code=500,
-                session_override=_session_id_container[0],
+                detail="File was not saved correctly. Please try again."
             )
         
         # Parse resume using robust parser utility
@@ -557,7 +559,7 @@ async def upload_resume(
             error_msg = str(import_error)
             logger.error(f"Missing parsing library: {import_error}")
             user_error = f"Resume parsing library not installed. {str(import_error)}"
-            return build_error_response(user_error, status_code=500, session_override=_session_id_container[0])
+            raise HTTPException(status_code=500, detail=user_error)
         except ValueError as value_error:
             # File format or content issues
             error_msg = str(value_error)
@@ -584,7 +586,7 @@ async def upload_resume(
             else:
                 user_error = f"Resume parsing failed: {str(value_error)}"
             
-            return build_error_response(user_error, status_code=400, session_override=_session_id_container[0])
+            raise HTTPException(status_code=400, detail=user_error)
         except Exception as parse_error:
             # Other unexpected errors
             error_msg = str(parse_error).lower()
@@ -594,7 +596,7 @@ async def upload_resume(
             else:
                 user_error = f"Failed to parse resume: {str(parse_error)}"
             
-            return build_error_response(user_error, status_code=500, session_override=_session_id_container[0])
+            raise HTTPException(status_code=500, detail=user_error)
         
         # Upload to Supabase Storage (use stable_user_id)
         storage_path = f"{stable_user_id}/{file.filename}"
@@ -825,24 +827,21 @@ async def upload_resume(
                 "created_at": datetime.now().isoformat()
             }
             
-            return JSONResponse(
-                status_code=200,
-                content={
-                    "success": True,
-                    "message": "Resume parsed successfully.",
-                    "session_id": current_session_id,
-                    "interview_session_id": interview_session_id,  # Include interview session ID
-                    "user_id": stable_user_id,  # Include stable user_id in response
-                    "name": mapped_data.get("name"),
-                    "email": mapped_data.get("email"),
-                    "skills": mapped_data.get("skills", []),
-                    "experience_level": mapped_data.get("experience_level", "Unknown"),
-                    "keywords": mapped_data.get("keywords", {}),
-                    "text_length": mapped_data.get("text_length", 0),
-                    "summary": mapped_data.get("summary"),
-                    "interview_modules": mapped_data.get("interview_modules"),
-                    "resume_url": resume_url
-                }
+            return ResumeUploadResponse(
+                success=True,
+                message="Resume parsed successfully.",
+                session_id=current_session_id,
+                interview_session_id=interview_session_id,
+                user_id=stable_user_id,
+                name=mapped_data.get("name"),
+                email=mapped_data.get("email"),
+                skills=mapped_data.get("skills", []),
+                experience_level=mapped_data.get("experience_level", "Unknown"),
+                keywords=mapped_data.get("keywords", {}),
+                text_length=mapped_data.get("text_length", 0),
+                summary=mapped_data.get("summary"),
+                interview_modules=mapped_data.get("interview_modules"),
+                resume_url=resume_url
             )
         except Exception as db_error:
             # Database error - profile creation/update failed
@@ -869,13 +868,11 @@ async def upload_resume(
                 "created_at": datetime.now().isoformat()
             }
             
-            # Return error response - profile creation failed
-            # This is critical - we must return an error so frontend knows profile wasn't created
-            return build_error_response(
-                f"Resume parsed successfully, but failed to save profile to database: {str(db_error)}. Please try again or contact support.",
+            # Raise HTTPException - profile creation failed
+            # This is critical - we must raise an error so frontend knows profile wasn't created
+            raise HTTPException(
                 status_code=500,
-                user_id=stable_user_id,
-                session_override=current_session_id
+                detail=f"Resume parsed successfully, but failed to save profile to database: {str(db_error)}. Please try again or contact support."
             )
     except Exception as e:
         import traceback
@@ -916,11 +913,9 @@ async def upload_resume(
             else:
                 error_message = "Failed to parse the uploaded resume. Please ensure the file is a valid PDF or DOCX document."
         
-        return build_error_response(
-            error_message,
+        raise HTTPException(
             status_code=500,
-            user_id=stable_user_id if stable_user_id else None,
-            session_override=current_session_id,
+            detail=error_message
         )
     finally:
         # Clean up temporary file
@@ -928,9 +923,13 @@ async def upload_resume(
             cleanup_temp_file(temp_file_path)
 
 
-# Route with user_id in path (for backward compatibility - user_id is ignored, generated from resume)
+# ============================================================================
+# POST /api/profile/{user_id}/upload-resume
+# Purpose: For admin/manual upload scenarios
+# Note: The user_id parameter is ignored - backend generates stable user_id from resume name
 # This route must come AFTER /upload-resume to avoid route conflicts
-@router.post("/{user_id}/upload-resume")
+# ============================================================================
+@router.post("/{user_id}/upload-resume", response_model=ResumeUploadResponse)
 async def upload_resume_with_user_id(
     user_id: str,  # Ignored - backend generates user_id from resume name
     file: UploadFile = File(...),
@@ -942,6 +941,10 @@ async def upload_resume_with_user_id(
     Note: user_id parameter is ignored - backend generates stable user_id from resume name
     This route handles old frontend code that includes user_id in the URL path
     """
+    # Validate user_id format: alphanumeric, hyphen, underscore only
+    if not re.match(r'^[a-zA-Z0-9_-]+$', user_id):
+        raise HTTPException(status_code=400, detail="Invalid user_id format")
+    
     logger.info(f"[UPLOAD] Received upload request with user_id in path: {user_id} (will be ignored, generating from resume)")
     # Delegate to main upload function (user_id is ignored)
     return await upload_resume(file=file, ocr=ocr, supabase=supabase)

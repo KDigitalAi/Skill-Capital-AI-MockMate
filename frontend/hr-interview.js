@@ -20,6 +20,49 @@ let currentQuestion = null;
 let interviewActive = false;
 let currentAudio = null; // Track current audio playback to prevent overlap
 let isAudioPlaying = false; // Track if audio is currently playing
+let hrAudioQueue = []; // Queue for HR interview audio (follow-up → question sequence)
+let currentHRAudio = null; // Global HR audio manager - ONLY ONE audio can exist at a time
+
+// Simple FIFO queue for HR interview audio to ensure sequential playback
+function enqueueHRAudio(audioUrlOrText) {
+    if (!audioUrlOrText) {
+        return;
+    }
+    console.log('[HR INTERVIEW TTS] Enqueue audio:', String(audioUrlOrText).substring(0, 80) + '...');
+    hrAudioQueue.push(audioUrlOrText);
+
+    // If nothing is currently playing, start immediately
+    if (!isAudioPlaying) {
+        playNextFromHRAudio();
+    }
+}
+
+function playNextFromHRAudio() {
+    // ✅ CRITICAL: Check both isAudioPlaying AND currentHRAudio to ensure no overlap
+    if (isAudioPlaying || currentHRAudio !== null) {
+        console.log('[HR INTERVIEW TTS] ⏸️ Cannot play next audio - current audio still active');
+        console.debug('[HR INTERVIEW TTS] isAudioPlaying:', isAudioPlaying);
+        console.debug('[HR INTERVIEW TTS] currentHRAudio exists:', currentHRAudio !== null);
+        // Current audio still playing; wait for onended/onerror to advance the queue
+        return;
+    }
+    if (hrAudioQueue.length === 0) {
+        console.log('[HR INTERVIEW TTS] ✅ Queue is empty, no more audio to play');
+        return;
+    }
+
+    const next = hrAudioQueue.shift();
+    console.log('[HR INTERVIEW TTS] ========== DEQUEUE AND PLAY NEXT AUDIO ==========');
+    console.log('[HR INTERVIEW TTS] Dequeue and play next audio:', String(next).substring(0, 80) + '...');
+    console.log('[HR INTERVIEW TTS] Queue remaining items:', hrAudioQueue.length);
+
+    // Fire-and-forget; playAudio will manage onended/onerror and will call playNextFromHRAudio when done
+    playAudio(next).catch(err => {
+        console.warn('[HR INTERVIEW TTS] Queue item playback failed:', err);
+        // Move on to the next item to avoid getting stuck
+        setTimeout(() => playNextFromHRAudio(), 100);
+    });
+}
 
 // Loading state management to prevent double submission
 let isLoading = {
@@ -187,13 +230,10 @@ async function startInterview() {
             // Play audio if available (same as technical interview)
             // Note: playAudio is called after user interaction (button click), so autoplay should work
             if (data.audio_url) {
-                console.log('[HR INTERVIEW] ✅ audio_url found, calling playAudio:', data.audio_url);
-                // Use setTimeout(0) to ensure this runs in next event loop tick but still within user interaction context
+                console.log('[HR INTERVIEW] ✅ audio_url found, enqueueing audio:', data.audio_url);
+                // Use setTimeout to ensure this runs in next event loop tick but still within user interaction context
                 setTimeout(() => {
-                    playAudio(data.audio_url).catch(err => {
-                        console.warn('[HR INTERVIEW] Audio playback failed, will show manual play button:', err);
-                        // Error is already handled in playAudio with manual play button
-                    });
+                    enqueueHRAudio(data.audio_url);
                 }, 100); // Small delay to ensure UI is updated
             } else {
                 console.error('[HR INTERVIEW] ❌ No audio_url received for first question. Response keys:', Object.keys(data));
@@ -270,6 +310,27 @@ async function startRecording() {
 
         mediaRecorder.onstop = async () => {
             const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            
+            // ✅ If user clicked record but did not speak, treat as 'No Answer'
+            if (audioBlob.size === 0) {
+                const noAnswerText = 'No Answer';
+                document.getElementById('voiceStatus').textContent = 'No answer captured. Sending "No Answer".';
+                
+                // Display 'No Answer' as the user's response
+                displayMessage('user', noAnswerText);
+                conversationHistory.push({
+                    role: 'user',
+                    content: noAnswerText
+                });
+                
+                // Submit 'No Answer' to the backend
+                await submitAnswer(noAnswerText);
+                
+                // Stop all tracks
+                stream.getTracks().forEach(track => track.stop());
+                return;
+            }
+            
             await processAudioAnswer(audioBlob);
             
             // Stop all tracks
@@ -570,15 +631,20 @@ async function processAudioAnswer(audioBlob) {
         }
 
         const sttData = await sttResponse.json();
-        const rawUserAnswer = sttData.text || ''; // Use a temporary variable for clarity
+        let rawUserAnswer = sttData.text || sttData.transcript || ''; // Use a temporary variable for clarity
+        
+        // ✅ If user did not speak or transcription is empty, treat as 'No Answer'
+        if (!rawUserAnswer || rawUserAnswer.trim() === '') {
+            rawUserAnswer = 'No Answer';
+        }
         
         // ✅ FIX: Detect "No Answer" cases (empty, garbage phrases, low confidence)
         const noAnswerCheck = detectNoAnswer(rawUserAnswer);
         
         let userAnswer;
-        if (noAnswerCheck.isNoAnswer) {
+        if (noAnswerCheck.isNoAnswer || rawUserAnswer === 'No Answer') {
             // Log the detection reason (debug level)
-            console.log(`[HR INTERVIEW] No Answer detected: ${noAnswerCheck.reason}`);
+            console.log(`[HR INTERVIEW] No Answer detected: ${noAnswerCheck.reason || 'Empty transcription'}`);
             userAnswer = 'No Answer'; // Record exactly as "No Answer"
         } else {
             userAnswer = rawUserAnswer.trim(); // Use the cleaned answer
@@ -677,10 +743,8 @@ async function submitAnswer(answer) {
             displayMessage('ai', data.ai_response, data.audio_url);
             
             if (data.audio_url) {
-                console.log('[HR INTERVIEW] Playing AI response audio:', data.audio_url);
-                playAudio(data.audio_url).catch(err => {
-                    console.warn('[HR INTERVIEW] Audio playback failed:', err);
-                });
+                console.log('[HR INTERVIEW] Enqueueing AI response audio:', data.audio_url);
+                enqueueHRAudio(data.audio_url);
             }
         }
 
@@ -767,6 +831,17 @@ async function getNextHRQuestion(userAnswer = null) {
 
         const data = await response.json();
         
+        // ✅ DEBUG: Log next-question response received
+        console.debug('[HR DEBUG Q2+] ========== NEXT QUESTION RESPONSE RECEIVED ==========');
+        console.debug('[HR DEBUG Q2+] Response status:', response.status);
+        console.debug('[HR DEBUG Q2+] Response data keys:', Object.keys(data));
+        console.debug('[HR DEBUG Q2+] question_text:', data.question ? data.question.substring(0, 100) + '...' : 'MISSING');
+        console.debug('[HR DEBUG Q2+] audio_url (direct):', data.audio_url);
+        console.debug('[HR DEBUG Q2+] audioUrl (camelCase):', data.audioUrl);
+        console.debug('[HR DEBUG Q2+] question_number:', data.question_number);
+        console.debug('[HR DEBUG Q2+] Full response data:', JSON.stringify(data, null, 2));
+        console.debug('[HR DEBUG Q2+] ====================================================');
+        
         // Check if interview is completed
         if (data.interview_completed) {
             console.log('[HR INTERVIEW] Interview completed:', data.message);
@@ -778,6 +853,11 @@ async function getNextHRQuestion(userAnswer = null) {
         const nextQuestion = data.question;
         const audioUrl = data.audio_url || data.audioUrl; // Try both possible field names
         const questionNumber = data.question_number || conversationHistory.filter(m => m.role === 'ai').length + 1;
+        
+        // ✅ DEBUG: Log extracted values
+        console.debug('[HR DEBUG Q2+] Extracted nextQuestion:', nextQuestion ? nextQuestion.substring(0, 50) + '...' : 'NULL/UNDEFINED');
+        console.debug('[HR DEBUG Q2+] Extracted audioUrl:', audioUrl || 'NULL/UNDEFINED');
+        console.debug('[HR DEBUG Q2+] Extracted questionNumber:', questionNumber);
         
         if (!nextQuestion) {
             throw new Error('No question received from backend');
@@ -805,36 +885,47 @@ async function getNextHRQuestion(userAnswer = null) {
         // Display question with audio URL
         displayMessage('ai', nextQuestion, audioUrl);
         
-        // ✅ FIX: ALWAYS play audio for every question (same behavior as Technical Interview)
-        // Use setTimeout to ensure audio plays after UI update, but don't wait for user interaction
-        // For subsequent questions, user has already interacted (recorded answer), so autoplay should work
+        // ✅ FIX: ALWAYS play audio for every question (match Technical Interview's simple approach)
+        // For Q2-Q10, browser may block autoplay, so we need to handle this gracefully
+        // ✅ FIX: Use simple setTimeout like Technical Interview (no requestAnimationFrame wrapper)
         setTimeout(() => {
-            if (audioUrl && audioUrl.trim()) {
-                console.log('[HR INTERVIEW] ✅ Playing next question audio:', audioUrl);
-                playAudio(audioUrl).catch(err => {
-                    console.warn('[HR INTERVIEW] Audio playback failed, trying fallback TTS:', err);
-                    // Fallback: generate TTS from question text if audio_url fails
-                    if (nextQuestion) {
-                        playAudio(nextQuestion).catch(fallbackErr => {
-                            console.warn('[HR INTERVIEW] Fallback TTS also failed, will show manual play button:', fallbackErr);
-                            // Error is already handled in playAudio with manual play button
-                        });
-                    }
-                });
-            } else {
-                // ✅ FIX: Fallback - generate TTS from question text if audio_url is missing
-                console.warn('[HR INTERVIEW] ⚠️ No audioUrl provided, generating TTS from question text');
-                if (nextQuestion) {
-                    playAudio(nextQuestion).catch(err => {
-                        console.warn('[HR INTERVIEW] Fallback TTS generation failed:', err);
-                        // Error is already handled in playAudio with manual play button
-                    });
+            // ✅ DEBUG: Log before attempting audio playback
+            console.debug('[HR DEBUG Q2+] ========== ATTEMPTING AUDIO PLAYBACK ==========');
+            console.debug('[HR DEBUG Q2+] audioUrl value:', audioUrl);
+            console.debug('[HR DEBUG Q2+] audioUrl truthy check:', !!audioUrl);
+            console.debug('[HR DEBUG Q2+] audioUrl type:', typeof audioUrl);
+            console.debug('[HR DEBUG Q2+] audioUrl.trim() check:', audioUrl ? audioUrl.trim() : 'N/A');
+            console.debug('[HR DEBUG Q2+] nextQuestion value:', nextQuestion ? nextQuestion.substring(0, 50) + '...' : 'NULL');
+            console.debug('[HR DEBUG Q2+] isLoading.getNextQuestion:', isLoading.getNextQuestion);
+            console.debug('[HR DEBUG Q2+] isLoading.playAudio:', isLoading.playAudio);
+            console.debug('[HR DEBUG Q2+] ===============================================');
+            
+            // ✅ FIX: Check if audioUrl is valid (not null, not undefined, not empty string)
+            const hasValidAudioUrl = audioUrl && typeof audioUrl === 'string' && audioUrl.trim().length > 0;
+            
+                if (hasValidAudioUrl) {
+                    console.log('[HR INTERVIEW] ✅ Enqueueing next question audio:', audioUrl);
+                    console.debug('[HR DEBUG Q2+] EnqueueHRAudio() with audioUrl:', audioUrl);
+                    enqueueHRAudio(audioUrl);
                 } else {
-                    console.error('[HR INTERVIEW] ❌ No question text available for TTS fallback');
-                    document.getElementById('voiceStatus').textContent = 'Click the microphone to record your answer';
+                    // Fallback - generate TTS from question text if audio_url is missing
+                    console.warn('[HR INTERVIEW] ⚠️ No audioUrl provided, enqueueing TTS from question text');
+                    console.debug('[HR DEBUG Q2+] audioUrl is invalid, using fallback TTS from question text');
+                    if (nextQuestion && nextQuestion.trim()) {
+                        enqueueHRAudio(nextQuestion);
+                    } else {
+                        console.error('[HR INTERVIEW] ❌ No question text available for TTS fallback');
+                        const voiceStatus = document.getElementById('voiceStatus');
+                        if (voiceStatus) {
+                            voiceStatus.textContent = 'Click the microphone to record your answer';
+                        }
+                        // Show manual play button even if we have nothing reliable
+                        if (audioUrl) {
+                            showManualPlayButton(audioUrl);
+                        }
+                    }
                 }
-            }
-        }, 100); // Small delay to ensure UI is updated
+        }, 100); // Small delay to ensure UI is updated (match Technical Interview)
 
     } catch (error) {
         console.error('[HR INTERVIEW] ❌ Get question error:', error);
@@ -1093,32 +1184,87 @@ function displayMessage(role, content, audioUrl = null) {
     
 }
 
+// Helper function to stop and destroy current HR audio completely
+function stopAndDestroyCurrentHRAudio() {
+    if (currentHRAudio) {
+        console.log('[HR INTERVIEW TTS] 🛑 STOPPING AND DESTROYING current HR audio');
+        console.debug('[HR INTERVIEW TTS] Previous audio src:', currentHRAudio.src?.substring(0, 100));
+        console.debug('[HR INTERVIEW TTS] Previous audio paused:', currentHRAudio.paused);
+        console.debug('[HR INTERVIEW TTS] Previous audio ended:', currentHRAudio.ended);
+        
+        // Pause and reset
+        try {
+            currentHRAudio.pause();
+            currentHRAudio.currentTime = 0;
+        } catch (e) {
+            console.warn('[HR INTERVIEW TTS] Error pausing previous audio:', e);
+        }
+        
+        // Remove all event listeners to prevent memory leaks
+        currentHRAudio.onerror = null;
+        currentHRAudio.onended = null;
+        currentHRAudio.onloadeddata = null;
+        currentHRAudio.onloadstart = null;
+        currentHRAudio.onloadedmetadata = null;
+        currentHRAudio.oncanplaythrough = null;
+        currentHRAudio.onplay = null;
+        currentHRAudio.onpause = null;
+        currentHRAudio.onplaying = null;
+        
+        // Revoke blob URL if it exists
+        if (currentHRAudio.src && currentHRAudio.src.startsWith('blob:')) {
+            try {
+                URL.revokeObjectURL(currentHRAudio.src);
+                console.log('[HR INTERVIEW TTS] ✅ Revoked blob URL for previous audio');
+            } catch (e) {
+                console.warn('[HR INTERVIEW TTS] Error revoking blob URL:', e);
+            }
+        }
+        
+        // Clear src to fully release the audio element
+        try {
+            currentHRAudio.src = '';
+            currentHRAudio.load(); // Reset the audio element
+        } catch (e) {
+            console.warn('[HR INTERVIEW TTS] Error clearing audio src:', e);
+        }
+        
+        console.log('[HR INTERVIEW TTS] ✅ Previous HR audio destroyed');
+        currentHRAudio = null;
+        isAudioPlaying = false;
+    }
+    
+    // Also clear the old currentAudio reference for compatibility
+    if (currentAudio && currentAudio !== currentHRAudio) {
+        try {
+            currentAudio.pause();
+            currentAudio.currentTime = 0;
+            if (currentAudio.src && currentAudio.src.startsWith('blob:')) {
+                URL.revokeObjectURL(currentAudio.src);
+            }
+            currentAudio = null;
+        } catch (e) {
+            console.warn('[HR INTERVIEW TTS] Error clearing old currentAudio:', e);
+        }
+    }
+}
+
 async function playAudio(audioUrl, retryCount = 0) {
     const MAX_RETRIES = 2;
     if (!audioUrl) {
         console.warn('[HR INTERVIEW TTS] No audio URL provided');
+        console.debug('[HR DEBUG TTS] Early return: no audioUrl provided');
         return;
     }
     
-    // Prevent double playback
-    if (isLoading.playAudio && retryCount === 0) {
-        console.warn('[HR INTERVIEW TTS] Audio playback already in progress, ignoring duplicate call');
-        return;
-    }
+    // ✅ CRITICAL FIX: ALWAYS stop and destroy any existing HR audio BEFORE starting new one
+    console.log('[HR INTERVIEW TTS] ========== STARTING NEW AUDIO PLAYBACK ==========');
+    console.log('[HR INTERVIEW TTS] Audio URL/Text:', String(audioUrl).substring(0, 80) + '...');
+    console.log('[HR INTERVIEW TTS] Current HR audio exists:', currentHRAudio !== null);
     
-    if (retryCount === 0) {
-        setLoadingState('playAudio', true);
-    }
+    stopAndDestroyCurrentHRAudio();
     
-    // Stop any currently playing audio
-    if (currentAudio && !currentAudio.paused) {
-        console.log('[HR INTERVIEW TTS] Stopping previous audio');
-        currentAudio.pause();
-        currentAudio.currentTime = 0;
-        if (currentAudio.src && currentAudio.src.startsWith('blob:')) {
-            URL.revokeObjectURL(currentAudio.src);
-        }
-    }
+    console.log('[HR INTERVIEW TTS] ✅ Previous audio stopped and destroyed, proceeding with new audio');
     
     try {
         console.log('[HR INTERVIEW TTS] Starting audio playback:', audioUrl);
@@ -1133,6 +1279,13 @@ async function playAudio(audioUrl, retryCount = 0) {
         // Construct full URL if relative
         let fullUrl = audioUrl.startsWith('http') ? audioUrl : `${getApiBase()}${audioUrl}`;
         
+        // ✅ DEBUG: Log before TTS endpoint call
+        console.debug('[HR DEBUG TTS] ========== TTS ENDPOINT CALL ==========');
+        console.debug('[HR DEBUG TTS] Original audioUrl:', audioUrl);
+        console.debug('[HR DEBUG TTS] Constructed fullUrl:', fullUrl);
+        console.debug('[HR DEBUG TTS] fullUrl includes text=:', fullUrl.includes('text='));
+        console.debug('[HR DEBUG TTS] =======================================');
+        
         // If URL contains text parameter, we need to fetch it via POST instead
         if (fullUrl.includes('text=')) {
             try {
@@ -1141,6 +1294,8 @@ async function playAudio(audioUrl, retryCount = 0) {
                 if (textParam) {
                     const text = decodeURIComponent(textParam);
                     console.log('[HR INTERVIEW TTS] Fetching TTS audio for text:', text.substring(0, 50) + '...');
+                    console.debug('[HR DEBUG TTS] About to call POST /api/interview/text-to-speech');
+                    console.debug('[HR DEBUG TTS] Text to convert:', text.substring(0, 100) + '...');
                     
                     // Use POST endpoint instead
                     const response = await fetch(`${getApiBase()}/api/interview/text-to-speech`, {
@@ -1158,6 +1313,10 @@ async function playAudio(audioUrl, retryCount = 0) {
                     }
                     
                     const audioBlob = await response.blob();
+                    console.debug('[HR DEBUG TTS] TTS response status:', response.status);
+                    console.debug('[HR DEBUG TTS] TTS response Content-Type:', response.headers.get('Content-Type'));
+                    console.debug('[HR DEBUG TTS] Audio blob size:', audioBlob.size, 'bytes');
+                    
                     if (audioBlob.size === 0) {
                         console.error('[HR INTERVIEW TTS] Empty audio blob received');
                         throw new Error('Empty audio blob received from TTS endpoint');
@@ -1166,6 +1325,7 @@ async function playAudio(audioUrl, retryCount = 0) {
                     console.log('[HR INTERVIEW TTS] ✅ Audio blob received, size:', audioBlob.size, 'bytes');
                     fullUrl = URL.createObjectURL(audioBlob);
                     console.log('[HR INTERVIEW TTS] Created blob URL:', fullUrl.substring(0, 50) + '...');
+                    console.debug('[HR DEBUG TTS] Blob URL created:', fullUrl);
                 }
             } catch (e) {
                 console.error('[HR INTERVIEW TTS] ❌ Error fetching TTS audio:', e);
@@ -1174,22 +1334,51 @@ async function playAudio(audioUrl, retryCount = 0) {
         }
         
         const audio = new Audio(fullUrl);
-        currentAudio = audio; // Store reference to current audio
+        // ✅ CRITICAL: Assign to global currentHRAudio - this is the ONLY audio that should exist
+        currentHRAudio = audio;
+        currentAudio = audio; // Also update for compatibility
+        
+        console.log('[HR INTERVIEW TTS] ✅ New Audio element created and assigned to currentHRAudio');
+        console.debug('[HR INTERVIEW TTS] Audio src:', audio.src?.substring(0, 100));
+        
+        // ✅ DEBUG: Log before setting audio.src
+        console.debug('[HR DEBUG TTS] ========== CREATING AUDIO ELEMENT ==========');
+        console.debug('[HR DEBUG TTS] fullUrl before audio.src:', fullUrl);
+        console.debug('[HR DEBUG TTS] Audio element created, about to set src');
+        
+        // ✅ DEBUG: Log after setting audio.src (implicitly set via Audio constructor)
+        console.debug('[HR DEBUG TTS] audio.src after creation:', audio.src);
+        console.debug('[HR DEBUG TTS] ============================================');
         
         // Set up event handlers BEFORE attempting to play
         audio.onerror = (error) => {
             console.error('[HR INTERVIEW TTS] ❌ Audio playback error:', error);
+            console.error('[HR INTERVIEW TTS] ========== AUDIO ERROR EVENT ==========');
             console.error('[HR INTERVIEW TTS] Audio error details:', {
                 code: audio.error?.code,
                 message: audio.error?.message,
                 src: audio.src?.substring(0, 100)
             });
+            console.error('[HR INTERVIEW TTS] currentHRAudio === audio:', currentHRAudio === audio);
+            
             isAudioPlaying = false;
             if (voiceButton) voiceButton.classList.remove('listening');
             if (voiceStatus) voiceStatus.textContent = 'Click the microphone to record your answer';
             
             if (fullUrl.startsWith('blob:')) {
-                URL.revokeObjectURL(fullUrl);
+                try {
+                    URL.revokeObjectURL(fullUrl);
+                    console.log('[HR INTERVIEW TTS] ✅ Revoked blob URL after error');
+                } catch (e) {
+                    console.warn('[HR INTERVIEW TTS] Error revoking blob URL:', e);
+                }
+            }
+            
+            // ✅ CRITICAL: Clear currentHRAudio on error
+            if (currentHRAudio === audio) {
+                console.log('[HR INTERVIEW TTS] 🧹 Clearing currentHRAudio (audio error)');
+                currentHRAudio = null;
+                currentAudio = null;
             }
             
             // Retry on error
@@ -1199,18 +1388,40 @@ async function playAudio(audioUrl, retryCount = 0) {
             } else {
                 // Show manual play button if all retries failed
                 showManualPlayButton(audioUrl);
+                // After a terminal error on this item, advance the queue
+                setTimeout(() => playNextFromHRAudio(), 100);
             }
         };
         
         audio.onended = () => {
             console.log('[HR INTERVIEW TTS] ✅ Audio playback completed');
+            console.log('[HR INTERVIEW TTS] ========== AUDIO ENDED EVENT ==========');
+            console.debug('[HR INTERVIEW TTS] Audio src:', audio.src?.substring(0, 100));
+            console.debug('[HR INTERVIEW TTS] currentHRAudio === audio:', currentHRAudio === audio);
+            
             isAudioPlaying = false;
             if (voiceButton) voiceButton.classList.remove('listening');
             if (voiceStatus) voiceStatus.textContent = 'Click the microphone to record your answer';
             
             if (fullUrl.startsWith('blob:')) {
-                URL.revokeObjectURL(fullUrl);
+                try {
+                    URL.revokeObjectURL(fullUrl);
+                    console.log('[HR INTERVIEW TTS] ✅ Revoked blob URL after playback completed');
+                } catch (e) {
+                    console.warn('[HR INTERVIEW TTS] Error revoking blob URL:', e);
+                }
             }
+            
+            // ✅ CRITICAL: Clear currentHRAudio when audio ends
+            if (currentHRAudio === audio) {
+                console.log('[HR INTERVIEW TTS] 🧹 Clearing currentHRAudio (audio ended)');
+                currentHRAudio = null;
+                currentAudio = null;
+            }
+
+            // Audio finished successfully; play next queued item if any
+            console.log('[HR INTERVIEW TTS] Checking queue for next audio...');
+            setTimeout(() => playNextFromHRAudio(), 100);
         };
         
         audio.onloadeddata = () => {
@@ -1221,19 +1432,111 @@ async function playAudio(audioUrl, retryCount = 0) {
             console.log('[HR INTERVIEW TTS] Audio loading started');
         };
         
-        // Attempt to play audio
+        // ✅ FIX: Add additional event listeners for reliable playback verification
+        audio.onloadedmetadata = () => {
+            console.log('[HR INTERVIEW TTS] ✅ Audio metadata loaded');
+        };
+        
+        audio.oncanplaythrough = () => {
+            console.log('[HR INTERVIEW TTS] ✅ Audio can play through');
+        };
+        
+        // ✅ FIX: Verify audio actually starts playing
+        audio.onplay = () => {
+            console.log('[HR INTERVIEW TTS] ✅ Audio actually started playing');
+            console.log('[HR INTERVIEW TTS] ========== AUDIO PLAY EVENT ==========');
+            console.debug('[HR INTERVIEW TTS] currentHRAudio === audio:', currentHRAudio === audio);
+            console.debug('[HR INTERVIEW TTS] Only one audio should be playing now');
+            isAudioPlaying = true;
+            if (voiceStatus) voiceStatus.textContent = 'Question is being spoken...';
+        };
+        
+        // ✅ FIX: Detect unexpected pauses
+        audio.onpause = () => {
+            console.log('[HR INTERVIEW TTS] ⚠️ Audio was paused');
+            // If paused unexpectedly (not by user and not ended), show manual play button
+            if (isAudioPlaying && !audio.ended && audio.currentTime > 0) {
+                console.warn('[HR INTERVIEW TTS] Audio paused unexpectedly');
+                isAudioPlaying = false;
+                showManualPlayButton(audioUrl);
+            }
+        };
+        
+        // ✅ FIX: Detect when audio is actually playing (not just started)
+        audio.onplaying = () => {
+            console.log('[HR INTERVIEW TTS] ✅ Audio is now playing');
+            isAudioPlaying = true;
+        };
+        
+        // Attempt to play audio with Promise-based verification
         try {
             console.log('[HR INTERVIEW TTS] Attempting to play audio...');
+            console.debug('[HR DEBUG TTS] ========== CALLING audio.play() ==========');
+            console.debug('[HR DEBUG TTS] audio.src:', audio.src);
+            console.debug('[HR DEBUG TTS] audio.readyState:', audio.readyState);
+            console.debug('[HR DEBUG TTS] audio.paused:', audio.paused);
+            console.debug('[HR DEBUG TTS] ==========================================');
+            
             const playPromise = audio.play();
             
-            // Handle play promise (required for autoplay policy)
+            // ✅ FIX: Handle play promise with proper error catching
             if (playPromise !== undefined) {
-                await playPromise;
-                console.log('[HR INTERVIEW TTS] ✅ Audio playback started successfully');
+                await playPromise.catch(err => {
+                    console.debug('[HR DEBUG TTS] audio.play() promise rejected in catch:', err);
+                    console.debug('[HR DEBUG TTS] Error name:', err.name);
+                    console.debug('[HR DEBUG TTS] Error message:', err.message);
+                    // ✅ FIX: Catch ALL autoplay-related errors (not just NotAllowedError)
+                    if (err.name === 'NotAllowedError' || 
+                        err.name === 'NotSupportedError' ||
+                        err.message.includes('autoplay') ||
+                        err.message.includes('user interaction') ||
+                        err.message.includes('play() request') ||
+                        err.message.includes('not allowed')) {
+                        console.warn('[HR INTERVIEW TTS] ⚠️ Autoplay blocked by browser policy:', err.message);
+                        isAudioPlaying = false;
+                        if (voiceButton) voiceButton.classList.remove('listening');
+                        if (voiceStatus) {
+                            voiceStatus.textContent = 'Click the play button below to hear the question';
+                        }
+                        // Show manual play button immediately
+                        showManualPlayButton(audioUrl);
+                        throw err; // Re-throw to be caught by outer catch
+                    }
+                    throw err; // Re-throw other errors
+                });
+                
+                console.log('[HR INTERVIEW TTS] ✅ Audio play() promise resolved');
+                console.debug('[HR DEBUG TTS] audio.play() promise resolved successfully');
+                console.debug('[HR DEBUG TTS] audio.paused after resolve:', audio.paused);
+                console.debug('[HR DEBUG TTS] isAudioPlaying after resolve:', isAudioPlaying);
+                
+                // ✅ FIX: Verify audio actually started playing after promise resolves
+                await new Promise(resolve => setTimeout(resolve, 100));
+                console.debug('[HR DEBUG TTS] After 100ms delay - audio.paused:', audio.paused);
+                console.debug('[HR DEBUG TTS] After 100ms delay - isAudioPlaying:', isAudioPlaying);
+                
+                if (audio.paused || !isAudioPlaying) {
+                    console.warn('[HR INTERVIEW TTS] ⚠️ Audio play() succeeded but audio is paused or not playing');
+                    console.debug('[HR DEBUG TTS] Audio verification failed - showing manual play button');
+                    isAudioPlaying = false;
+                    showManualPlayButton(audioUrl);
+                } else {
+                    console.debug('[HR DEBUG TTS] ✅ Audio verification passed - audio is playing');
+                }
             }
         } catch (playError) {
-            // Handle autoplay policy violation
-            if (playError.name === 'NotAllowedError' || playError.name === 'NotSupportedError') {
+            console.debug('[HR DEBUG TTS] ========== audio.play() CATCH BLOCK ==========');
+            console.debug('[HR DEBUG TTS] playError name:', playError.name);
+            console.debug('[HR DEBUG TTS] playError message:', playError.message);
+            console.debug('[HR DEBUG TTS] playError stack:', playError.stack);
+            console.debug('[HR DEBUG TTS] =============================================');
+            // ✅ FIX: Handle autoplay policy violation with comprehensive error detection
+            if (playError.name === 'NotAllowedError' || 
+                playError.name === 'NotSupportedError' ||
+                playError.message.includes('autoplay') ||
+                playError.message.includes('user interaction') ||
+                playError.message.includes('play() request') ||
+                playError.message.includes('not allowed')) {
                 console.warn('[HR INTERVIEW TTS] ⚠️ Autoplay blocked by browser policy:', playError.message);
                 isAudioPlaying = false;
                 if (voiceButton) voiceButton.classList.remove('listening');
@@ -1251,16 +1554,40 @@ async function playAudio(audioUrl, retryCount = 0) {
         
     } catch (error) {
         console.error('[HR INTERVIEW TTS] ❌ Error in playAudio:', error);
+        console.error('[HR INTERVIEW TTS] ========== PLAY AUDIO CATCH BLOCK ==========');
         console.error('[HR INTERVIEW TTS] Error details:', {
             name: error.name,
             message: error.message,
             stack: error.stack
         });
+        console.error('[HR INTERVIEW TTS] currentHRAudio exists:', currentHRAudio !== null);
+        
         isAudioPlaying = false;
+        
+        // ✅ CRITICAL: Clear currentHRAudio on error
+        if (currentHRAudio) {
+            console.log('[HR INTERVIEW TTS] 🧹 Clearing currentHRAudio (error in playAudio)');
+            stopAndDestroyCurrentHRAudio();
+        }
+        
         const voiceButton = document.getElementById('voiceButton');
         const voiceStatus = document.getElementById('voiceStatus');
         if (voiceButton) voiceButton.classList.remove('listening');
         if (voiceStatus) voiceStatus.textContent = 'Click the microphone to record your answer';
+        
+        // ✅ FIX: Check if this is an autoplay error (don't retry)
+        const isAutoplayError = error.name === 'NotAllowedError' || 
+                                error.name === 'NotSupportedError' ||
+                                error.message.includes('autoplay') ||
+                                error.message.includes('user interaction') ||
+                                error.message.includes('play() request') ||
+                                error.message.includes('not allowed');
+        
+        if (isAutoplayError) {
+            console.warn('[HR INTERVIEW TTS] Autoplay blocked, showing manual play button');
+            showManualPlayButton(audioUrl);
+            return;
+        }
         
         // Retry on network/loading errors (but not autoplay errors)
         if (retryCount < MAX_RETRIES && 
@@ -1270,45 +1597,75 @@ async function playAudio(audioUrl, retryCount = 0) {
              error.message.includes('NetworkError'))) {
             console.log(`[HR INTERVIEW TTS] Retrying due to network error (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
             setTimeout(() => playAudio(audioUrl, retryCount + 1), 1000 * (retryCount + 1));
-        } else if (retryCount >= MAX_RETRIES) {
-            // Show manual play button after all retries exhausted
+        } else {
+            // ✅ FIX: Show manual play button after all retries exhausted or on non-retryable errors
             showManualPlayButton(audioUrl);
+            // After we give up on this item, advance the queue
+            setTimeout(() => playNextFromHRAudio(), 100);
         }
     }
+    // ✅ FIX: Remove finally block - no loading state to reset (match Technical Interview)
 }
 
-// Helper function to show manual play button when autoplay fails
+// ✅ FIX: Helper function to show manual play button when autoplay fails
+// This ensures users can always play audio even if autoplay is blocked
 function showManualPlayButton(audioUrl) {
-    const container = document.getElementById('conversationContainer');
-    if (!container) return;
+    // ✅ DEBUG: Log when manual play button is created
+    console.debug('[HR DEBUG TTS] ========== SHOWING MANUAL PLAY BUTTON ==========');
+    console.debug('[HR DEBUG TTS] audioUrl for manual button:', audioUrl);
+    console.debug('[HR DEBUG TTS] ===============================================');
     
-    // Check if manual play button already exists
-    let existingButton = document.getElementById('manualPlayButton');
-    if (existingButton) {
-        existingButton.onclick = () => playAudio(audioUrl);
+    const container = document.getElementById('conversationContainer');
+    if (!container) {
+        console.warn('[HR INTERVIEW TTS] Cannot show manual play button: container not found');
         return;
+    }
+    
+    // ✅ FIX: Remove any existing manual play button first to avoid duplicates
+    const existingButton = document.getElementById('manualPlayButton');
+    if (existingButton) {
+        console.debug('[HR DEBUG TTS] Removing existing manual play button');
+        existingButton.remove();
     }
     
     // Create manual play button
     const playButton = document.createElement('button');
     playButton.id = 'manualPlayButton';
     playButton.className = 'btn btn-primary';
-    playButton.style.cssText = 'margin: 10px auto; display: block; padding: 10px 20px;';
+    playButton.style.cssText = 'margin: 10px auto; display: block; padding: 12px 24px; font-size: 15px; font-weight: 500; cursor: pointer; border-radius: 8px; background: var(--primary); color: white; border: none;';
     playButton.textContent = '▶ Play Question Audio';
-    playButton.onclick = () => {
-        playAudio(audioUrl);
-        playButton.remove();
+    playButton.onclick = async () => {
+        console.log('[HR INTERVIEW TTS] Manual play button clicked');
+        try {
+            // Enqueue manual audio so it still respects sequential playback
+            enqueueHRAudio(audioUrl);
+            // Remove button after enqueue
+            setTimeout(() => {
+                if (playButton.parentNode) {
+                    playButton.remove();
+                }
+            }, 500);
+        } catch (err) {
+            console.error('[HR INTERVIEW TTS] Manual play enqueue failed:', err);
+            // Keep button visible if enqueue fails
+        }
     };
     
-    // Insert after last message or at end of container
-    const lastMessage = container.lastElementChild;
-    if (lastMessage) {
-        lastMessage.appendChild(playButton);
+    // ✅ FIX: Insert after last AI message (question) for better UX
+    const messages = container.querySelectorAll('.message.ai');
+    const lastAiMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+    
+    if (lastAiMessage) {
+        lastAiMessage.appendChild(playButton);
     } else {
+        // Fallback: append to container
         container.appendChild(playButton);
     }
     
-    console.log('[HR INTERVIEW TTS] Manual play button displayed');
+    // Scroll to show the button
+    container.scrollTop = container.scrollHeight;
+    
+    console.log('[HR INTERVIEW TTS] ✅ Manual play button displayed');
 }
 
 /**

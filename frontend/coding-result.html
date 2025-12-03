@@ -360,7 +360,19 @@
 
 
             container.innerHTML = results.map((result, index) => {
-                const isCorrect = result.correctness;
+                // ✅ FIX BUG 1: Properly read correctness as boolean from backend
+                // Handle both boolean and string values from database
+                let isCorrect = false;
+                if (result.correctness !== null && result.correctness !== undefined) {
+                    if (typeof result.correctness === 'boolean') {
+                        isCorrect = result.correctness;
+                    } else if (typeof result.correctness === 'string') {
+                        isCorrect = result.correctness.toLowerCase() === 'true' || result.correctness === '1';
+                    } else if (typeof result.correctness === 'number') {
+                        isCorrect = result.correctness === 1;
+                    }
+                }
+                
                 const score = result.final_score || 0;
                 const difficulty = result.difficulty_level || 'Medium';
                 const language = result.programming_language || 'python';
@@ -446,14 +458,16 @@
                         </div>
                         ` : ''}
 
+                        ${score < 100 ? `
                         <div class="code-section">
                             <h3>✅ Correct Solution</h3>
                             <div class="code-block" style="background: #e8f5e9;">
-                                ${result.correct_solution && result.correct_solution.trim() 
+                                ${result.correct_solution && result.correct_solution.trim() && result.correct_solution.trim() !== '# Correct solution will be generated based on the problem requirements.' && !result.correct_solution.includes('temporarily unavailable')
                                     ? `<pre style="margin: 0; font-family: 'Courier New', monospace; font-size: 13px; white-space: pre-wrap;">${escapeHtml(result.correct_solution)}</pre>` 
-                                    : '<em style="color: #757575;">Correct solution is being generated. Please refresh the page in a moment.</em>'}
+                                    : '<em style="color: #757575;">Correct solution reference is not available for this problem.</em>'}
                             </div>
                         </div>
+                        ` : ''}
 
                         ${timeComplexity || spaceComplexity ? `
                         <div class="code-section">
@@ -467,9 +481,9 @@
 
                         <div class="feedback-section">
                             <h3>📝 AI Feedback & Logic Improvement Guide</h3>
-                            <div style="white-space: pre-wrap; line-height: 1.8; color: #37474f; padding: 16px; background: #ffffff; border-radius: 8px;">
+                            <div style="color: #37474f; padding: 16px; background: #ffffff; border-radius: 8px;">
                                 ${result.ai_feedback && result.ai_feedback.trim() 
-                                    ? escapeHtml(result.ai_feedback) 
+                                    ? formatFeedback(result.ai_feedback) 
                                     : '<em style="color: #757575;">AI feedback is being generated. Please refresh the page in a moment.</em>'}
                             </div>
                         </div>
@@ -524,6 +538,124 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // ✅ FIX BUG 3: Format feedback in a clean, structured layout
+        function formatFeedback(feedback) {
+            if (!feedback || !feedback.trim()) {
+                return '<em style="color: #757575;">No feedback available.</em>';
+            }
+            
+            let formatted = '';
+            const lines = feedback.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            
+            let currentSection = '';
+            let currentContent = [];
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                
+                // Detect section headers
+                if (line.match(/^✅?\s*CORRECTNESS[:：]?/i)) {
+                    if (currentSection) {
+                        formatted += formatSection(currentSection, currentContent);
+                    }
+                    currentSection = 'correctness';
+                    currentContent = [];
+                    const content = line.replace(/^✅?\s*CORRECTNESS[:：]?\s*/i, '').trim();
+                    if (content) currentContent.push(content);
+                } else if (line.match(/^💡\s*IMPROVEMENTS?[:：]?/i) || line.match(/^🛠️\s*IMPROVEMENTS?[:：]?/i)) {
+                    if (currentSection) {
+                        formatted += formatSection(currentSection, currentContent);
+                    }
+                    currentSection = 'improvements';
+                    currentContent = [];
+                    const content = line.replace(/^[💡🛠️]\s*IMPROVEMENTS?[:：]?\s*/i, '').trim();
+                    if (content) currentContent.push(content);
+                } else if (line.match(/^🧠\s*LOGIC\s*TIP[S]?[:：]?/i)) {
+                    if (currentSection) {
+                        formatted += formatSection(currentSection, currentContent);
+                    }
+                    currentSection = 'logic';
+                    currentContent = [];
+                    const content = line.replace(/^🧠\s*LOGIC\s*TIP[S]?[:：]?\s*/i, '').trim();
+                    if (content) currentContent.push(content);
+                } else if (line.match(/^💪\s*MOTIVATION[:：]?/i)) {
+                    if (currentSection) {
+                        formatted += formatSection(currentSection, currentContent);
+                    }
+                    currentSection = 'motivation';
+                    currentContent = [];
+                    const content = line.replace(/^💪\s*MOTIVATION[:：]?\s*/i, '').trim();
+                    if (content) currentContent.push(content);
+                } else {
+                    // Regular content line
+                    if (currentSection) {
+                        currentContent.push(line);
+                    } else {
+                        // No section detected yet, treat as general feedback
+                        if (!formatted) {
+                            formatted += '<div style="line-height: 1.8; margin-bottom: 16px;">';
+                        }
+                        formatted += escapeHtml(line) + '<br>';
+                    }
+                }
+            }
+            
+            // Add last section
+            if (currentSection) {
+                formatted += formatSection(currentSection, currentContent);
+            }
+            
+            if (!formatted) {
+                // Fallback: just show the raw feedback with basic formatting
+                formatted = '<div style="line-height: 1.8; white-space: pre-wrap;">' + escapeHtml(feedback) + '</div>';
+            }
+            
+            return formatted;
+        }
+        
+        function formatSection(section, content) {
+            if (!content || content.length === 0) return '';
+            
+            let html = '';
+            const sectionTitles = {
+                'correctness': '✅ CORRECTNESS',
+                'improvements': '🛠️ IMPROVEMENTS',
+                'logic': '💡 LOGIC TIP',
+                'motivation': '💪 MOTIVATION'
+            };
+            
+            const title = sectionTitles[section] || section.toUpperCase();
+            html += `<div style="margin-bottom: 20px;">`;
+            html += `<h4 style="color: #e65100; font-size: 16px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">${title}</h4>`;
+            
+            if (section === 'improvements') {
+                // Format as bullet list
+                html += '<ul style="margin: 0; padding-left: 24px; color: #37474f; line-height: 1.8;">';
+                content.forEach(item => {
+                    // Remove bullet markers if already present
+                    const cleanItem = item.replace(/^[•\-\*]\s*/, '').trim();
+                    if (cleanItem) {
+                        html += `<li style="margin-bottom: 8px;">${escapeHtml(cleanItem)}</li>`;
+                    }
+                });
+                html += '</ul>';
+            } else {
+                // Format as paragraph
+                html += '<div style="line-height: 1.8; color: #37474f;">';
+                content.forEach(line => {
+                    // Remove bullet markers if present
+                    const cleanLine = line.replace(/^[•\-\*]\s*/, '').trim();
+                    if (cleanLine) {
+                        html += escapeHtml(cleanLine) + '<br>';
+                    }
+                });
+                html += '</div>';
+            }
+            
+            html += `</div>`;
+            return html;
         }
 
         // Load results on page load

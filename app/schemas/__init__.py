@@ -5,7 +5,10 @@ Pydantic schemas for request/response validation
 from .user import (
     UserProfileCreate,
     UserProfileUpdate,
-    UserProfileResponse
+    UserProfileResponse,
+    ResumeAnalysisResponse,
+    ResumeUploadResponse,
+    ExperienceUpdateResponse
 )
 
 from .interview import (
@@ -22,7 +25,42 @@ from .interview import (
     StartInterviewResponse,
     CategoryScore,
     InterviewEvaluationRequest,
-    InterviewEvaluationResponse
+    InterviewEvaluationResponse,
+    TechnicalInterviewStartRequest,
+    TechnicalInterviewStartResponse,
+    HRInterviewStartResponse,
+    STARInterviewStartResponse,
+    CodingQuestion,
+    CodingInterviewStartResponse,
+    # Submit answer responses
+    HRSubmitAnswerResponse,
+    TechnicalSubmitAnswerResponse,
+    STARSubmitAnswerResponse,
+    # Next question responses
+    HRNextQuestionResponse,
+    TechnicalNextQuestionResponse,
+    STARNextQuestionResponse,
+    CodingNextQuestionResponse,
+    # End interview responses
+    InterviewEndResponse,
+    # Code run response
+    CodeRunResponse,
+    # Speech responses
+    SpeechToTextResponse,
+    # Feedback responses
+    HRFeedbackResponse,
+    TechnicalFeedbackResponse,
+    STARFeedbackResponse,
+    # Summary and results
+    TechnicalSummaryResponse,
+    CodingResultItem,
+    CodingResultsResponse,
+    # Common interview responses
+    RolesResponse,
+    ExperienceLevelsResponse,
+    SessionQuestionsResponse,
+    QuestionResponse,
+    NextQuestionResponse
 )
 
 
@@ -39,6 +77,9 @@ __all__ = [
     "UserProfileCreate",
     "UserProfileUpdate",
     "UserProfileResponse",
+    "ResumeAnalysisResponse",
+    "ResumeUploadResponse",
+    "ExperienceUpdateResponse",
     # Interview schemas
     "InterviewSetupRequest",
     "InterviewSetupResponse",
@@ -54,6 +95,41 @@ __all__ = [
     "CategoryScore",
     "InterviewEvaluationRequest",
     "InterviewEvaluationResponse",
+    "TechnicalInterviewStartRequest",
+    "TechnicalInterviewStartResponse",
+    "HRInterviewStartResponse",
+    "STARInterviewStartResponse",
+    "CodingQuestion",
+    "CodingInterviewStartResponse",
+    # Submit answer responses
+    "HRSubmitAnswerResponse",
+    "TechnicalSubmitAnswerResponse",
+    "STARSubmitAnswerResponse",
+    # Next question responses
+    "HRNextQuestionResponse",
+    "TechnicalNextQuestionResponse",
+    "STARNextQuestionResponse",
+    "CodingNextQuestionResponse",
+    # End interview responses
+    "InterviewEndResponse",
+    # Code run response
+    "CodeRunResponse",
+    # Speech responses
+    "SpeechToTextResponse",
+    # Feedback responses
+    "HRFeedbackResponse",
+    "TechnicalFeedbackResponse",
+    "STARFeedbackResponse",
+    # Summary and results
+    "TechnicalSummaryResponse",
+    "CodingResultItem",
+    "CodingResultsResponse",
+    # Common interview responses
+    "RolesResponse",
+    "ExperienceLevelsResponse",
+    "SessionQuestionsResponse",
+    "QuestionResponse",
+    "NextQuestionResponse",
     # Dashboard schemas
     "InterviewSummary",
     "SkillAnalysis",

@@ -468,15 +468,27 @@
         }
 
         .io-content .error {
-            color: #FF006A;
-            background: #FFEAF3;
-            border-color: rgba(255, 0, 106, 0.3);
+            color: #C62828;
+            background: #FFEBEE;
+            border-color: rgba(198, 40, 40, 0.3);
         }
 
         .io-content .success {
             color: #FF006A;
             background: #E8F1FF;
             border-color: rgba(255, 0, 106, 0.2);
+        }
+
+        .io-content .correct {
+            color: #2E7D32;
+            background: #E8F5E9;
+            border-color: rgba(46, 125, 50, 0.3);
+        }
+
+        .io-content .incorrect {
+            color: #C62828;
+            background: #FFEBEE;
+            border-color: rgba(198, 40, 40, 0.3);
         }
 
         /* Enhanced Action Buttons */
@@ -1256,8 +1268,14 @@ int main() {
             runText.innerHTML = '<span class="loading"></span>Running...';
 
             try {
+                // Validate session ID exists
+                if (!currentSessionId) {
+                    showToast('No active interview session. Please start a new interview.', 'error');
+                    return;
+                }
+
                 // For SQL, include table setup from the question
-                const requestBody = { code, language, input };
+                const requestBody = { code, language, input, session_id: currentSessionId };
                 if (language === 'sql' && currentQuestion && currentQuestion.table_setup) {
                     requestBody.sql_setup = currentQuestion.table_setup;
                 }
@@ -1278,7 +1296,8 @@ int main() {
                     outputPre.className = 'error';
                     outputPre.textContent = `Error: ${result.error}`;
                 } else {
-                    outputPre.className = 'success';
+                    let actualOutput = '';
+                    let rawOutput = '';
                     
                     // Format SQL results nicely
                     if (language === 'sql' && result.output) {
@@ -1308,17 +1327,90 @@ int main() {
                                     formattedOutput += '\n';
                                 }
                             });
-                            outputPre.textContent = formattedOutput || result.output;
+                            actualOutput = formattedOutput || result.output;
+                            rawOutput = result.output;
                         } catch (e) {
                             // If parsing fails, show raw output
-                            outputPre.textContent = result.output || '(No output)';
+                            actualOutput = result.output || '(No output)';
+                            rawOutput = result.output || '';
                         }
                     } else {
-                        outputPre.textContent = result.output || '(No output)';
+                        actualOutput = result.output || '(No output)';
+                        rawOutput = result.output || '';
                     }
                     
                     if (result.execution_time) {
-                        outputPre.textContent += `\n\nExecution time: ${result.execution_time}s`;
+                        actualOutput += `\n\nExecution time: ${result.execution_time}s`;
+                    }
+                    
+                    outputPre.textContent = actualOutput;
+                    
+                    // ✅ FIX: Compare output with expected output from question examples
+                    let isCorrect = null; // null = no comparison available, true = correct, false = incorrect
+                    
+                    if (currentQuestion && currentQuestion.examples && currentQuestion.examples.length > 0) {
+                        // Extract the actual output value (before execution time is added)
+                        let cleanActualOutput = rawOutput.trim();
+                        
+                        // Try to match against each example's expected output
+                        for (const example of currentQuestion.examples) {
+                            if (example.output) {
+                                const expectedOutput = String(example.output).trim();
+                                
+                                // Direct string comparison
+                                if (cleanActualOutput === expectedOutput) {
+                                    isCorrect = true;
+                                    break;
+                                }
+                                
+                                // Try numeric comparison (for cases where output format differs slightly)
+                                const actualNum = parseFloat(cleanActualOutput);
+                                const expectedNum = parseFloat(expectedOutput);
+                                if (!isNaN(actualNum) && !isNaN(expectedNum) && actualNum === expectedNum) {
+                                    isCorrect = true;
+                                    break;
+                                }
+                                
+                                // Try extracting number from output string (e.g., "Output: 6" -> "6")
+                                const actualMatch = cleanActualOutput.match(/(?:Output|Result|Answer)[:\s]*([\d.-]+)/i);
+                                const expectedMatch = expectedOutput.match(/(?:Output|Result|Answer)[:\s]*([\d.-]+)/i);
+                                if (actualMatch && expectedMatch) {
+                                    const actualNum2 = parseFloat(actualMatch[1]);
+                                    const expectedNum2 = parseFloat(expectedMatch[1]);
+                                    if (!isNaN(actualNum2) && !isNaN(expectedNum2) && actualNum2 === expectedNum2) {
+                                        isCorrect = true;
+                                        break;
+                                    }
+                                }
+                                
+                                // Try extracting the last number from output (common pattern)
+                                const actualNumbers = cleanActualOutput.match(/[\d.-]+/g);
+                                const expectedNumbers = expectedOutput.match(/[\d.-]+/g);
+                                if (actualNumbers && expectedNumbers && actualNumbers.length > 0 && expectedNumbers.length > 0) {
+                                    const lastActualNum = parseFloat(actualNumbers[actualNumbers.length - 1]);
+                                    const lastExpectedNum = parseFloat(expectedNumbers[expectedNumbers.length - 1]);
+                                    if (!isNaN(lastActualNum) && !isNaN(lastExpectedNum) && lastActualNum === lastExpectedNum) {
+                                        isCorrect = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // If we checked examples but didn't find a match, mark as incorrect
+                        if (isCorrect === null && cleanActualOutput && cleanActualOutput !== '(No output)') {
+                            isCorrect = false;
+                        }
+                    }
+                    
+                    // Set the appropriate class based on correctness
+                    if (isCorrect === true) {
+                        outputPre.className = 'correct';
+                    } else if (isCorrect === false) {
+                        outputPre.className = 'incorrect';
+                    } else {
+                        // No comparison available, use default success styling
+                        outputPre.className = 'success';
                     }
                 }
 
@@ -1364,7 +1456,17 @@ int main() {
                     await getCurrentUser();
                 }
                 
-                const response = await fetch(`${getApiBase()}/api/interview/coding/next`, {
+                // Validate session ID exists
+                if (!currentSessionId) {
+                    throw new Error('No active interview session. Please start a new interview.');
+                }
+                
+                // Construct the URL with session ID in the path
+                const submitUrl = `${getApiBase()}/api/interview/coding/${currentSessionId}/next`;
+                console.log('[CODING] Submitting solution to:', submitUrl);
+                console.log('[CODING] Session ID:', currentSessionId);
+                
+                const response = await fetch(submitUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

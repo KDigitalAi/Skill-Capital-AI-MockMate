@@ -30,6 +30,20 @@ from .file_utils import (
     extract_file_extension
 )
 
+from .rate_limiter import (
+    RateLimiter,
+    get_rate_limiter,
+    check_rate_limit,
+    rate_limit_by_user_id,
+    check_session_rate_limit,
+    rate_limit_by_session_id
+)
+
+from .request_validator import (
+    validate_request_size,
+    MAX_REQUEST_SIZE
+)
+
 __all__ = [
     # Exceptions
     "AppException",
@@ -50,6 +64,16 @@ __all__ = [
     "validate_file_type",
     "save_temp_file",
     "cleanup_temp_file",
-    "extract_file_extension"
+    "extract_file_extension",
+    # Rate limiter
+    "RateLimiter",
+    "get_rate_limiter",
+    "check_rate_limit",
+    "rate_limit_by_user_id",
+    "check_session_rate_limit",
+    "rate_limit_by_session_id",
+    # Request validator
+    "validate_request_size",
+    "MAX_REQUEST_SIZE"
 ]
 

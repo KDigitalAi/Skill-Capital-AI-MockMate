@@ -677,12 +677,33 @@
         let audioChunks = [];
         let interviewActive = false;
         let currentAudioBlob = null;  // Store the current audio recording
+        let currentAudio = null;  // Track current audio playback to prevent overlap
+        let isAudioPlaying = false;  // Track if audio is currently playing
         
         // ✅ FIX: Loading state tracking to prevent duplicate calls (Technical Interview only)
         let isLoading = {
             submitAnswer: false,
             getNextQuestion: false
         };
+        
+        // ✅ FIX: Stop and destroy any currently playing audio
+        function stopCurrentAudio() {
+            if (currentAudio) {
+                console.log('[TECHNICAL INTERVIEW] Stopping current audio playback');
+                try {
+                    currentAudio.pause();
+                    currentAudio.currentTime = 0;
+                    // Clean up blob URL if it exists
+                    if (currentAudio.src && currentAudio.src.startsWith('blob:')) {
+                        URL.revokeObjectURL(currentAudio.src);
+                    }
+                } catch (e) {
+                    console.warn('[TECHNICAL INTERVIEW] Error stopping audio:', e);
+                }
+                currentAudio = null;
+                isAudioPlaying = false;
+            }
+        }
 
         function setLoadingState(key, value) {
             isLoading[key] = value;
@@ -798,27 +819,6 @@
         function setupEventListeners() {
             document.getElementById('voiceButton').addEventListener('click', toggleRecording);
             document.getElementById('endInterviewBtn').addEventListener('click', endInterview);
-        }
-
-        function displayMessage(role, content, audioUrl = null) {
-            const container = document.getElementById('conversationContainer');
-            if (!container) {
-                console.error('[INTERVIEW] Conversation container not found');
-                return;
-            }
-            
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${role}`;
-
-            const header = role === 'ai' ? 'AI Interviewer' : 'You';
-            messageDiv.innerHTML = `
-                <div class="message-header">${header}</div>
-                <div class="message-content">${content}</div>
-                ${audioUrl ? `<audio class="audio-player" controls src="${audioUrl}"></audio>` : ''}
-            `;
-
-            container.appendChild(messageDiv);
-            container.scrollTop = container.scrollHeight;
         }
 
         function showError(message) {
@@ -988,7 +988,20 @@
                     const audioBlob = new Blob(audioChunks, { type: mimeType });
                     
                     if (audioBlob.size === 0) {
-                        document.getElementById('voiceStatus').textContent = 'No audio recorded. Please try again.';
+                        // ✅ If user clicked record but did not speak, treat as 'No Answer'
+                        const noAnswerText = 'No Answer';
+                        document.getElementById('voiceStatus').textContent = 'No answer captured. Sending "No Answer".';
+                        
+                        // Display 'No Answer' as the user's response
+                        displayMessage('user', noAnswerText);
+                        conversationHistory.push({
+                            role: 'user',
+                            content: noAnswerText
+                        });
+                        
+                        // Submit 'No Answer' to the backend
+                        await submitAnswer(noAnswerText);
+                        stream.getTracks().forEach(track => track.stop());
                         return;
                     }
                     
@@ -1050,10 +1063,11 @@
                 }
 
                 const sttData = await sttResponse.json();
-                const transcribedText = sttData.text || sttData.transcript || '';
+                let transcribedText = sttData.text || sttData.transcript || '';
 
+                // ✅ If user did not speak or transcription is empty, treat as 'No Answer'
                 if (!transcribedText || transcribedText.trim() === '') {
-                    throw new Error('No transcription received');
+                    transcribedText = 'No Answer';
                 }
 
                 // ✅ CONVERSATIONAL FLOW: Display user answer as chat bubble and submit automatically
@@ -1119,15 +1133,32 @@
 
                 const data = await response.json();
 
-                // ✅ FIX: Do NOT display ai_response as a question - it's just feedback
-                // ai_response should NOT trigger audio or be displayed as a separate message
-                // Only real questions from getNextQuestion() should be displayed with audio
+                // Display AI feedback response (similar to HR interview)
                 if (data.ai_response) {
-                    // Log feedback but don't display it as a question message
-                    console.log('[SUBMIT ANSWER] AI feedback received (not displayed as question):', data.ai_response.substring(0, 50) + '...');
-                    // Do NOT add to conversationHistory as 'ai' role - it's feedback, not a question
-                    // Do NOT call displayMessage() for ai_response
-                    // Do NOT play audio for ai_response
+                    console.log('[SUBMIT ANSWER] AI feedback received:', data.ai_response.substring(0, 50) + '...');
+                    
+                    // Add feedback to conversation history
+                    conversationHistory.push({
+                        role: 'ai',
+                        content: data.ai_response,
+                        audio_url: data.audio_url
+                    });
+                    
+                    // Display feedback message
+                    displayMessage('ai', data.ai_response, data.audio_url);
+                    
+                    // Play audio for feedback if available and wait for it to complete
+                    if (data.audio_url) {
+                        console.log('[TECHNICAL INTERVIEW] Playing AI feedback audio:', data.audio_url);
+                        // Use setTimeout to play audio after a short delay to ensure message is displayed first
+                        try {
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                            await playAudio(data.audio_url);
+                            console.log('[TECHNICAL INTERVIEW] Feedback audio completed');
+                        } catch (err) {
+                            console.warn('[TECHNICAL INTERVIEW] Audio playback failed for feedback:', err);
+                        }
+                    }
                 }
 
                 // Check if interview is complete (10 questions for Technical - same as HR/STAR)
@@ -1135,16 +1166,14 @@
                 if (data.interview_completed || aiQuestionsCount >= 10) {
                     await showSummary();
                 } else {
-                    // ✅ FIX: Get next question after a short delay with race condition check
+                    // ✅ FIX: Get next question after feedback audio completes
                     // Pass the user's answer so backend can save it and use it for context-aware next question
-                    setTimeout(() => {
-                        // ✅ FIX: Check if getNextQuestion is already in progress to prevent duplicate calls
-                        if (!isLoading.getNextQuestion) {
-                            getNextQuestion(answerText);  // Pass the answer for context-aware question generation
-                        } else {
-                            console.warn('[SUBMIT ANSWER] getNextQuestion already in progress, ignoring duplicate call');
-                        }
-                    }, 2000);
+                    // ✅ FIX: Check if getNextQuestion is already in progress to prevent duplicate calls
+                    if (!isLoading.getNextQuestion) {
+                        await getNextQuestion(answerText);  // Pass the answer for context-aware question generation
+                    } else {
+                        console.warn('[SUBMIT ANSWER] getNextQuestion already in progress, ignoring duplicate call');
+                    }
                 }
 
                 document.getElementById('voiceStatus').textContent = 'Click the microphone to record your answer';
@@ -1227,18 +1256,18 @@
                 displayMessage('ai', nextQuestion, audioUrl);
                 
                 // ✅ FIX: ALWAYS play audio for every question (only real questions, not feedback)
-                setTimeout(() => {
-                    if (audioUrl && audioUrl.trim()) {
-                        playAudio(audioUrl).catch(err => {
-                            // Audio playback failed
-                        });
-                    } else if (nextQuestion) {
-                        // Fallback: generate TTS from question text
-                        playAudio(nextQuestion).catch(err => {
-                            // Fallback TTS generation failed
-                        });
-                    }
-                }, 100);
+                // Wait a short delay to ensure UI is updated, then play audio
+                await new Promise(resolve => setTimeout(resolve, 100));
+                if (audioUrl && audioUrl.trim()) {
+                    await playAudio(audioUrl).catch(err => {
+                        console.warn('[TECHNICAL INTERVIEW] Next question audio playback failed:', err);
+                    });
+                } else if (nextQuestion) {
+                    // Fallback: generate TTS from question text
+                    await playAudio(nextQuestion).catch(err => {
+                        console.warn('[TECHNICAL INTERVIEW] Fallback TTS generation failed:', err);
+                    });
+                }
 
                 document.getElementById('voiceStatus').textContent = 'Click the microphone to record your answer';
 
@@ -1326,6 +1355,9 @@
                 return;
             }
             
+            // ✅ FIX: Stop any currently playing audio before starting a new one
+            stopCurrentAudio();
+            
             try {
                 let text = textOrUrl;
                 
@@ -1340,15 +1372,29 @@
                         } else {
                             // If it's a direct audio URL, play it
                             const audio = new Audio(textOrUrl);
-                            audio.onerror = (e) => {
-                                console.error('[TTS] Direct audio URL playback failed:', e);
-                                document.getElementById('voiceStatus').textContent = 'Audio playback failed. Question is displayed above.';
-                            };
-                            audio.onended = () => {
-                                document.getElementById('voiceStatus').textContent = 'Click the microphone to start recording';
-                            };
+                            currentAudio = audio;  // Track current audio instance
+                            isAudioPlaying = true;
+                            
+                            // ✅ FIX: Wait for audio to finish playing before returning
+                            const audioPlayPromise = new Promise((resolve, reject) => {
+                                audio.onended = () => {
+                                    document.getElementById('voiceStatus').textContent = 'Click the microphone to start recording';
+                                    currentAudio = null;
+                                    isAudioPlaying = false;
+                                    resolve();
+                                };
+                                audio.onerror = (e) => {
+                                    console.error('[TTS] Direct audio URL playback failed:', e);
+                                    document.getElementById('voiceStatus').textContent = 'Audio playback failed. Question is displayed above.';
+                                    currentAudio = null;
+                                    isAudioPlaying = false;
+                                    reject(e);
+                                };
+                            });
                             await audio.play();
                             document.getElementById('voiceStatus').textContent = 'AI is speaking the question...';
+                            // Wait for audio to finish
+                            await audioPlayPromise;
                             return;
                         }
                     } catch (e) {
@@ -1402,18 +1448,29 @@
                 
                 const audioUrl_obj = URL.createObjectURL(audioBlob);
                 const audio = new Audio(audioUrl_obj);
+                currentAudio = audio;  // Track current audio instance
+                isAudioPlaying = true;
                 
                 // Set up event handlers before playing
-                audio.onended = () => {
-                    URL.revokeObjectURL(audioUrl_obj);
-                    document.getElementById('voiceStatus').textContent = 'Click the microphone to start recording';
-                };
-                
-                audio.onerror = (error) => {
-                    console.error('[TTS] Audio playback error:', error);
-                    URL.revokeObjectURL(audioUrl_obj);
-                    document.getElementById('voiceStatus').textContent = 'Audio playback failed. Question is displayed above.';
-                };
+                // ✅ FIX: Create a Promise that resolves when audio finishes playing
+                const audioPlayPromise = new Promise((resolve, reject) => {
+                    audio.onended = () => {
+                        URL.revokeObjectURL(audioUrl_obj);
+                        document.getElementById('voiceStatus').textContent = 'Click the microphone to start recording';
+                        currentAudio = null;
+                        isAudioPlaying = false;
+                        resolve();
+                    };
+                    
+                    audio.onerror = (error) => {
+                        console.error('[TTS] Audio playback error:', error);
+                        URL.revokeObjectURL(audioUrl_obj);
+                        document.getElementById('voiceStatus').textContent = 'Audio playback failed. Question is displayed above.';
+                        currentAudio = null;
+                        isAudioPlaying = false;
+                        reject(error);
+                    };
+                });
                 
                 audio.onloadstart = () => {
                     document.getElementById('voiceStatus').textContent = 'Loading audio...';
@@ -1426,6 +1483,8 @@
                 // Play audio
                 try {
                     await audio.play();
+                    // ✅ FIX: Wait for audio to finish playing before returning
+                    await audioPlayPromise;
                 } catch (playError) {
                     console.error('[TTS] Error starting playback:', playError);
                     // Some browsers require user interaction - show message
@@ -1435,6 +1494,7 @@
                         document.addEventListener('click', async function enableAudio() {
                             try {
                                 await audio.play();
+                                await audioPlayPromise;
                                 document.removeEventListener('click', enableAudio);
                             } catch (e) {
                                 console.error('[TTS] Still cannot play after interaction:', e);
@@ -1447,6 +1507,10 @@
                 
             } catch (error) {
                 console.error('[TTS] Error in playAudio:', error);
+                
+                // ✅ FIX: Clean up audio state on error
+                currentAudio = null;
+                isAudioPlaying = false;
                 
                 // Retry on network errors
                 if (retryCount < MAX_RETRIES && (error.message.includes('fetch') || error.message.includes('network'))) {

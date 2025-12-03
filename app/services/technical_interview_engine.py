@@ -224,7 +224,8 @@ Return ONLY the question text, nothing else. Make it sound natural and conversat
                 model="gpt-3.5-turbo",
                 messages=messages,
                 temperature=0.8,  # Slightly higher for more natural variation
-                max_tokens=200  # Increased for more natural questions
+                max_tokens=200,  # Increased for more natural questions
+                timeout=30
             )
             
             question = response.choices[0].message.content.strip()
@@ -301,7 +302,8 @@ Return ONLY "YES" or "NO"."""
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.3,  # Lower temperature for more consistent decisions
-                max_tokens=10
+                max_tokens=10,
+                timeout=30
             )
             
             decision = response.choices[0].message.content.strip().upper()
@@ -407,7 +409,8 @@ Return ONLY the question text, nothing else."""
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.8,
-                max_tokens=150
+                max_tokens=150,
+                timeout=30
             )
             
             followup_question = response.choices[0].message.content.strip()
@@ -483,7 +486,8 @@ Keep it conversational and suitable for voice interaction."""
                         {"role": "user", "content": user_prompt}
                     ],
                     temperature=0.7,
-                    max_tokens=100
+                    max_tokens=100,
+                    timeout=30
                 )
                 
                 ai_response = response.choices[0].message.content.strip()
@@ -656,7 +660,8 @@ Be specific, constructive, and encouraging. Reference actual content from their 
                     ],
                     temperature=0.7,
                     max_tokens=1000,  # Increased for detailed feedback
-                    response_format={"type": "json_object"}  # Force JSON response
+                    response_format={"type": "json_object"},  # Force JSON response
+                    timeout=30
                 )
                 
                 # Extract and parse JSON response

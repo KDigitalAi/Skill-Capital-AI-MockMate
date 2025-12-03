@@ -4,7 +4,7 @@ Pydantic models for request/response validation
 """
 
 from pydantic import BaseModel, EmailStr
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
@@ -61,4 +61,63 @@ class UserProfileResponse(BaseModel):
         extra = "ignore"
 
 
+class ResumeAnalysisResponse(BaseModel):
+    """
+    Schema for resume analysis response
+    Time Complexity: O(1)
+    Space Complexity: O(1)
+    """
+    success: Optional[bool] = None
+    error: Optional[str] = None
+    session_id: Optional[str] = None
+    user_id: Optional[str] = None
+    name: Optional[str] = None
+    email: Optional[str] = None
+    skills: Optional[List[str]] = []
+    experience_level: Optional[str] = None
+    keywords: Optional[Dict[str, Any]] = {}
+    text_length: Optional[int] = 0
+    summary: Optional[Dict[str, Any]] = None
+    interview_modules: Optional[Dict[str, Any]] = None
+    created_at: Optional[str] = None
+    
+    class Config:
+        """Pydantic configuration"""
+        populate_by_name = True
+        validate_assignment = True
+        extra = "allow"  # Allow extra fields that may exist in cache
 
+
+class ResumeUploadResponse(BaseModel):
+    """
+    Schema for resume upload response
+    Time Complexity: O(1)
+    Space Complexity: O(1)
+    """
+    success: bool
+    message: str
+    session_id: str
+    interview_session_id: Optional[str] = None
+    user_id: Optional[str] = None
+    name: Optional[str] = None
+    email: Optional[str] = None
+    skills: Optional[List[str]] = []
+    experience_level: Optional[str] = None
+    keywords: Optional[Dict[str, Any]] = {}
+    text_length: Optional[int] = 0
+    summary: Optional[Dict[str, Any]] = None
+    interview_modules: Optional[Dict[str, Any]] = None
+    resume_url: Optional[str] = None
+
+
+class ExperienceUpdateResponse(BaseModel):
+    """
+    Schema for experience update response
+    Time Complexity: O(1)
+    Space Complexity: O(1)
+    """
+    status: str
+    success: bool
+    message: str
+    experience_level: str
+    session_id: str

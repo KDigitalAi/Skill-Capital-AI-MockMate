@@ -352,27 +352,62 @@ Generate a unique, personalized coding problem now."""
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.8,  # Slightly higher for more variety
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
+                timeout=30
             )
             
             content = response.choices[0].message.content
             question_data = json.loads(content)
             
-            # ✅ FIX: Validate question is not a duplicate
+            # ✅ FIX: Strict duplicate detection - check exact matches and similarity
             new_problem = question_data.get("problem", "")
             if new_problem:
-                # Check for similarity with previous questions
+                # Normalize new problem for comparison
+                new_problem_normalized = " ".join(new_problem.strip().lower().split())
+                
+                # Check against normalized set if available (faster)
+                questions_normalized = session_data.get("questions_asked_normalized", set())
+                if questions_normalized and new_problem_normalized in questions_normalized:
+                    # Exact duplicate detected - regenerate immediately
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"[CODING ENGINE] ⚠️ Exact duplicate detected for question: {new_problem[:80]}...")
+                    return self._regenerate_with_duplicate_warning(
+                        session_data, previous_questions, suggested_type, difficulty_label, skills_context
+                    )
+                
+                # Also check against full list for similarity
                 for prev_q in previous_questions:
-                    # Simple similarity check: if >50% words match, flag as potential duplicate
-                    new_words = set(new_problem.lower().split())
-                    prev_words = set(prev_q.lower().split())
+                    if not prev_q:
+                        continue
+                    prev_q_normalized = " ".join(prev_q.strip().lower().split())
+                    
+                    # Exact match check
+                    if new_problem_normalized == prev_q_normalized:
+                        # Exact duplicate - regenerate
+                        return self._regenerate_with_duplicate_warning(
+                            session_data, previous_questions, suggested_type, difficulty_label, skills_context
+                        )
+                    
+                    # Similarity check: if >40% words match, flag as potential duplicate
+                    new_words = set(new_problem_normalized.split())
+                    prev_words = set(prev_q_normalized.split())
                     if len(new_words) > 0 and len(prev_words) > 0:
-                        similarity = len(new_words & prev_words) / len(new_words | prev_words)
-                        if similarity > 0.5:  # More than 50% similarity
-                            # Regenerate with stronger duplicate warning
-                            return self._regenerate_with_duplicate_warning(
-                                session_data, previous_questions, suggested_type, difficulty_label, skills_context
-                            )
+                        # Remove common stop words for better comparison
+                        stop_words = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "is", "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "will", "would", "should", "could", "may", "might", "must", "can"}
+                        new_words_filtered = new_words - stop_words
+                        prev_words_filtered = prev_words - stop_words
+                        
+                        if len(new_words_filtered) > 0 and len(prev_words_filtered) > 0:
+                            similarity = len(new_words_filtered & prev_words_filtered) / len(new_words_filtered | prev_words_filtered)
+                            if similarity > 0.4:  # More than 40% similarity (lowered threshold for stricter detection)
+                                # Similar question detected - regenerate
+                                import logging
+                                logger = logging.getLogger(__name__)
+                                logger.warning(f"[CODING ENGINE] ⚠️ Similar question detected (similarity: {similarity:.2%}): {new_problem[:80]}...")
+                                return self._regenerate_with_duplicate_warning(
+                                    session_data, previous_questions, suggested_type, difficulty_label, skills_context
+                                )
             
             return {
                 "problem": question_data.get("problem", ""),
@@ -395,43 +430,114 @@ Generate a unique, personalized coding problem now."""
         difficulty_label: str,
         skills_context: str
     ) -> Dict[str, Any]:
-        """✅ FIX: Regenerate question with stronger duplicate warning"""
+        """✅ FIX: Regenerate question with stronger duplicate warning - try up to 3 times"""
         if not self.openai_available or self.client is None:
             return self._get_fallback_coding_question(session_data, previous_questions, suggested_type)
         
-        try:
-            user_prompt = f"""⚠️ DUPLICATE DETECTED - Generate a COMPLETELY NEW and DIFFERENT coding problem.
+        # Try up to 3 regeneration attempts
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                # Build comprehensive list of previous questions
+                previous_questions_summary = "\n".join([
+                    f"{i+1}. {q[:200]}..." if len(q) > 200 else f"{i+1}. {q}"
+                    for i, q in enumerate(previous_questions[:10])
+                ])
+                
+                user_prompt = f"""⚠️ CRITICAL: DUPLICATE DETECTED - Generate a COMPLETELY NEW and DIFFERENT coding problem.
 
-Previous questions (DO NOT REPEAT):
-{chr(10).join([f"- {q[:100]}..." for q in previous_questions[:5]])}
+PREVIOUS QUESTIONS (DO NOT REPEAT OR SIMILAR TO ANY OF THESE):
+{previous_questions_summary}
 
-Generate a {difficulty_label} level {suggested_type} problem for skills: {skills_context}
-The new problem must be UNIQUE and NOT similar to any previous question."""
-            
-            response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "Generate a unique coding problem. Ensure it's completely different from previous questions."},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=0.9,  # Higher temperature for more variety
-                response_format={"type": "json_object"}
-            )
-            
-            content = response.choices[0].message.content
-            question_data = json.loads(content)
-            
-            return {
-                "problem": question_data.get("problem", ""),
-                "examples": question_data.get("examples", []),
-                "test_cases": question_data.get("test_cases", []),
-                "constraints": question_data.get("constraints", ""),
-                "difficulty": question_data.get("difficulty", difficulty_label),
-                "topics": question_data.get("topics", [suggested_type]),
-                "question_type": suggested_type
-            }
-        except Exception:
-            return self._get_fallback_coding_question(session_data, previous_questions, suggested_type)
+REQUIREMENTS:
+- Generate a {difficulty_label} level {suggested_type} problem
+- Skills context: {skills_context}
+- The new problem must be:
+  * COMPLETELY DIFFERENT from all previous questions
+  * Use a different problem statement, approach, and examples
+  * NOT a variant or rephrasing of any previous question
+  * Unique in concept and solution approach
+
+Generate a truly unique coding problem now (attempt {attempt + 1}/{max_attempts})."""
+                
+                response = self.client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "You are a coding interview question generator. You MUST generate completely unique questions that are NOT duplicates or variants of previous questions. Each question must have a distinct problem statement, approach, and solution."},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=0.95,  # Very high temperature for maximum variety
+                    response_format={"type": "json_object"},
+                    timeout=30
+                )
+                
+                content = response.choices[0].message.content
+                question_data = json.loads(content)
+                new_problem = question_data.get("problem", "")
+                
+                if not new_problem:
+                    continue  # Try again
+                
+                # Validate the regenerated question is not a duplicate
+                new_problem_normalized = " ".join(new_problem.strip().lower().split())
+                questions_normalized = session_data.get("questions_asked_normalized", set())
+                
+                # Check exact match
+                if questions_normalized and new_problem_normalized in questions_normalized:
+                    if attempt < max_attempts - 1:
+                        continue  # Try again
+                    else:
+                        # Last attempt failed, use fallback
+                        return self._get_fallback_coding_question(session_data, previous_questions, suggested_type)
+                
+                # Check similarity with previous questions
+                is_duplicate = False
+                for prev_q in previous_questions:
+                    if not prev_q:
+                        continue
+                    prev_q_normalized = " ".join(prev_q.strip().lower().split())
+                    if new_problem_normalized == prev_q_normalized:
+                        is_duplicate = True
+                        break
+                    
+                    # Similarity check
+                    new_words = set(new_problem_normalized.split())
+                    prev_words = set(prev_q_normalized.split())
+                    stop_words = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by"}
+                    new_words_filtered = new_words - stop_words
+                    prev_words_filtered = prev_words - stop_words
+                    if len(new_words_filtered) > 0 and len(prev_words_filtered) > 0:
+                        similarity = len(new_words_filtered & prev_words_filtered) / len(new_words_filtered | prev_words_filtered)
+                        if similarity > 0.4:
+                            is_duplicate = True
+                            break
+                
+                if is_duplicate:
+                    if attempt < max_attempts - 1:
+                        continue  # Try again
+                    else:
+                        # Last attempt failed, use fallback
+                        return self._get_fallback_coding_question(session_data, previous_questions, suggested_type)
+                
+                # Question is unique, return it
+                return {
+                    "problem": new_problem,
+                    "examples": question_data.get("examples", []),
+                    "test_cases": question_data.get("test_cases", []),
+                    "constraints": question_data.get("constraints", ""),
+                    "difficulty": question_data.get("difficulty", difficulty_label),
+                    "topics": question_data.get("topics", [suggested_type]),
+                    "question_type": suggested_type
+                }
+            except Exception as e:
+                if attempt < max_attempts - 1:
+                    continue  # Try again
+                else:
+                    # All attempts failed, use fallback
+                    return self._get_fallback_coding_question(session_data, previous_questions, suggested_type)
+        
+        # If we get here, all attempts failed
+        return self._get_fallback_coding_question(session_data, previous_questions, suggested_type)
     
     def _determine_difficulty(
         self, 
@@ -620,12 +726,43 @@ The new problem must be UNIQUE and NOT similar to any previous question."""
             }
         ]
         
-        # Select a question that hasn't been asked
-        available = [q for q in fallback_questions if q["problem"] not in previous_questions]
+        # ✅ FIX: Select a question that hasn't been asked - use normalized comparison
+        available = []
+        questions_normalized = session_data.get("questions_asked_normalized", set())
+        
+        for q in fallback_questions:
+            q_problem = q.get("problem", "")
+            if not q_problem:
+                continue
+            
+            # Normalize for comparison
+            q_normalized = " ".join(q_problem.strip().lower().split())
+            
+            # Check if this question was already asked
+            is_duplicate = False
+            if questions_normalized and q_normalized in questions_normalized:
+                is_duplicate = True
+            else:
+                # Also check against full list
+                for prev_q in previous_questions:
+                    if not prev_q:
+                        continue
+                    prev_q_normalized = " ".join(prev_q.strip().lower().split())
+                    if q_normalized == prev_q_normalized:
+                        is_duplicate = True
+                        break
+            
+            if not is_duplicate:
+                available.append(q)
+        
+        # If all questions have been asked, cycle through them but skip exact duplicates
         if not available:
+            # Find questions that are least similar to previous ones
             available = fallback_questions
         
-        base_question = available[0]
+        # Select question using round-robin to ensure variety
+        question_index = len(previous_questions) % len(available) if available else 0
+        base_question = available[question_index] if available else fallback_questions[0]
         contextual_problem = f"While enhancing your '{project_reference}' work using {primary_skill}, you now need to solve the following challenge. {base_question['problem']}"
         return {
             "problem": contextual_problem,
@@ -694,7 +831,8 @@ Create a realistic SQL problem with:
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.7,
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
+                timeout=30
             )
             
             content = response.choices[0].message.content
@@ -802,12 +940,42 @@ INSERT INTO employees (emp_id, emp_name, dept_id, salary) VALUES (5, 'Eve', 3, 6
             }
         ]
         
-        # Select a question that hasn't been asked
-        available = [q for q in fallback_sql_questions if q["problem"] not in previous_questions]
+        # ✅ FIX: Select a SQL question that hasn't been asked - use normalized comparison
+        available = []
+        questions_normalized = session_data.get("questions_asked_normalized", set())
+        
+        for q in fallback_sql_questions:
+            q_problem = q.get("problem", "")
+            if not q_problem:
+                continue
+            
+            # Normalize for comparison
+            q_normalized = " ".join(q_problem.strip().lower().split())
+            
+            # Check if this question was already asked
+            is_duplicate = False
+            if questions_normalized and q_normalized in questions_normalized:
+                is_duplicate = True
+            else:
+                # Also check against full list
+                for prev_q in previous_questions:
+                    if not prev_q:
+                        continue
+                    prev_q_normalized = " ".join(prev_q.strip().lower().split())
+                    if q_normalized == prev_q_normalized:
+                        is_duplicate = True
+                        break
+            
+            if not is_duplicate:
+                available.append(q)
+        
+        # If all questions have been asked, cycle through them
         if not available:
             available = fallback_sql_questions
         
-        return available[0]
+        # Select question using round-robin to ensure variety
+        question_index = len(previous_questions) % len(available) if available else 0
+        return available[question_index] if available else fallback_sql_questions[0]
 
 # Create global instance
 coding_interview_engine = CodingInterviewEngine()

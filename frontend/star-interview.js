@@ -20,6 +20,40 @@ let currentQuestion = null;
 let interviewActive = false;
 let currentAudio = null; // Track current audio playback to prevent overlap
 let isAudioPlaying = false; // Track if audio is currently playing
+let starAudioQueue = []; // Queue for STAR interview audio (follow-up → question sequence)
+
+// Simple FIFO queue for STAR interview audio to ensure sequential playback
+function enqueueAudio(textOrUrl) {
+    if (!textOrUrl) {
+        return;
+    }
+    console.log('[STAR INTERVIEW TTS] Enqueue audio:', String(textOrUrl).substring(0, 80) + '...');
+    starAudioQueue.push(textOrUrl);
+
+    // If nothing is currently playing, start immediately
+    if (!isAudioPlaying) {
+        playNextFromStarQueue();
+    }
+}
+
+function playNextFromStarQueue() {
+    if (isAudioPlaying) {
+        // Current audio still playing; wait for onended/onerror to advance the queue
+        return;
+    }
+    if (starAudioQueue.length === 0) {
+        return;
+    }
+
+    const next = starAudioQueue.shift();
+    console.log('[STAR INTERVIEW TTS] Dequeue and play next audio:', String(next).substring(0, 80) + '...');
+    // Fire-and-forget; playAudio will manage onended/onerror and may call playNextFromStarQueue again
+    playAudio(next).catch(err => {
+        console.warn('[STAR INTERVIEW TTS] Queue item playback failed:', err);
+        // Move on to the next item to avoid getting stuck
+        setTimeout(() => playNextFromStarQueue(), 100);
+    });
+}
 
 // Loading state management to prevent double submission
 let isLoading = {
@@ -187,14 +221,11 @@ async function startInterview() {
             // Play audio if available (same as technical interview)
             // Note: playAudio is called after user interaction (button click), so autoplay should work
             if (data.audio_url) {
-                console.log('[STAR INTERVIEW] ✅ audio_url found, calling playAudio:', data.audio_url);
-                // Use setTimeout(0) to ensure this runs in next event loop tick but still within user interaction context
+                console.log('[STAR INTERVIEW] ✅ audio_url found, enqueueing audio:', data.audio_url);
+                // Use setTimeout to ensure this runs after UI update but still right after user interaction
                 setTimeout(() => {
-                    playAudio(data.audio_url).catch(err => {
-                        console.warn('[STAR INTERVIEW] Audio playback failed, will show manual play button:', err);
-                        // Error is already handled in playAudio with manual play button
-                    });
-                }, 100); // Small delay to ensure UI is updated
+                    enqueueAudio(data.audio_url);
+                }, 100);
             } else {
                 console.error('[STAR INTERVIEW] ❌ No audio_url received for first question. Response keys:', Object.keys(data));
                 document.getElementById('voiceStatus').textContent = 'Click the microphone to record your answer';
@@ -678,10 +709,8 @@ async function submitAnswer(answer) {
             displayMessage('ai', data.ai_response, data.audio_url);
             
             if (data.audio_url) {
-                console.log('[STAR INTERVIEW] Playing AI response audio:', data.audio_url);
-                    playAudio(data.audio_url).catch(err => {
-                        console.warn('[STAR INTERVIEW] Audio playback failed:', err);
-                });
+                console.log('[STAR INTERVIEW] Enqueueing AI response audio:', data.audio_url);
+                enqueueAudio(data.audio_url);
             }
         }
 
@@ -811,25 +840,13 @@ async function getNextSTARQuestion(userAnswer = null) {
         // For subsequent questions, user has already interacted (recorded answer), so autoplay should work
         setTimeout(() => {
             if (audioUrl && audioUrl.trim()) {
-                console.log('[STAR INTERVIEW] ✅ Playing next question audio:', audioUrl);
-                playAudio(audioUrl).catch(err => {
-                    console.warn('[STAR INTERVIEW] Audio playback failed, trying fallback TTS:', err);
-                    // Fallback: generate TTS from question text if audio_url fails
-                    if (nextQuestion) {
-                        playAudio(nextQuestion).catch(fallbackErr => {
-                            console.warn('[STAR INTERVIEW] Fallback TTS also failed, will show manual play button:', fallbackErr);
-                            // Error is already handled in playAudio with manual play button
-                        });
-                    }
-                });
+                console.log('[STAR INTERVIEW] ✅ Enqueueing next question audio:', audioUrl);
+                enqueueAudio(audioUrl);
             } else {
-                // ✅ FIX: Fallback - generate TTS from question text if audio_url is missing
-                console.warn('[STAR INTERVIEW] ⚠️ No audioUrl provided, generating TTS from question text');
+                // Fallback - generate TTS from question text if audio_url is missing
+                console.warn('[STAR INTERVIEW] ⚠️ No audioUrl provided, enqueueing TTS from question text');
                 if (nextQuestion) {
-                    playAudio(nextQuestion).catch(err => {
-                        console.warn('[STAR INTERVIEW] Fallback TTS generation failed:', err);
-                        // Error is already handled in playAudio with manual play button
-                    });
+                    enqueueAudio(nextQuestion);
                 } else {
                     console.error('[STAR INTERVIEW] ❌ No question text available for TTS fallback');
                     document.getElementById('voiceStatus').textContent = 'Click the microphone to record your answer';
@@ -870,6 +887,64 @@ async function completeInterview() {
 
     // Generate feedback
     await generateFeedback();
+}
+
+// Helper function to set score badge based on score
+function setScoreBadge(score) {
+    const scoreBadgeEl = document.getElementById('scoreBadge');
+    if (scoreBadgeEl) {
+        const numericScore = typeof score === 'string' ? parseInt(score) : Math.round(score);
+        if (numericScore >= 80) {
+            scoreBadgeEl.textContent = '⭐⭐⭐ Strong';
+        } else if (numericScore >= 60) {
+            scoreBadgeEl.textContent = '⭐⭐ Improving';
+        } else {
+            scoreBadgeEl.textContent = '⭐ Beginner';
+        }
+    }
+}
+
+// Helper function to set score message based on score
+function setScoreMessage(score) {
+    const scoreMessageEl = document.getElementById('scoreMessage');
+    if (scoreMessageEl) {
+        const numericScore = typeof score === 'string' ? parseInt(score) : Math.round(score);
+        if (numericScore >= 80) {
+            scoreMessageEl.textContent = 'Outstanding performance! You demonstrated strong STAR method skills.';
+        } else if (numericScore >= 60) {
+            scoreMessageEl.textContent = 'Good work! With more practice, you can improve your STAR responses.';
+        } else {
+            scoreMessageEl.textContent = 'Keep practicing to improve your STAR responses!';
+        }
+    }
+}
+
+// Display performance breakdown for STAR components
+function displayPerformanceBreakdown(feedback) {
+    const components = [
+        { key: 'situation_score', id: 'situation', label: 'Situation' },
+        { key: 'task_score', id: 'task', label: 'Task' },
+        { key: 'action_score', id: 'action', label: 'Action' },
+        { key: 'result_score', id: 'result', label: 'Result' },
+        { key: 'star_structure_score', id: 'structure', label: 'STAR Structure' }
+    ];
+    
+    components.forEach(component => {
+        const score = Math.round(feedback[component.key] || 0);
+        const scoreEl = document.getElementById(component.id + 'Score');
+        const fillEl = document.getElementById(component.id + 'Fill');
+        
+        if (scoreEl) {
+            scoreEl.textContent = score;
+        }
+        
+        if (fillEl) {
+            // Animate the bar fill
+            setTimeout(() => {
+                fillEl.style.width = score + '%';
+            }, 100);
+        }
+    });
 }
 
 async function generateFeedback() {
@@ -934,7 +1009,52 @@ async function generateFeedback() {
         });
         
         // Display feedback
-        document.getElementById('overallScore').textContent = Math.round(feedback.overall_score || 0);
+        const overallScore = Math.round(feedback.overall_score || 0);
+        document.getElementById('overallScore').textContent = overallScore;
+        setScoreBadge(overallScore);
+        setScoreMessage(overallScore);
+        
+        // Set personalized welcome message
+        const welcomeTextEl = document.getElementById('welcomeText');
+        if (welcomeTextEl) {
+            if (overallScore >= 80) {
+                welcomeTextEl.textContent = 'Outstanding work! You completed your STAR interview with excellent performance. Here\'s your personalized breakdown.';
+            } else if (overallScore >= 60) {
+                welcomeTextEl.textContent = 'Great job completing your STAR interview! Here\'s your personalized performance report to help you improve.';
+            } else {
+                welcomeTextEl.textContent = 'Thank you for completing your STAR interview! Here\'s your personalized feedback to help you improve.';
+            }
+        }
+        
+        // Display interview participation metrics
+        const questionCount = feedback.question_count || 0;
+        const userMessages = conversationHistory.filter(m => m.role === 'user');
+        const answeredCount = userMessages.length;
+        const participationRate = questionCount > 0 ? Math.round((answeredCount / questionCount) * 100) : 0;
+        
+        const questionsAnsweredEl = document.getElementById('questionsAnswered');
+        if (questionsAnsweredEl) {
+            questionsAnsweredEl.textContent = answeredCount;
+        }
+        
+        const participationRateEl = document.getElementById('participationRate');
+        if (participationRateEl) {
+            participationRateEl.textContent = participationRate + '%';
+        }
+        
+        const participationNoteEl = document.getElementById('participationNote');
+        if (participationNoteEl) {
+            if (participationRate >= 80) {
+                participationNoteEl.textContent = 'Excellent! You actively engaged with all questions throughout the interview.';
+            } else if (participationRate >= 60) {
+                participationNoteEl.textContent = 'Good participation! You answered most of the questions asked.';
+            } else {
+                participationNoteEl.textContent = 'Try to answer more questions in your next interview to get better feedback.';
+            }
+        }
+        
+        // Display performance breakdown (STAR component scores)
+        displayPerformanceBreakdown(feedback);
         
         // Display STAR-specific scores if UI elements exist
         const communicationScoreEl = document.getElementById('communicationScore');
@@ -959,17 +1079,26 @@ async function generateFeedback() {
         
         const strengthsList = document.getElementById('strengthsList');
         if (strengthsList) {
-        strengthsList.innerHTML = (feedback.strengths || []).map(s => `<li>${s}</li>`).join('');
+            const strengths = feedback.strengths || [];
+            strengthsList.innerHTML = strengths.length > 0 
+                ? strengths.map(s => `<li>${s}</li>`).join('')
+                : '<li>Keep practicing to build your strengths!</li>';
         }
 
         const improvementsList = document.getElementById('improvementsList');
         if (improvementsList) {
-        improvementsList.innerHTML = (feedback.areas_for_improvement || []).map(a => `<li>${a}</li>`).join('');
+            const improvements = feedback.areas_for_improvement || [];
+            improvementsList.innerHTML = improvements.length > 0
+                ? improvements.map(a => `<li>${a}</li>`).join('')
+                : '<li>Great job! Continue refining your STAR responses.</li>';
         }
 
         const recommendationsList = document.getElementById('recommendationsList');
         if (recommendationsList) {
-        recommendationsList.innerHTML = (feedback.recommendations || []).map(r => `<li>${r}</li>`).join('');
+            const recommendations = feedback.recommendations || [];
+            recommendationsList.innerHTML = recommendations.length > 0
+                ? recommendations.map(r => `<li>${r}</li>`).join('')
+                : '<li>Keep practicing your STAR method responses!</li>';
         }
 
         const feedbackSummaryEl = document.getElementById('feedbackSummary');
@@ -1017,6 +1146,28 @@ function generateBasicFeedback() {
     // If no valid answers, show 0 score and clear guidance
     if (validAnswerCount === 0) {
         document.getElementById('overallScore').textContent = '0';
+        setScoreBadge(0);
+        setScoreMessage(0);
+        
+        // Set participation metrics
+        const questionsAnsweredEl = document.getElementById('questionsAnswered');
+        if (questionsAnsweredEl) questionsAnsweredEl.textContent = '0';
+        const participationRateEl = document.getElementById('participationRate');
+        if (participationRateEl) participationRateEl.textContent = '0%';
+        const participationNoteEl = document.getElementById('participationNote');
+        if (participationNoteEl) {
+            participationNoteEl.textContent = 'No answers were provided during this interview.';
+        }
+        
+        // Set performance breakdown to 0
+        displayPerformanceBreakdown({
+            situation_score: 0,
+            task_score: 0,
+            action_score: 0,
+            result_score: 0,
+            star_structure_score: 0
+        });
+        
         document.getElementById('strengthsList').innerHTML = '<li>No valid response detected.</li>';
         document.getElementById('improvementsList').innerHTML = '<li>Please provide spoken answers to receive accurate STAR feedback.</li>';
         document.getElementById('recommendationsList').innerHTML = '<li>Try answering all STAR questions with clear Situation, Task, Action, and Result.</li>';
@@ -1060,6 +1211,39 @@ function generateBasicFeedback() {
     recommendations.push('Write down 3–5 STAR stories and practice telling them out loud with clear outcomes and metrics.');
 
     document.getElementById('overallScore').textContent = String(score);
+    setScoreBadge(score);
+    setScoreMessage(score);
+    
+    // Set participation metrics for basic feedback
+    const totalQuestions = answerCount; // Use answerCount as total questions asked
+    const questionsAnsweredEl = document.getElementById('questionsAnswered');
+    if (questionsAnsweredEl) questionsAnsweredEl.textContent = validAnswerCount;
+    const participationRateEl = document.getElementById('participationRate');
+    if (participationRateEl) {
+        const rate = totalQuestions > 0 ? Math.round((validAnswerCount / totalQuestions) * 100) : 0;
+        participationRateEl.textContent = rate + '%';
+    }
+    const participationNoteEl = document.getElementById('participationNote');
+    if (participationNoteEl) {
+        if (totalQuestions > 0 && validAnswerCount >= totalQuestions * 0.8) {
+            participationNoteEl.textContent = 'Excellent! You actively engaged with all questions throughout the interview.';
+        } else if (totalQuestions > 0 && validAnswerCount >= totalQuestions * 0.6) {
+            participationNoteEl.textContent = 'Good participation! You answered most of the questions asked.';
+        } else {
+            participationNoteEl.textContent = 'Try to answer more questions in your next interview to get better feedback.';
+        }
+    }
+    
+    // Set basic performance breakdown (estimate based on score)
+    const estimatedComponentScore = Math.max(0, Math.min(100, score));
+    displayPerformanceBreakdown({
+        situation_score: estimatedComponentScore,
+        task_score: estimatedComponentScore,
+        action_score: estimatedComponentScore,
+        result_score: estimatedComponentScore,
+        star_structure_score: estimatedComponentScore
+    });
+    
     document.getElementById('strengthsList').innerHTML = strengths.map(s => `<li>${s}</li>`).join('');
     document.getElementById('improvementsList').innerHTML = improvements.map(a => `<li>${a}</li>`).join('');
     document.getElementById('recommendationsList').innerHTML = recommendations.map(r => `<li>${r}</li>`).join('');
@@ -1092,162 +1276,179 @@ function displayMessage(role, content, audioUrl = null) {
     
 }
 
-async function playAudio(audioUrl, retryCount = 0) {
+async function playAudio(textOrUrl, retryCount = 0) {
     const MAX_RETRIES = 2;
-    if (!audioUrl) {
-        console.warn('[STAR INTERVIEW TTS] No audio URL provided');
-        return;
+    if (!textOrUrl) {
+        console.warn('[STAR INTERVIEW TTS] No audio URL or text provided');
+        return; // Same behavior as Technical: simple early return
     }
-    
-    // Prevent double playback
-    if (isLoading.playAudio && retryCount === 0) {
-        console.warn('[STAR INTERVIEW TTS] Audio playback already in progress, ignoring duplicate call');
-        return;
-    }
-    
-    if (retryCount === 0) {
-        setLoadingState('playAudio', true);
-    }
-    
-    // Stop any currently playing audio
+
+    // Stop any currently playing audio instance before starting a new one.
+    // Queueing / serial order is handled by enqueueAudio + playNextFromStarQueue.
     if (currentAudio && !currentAudio.paused) {
-        console.log('[STAR INTERVIEW TTS] Stopping previous audio');
+        console.log('[STAR INTERVIEW TTS] Stopping previous audio before starting new one');
         currentAudio.pause();
         currentAudio.currentTime = 0;
         if (currentAudio.src && currentAudio.src.startsWith('blob:')) {
             URL.revokeObjectURL(currentAudio.src);
         }
     }
-    
+
     try {
-        console.log('[STAR INTERVIEW TTS] Starting audio playback:', audioUrl);
+        console.log('[STAR INTERVIEW TTS] Starting audio playback:', textOrUrl);
         isAudioPlaying = true;
-        
-        // Update UI to show audio is playing
+
         const voiceStatus = document.getElementById('voiceStatus');
         const voiceButton = document.getElementById('voiceButton');
         if (voiceStatus) voiceStatus.textContent = 'Question is being spoken...';
         if (voiceButton) voiceButton.classList.add('listening');
-        
-        // Construct full URL if relative
-        let fullUrl = audioUrl.startsWith('http') ? audioUrl : `${getApiBase()}${audioUrl}`;
-        
-        // If URL contains text parameter, we need to fetch it via POST instead
-        if (fullUrl.includes('text=')) {
+
+        let text = textOrUrl;
+        let fullUrl = null;
+
+        // Handle both URL and plain text (like Technical interview)
+        if (typeof textOrUrl === 'string' && textOrUrl.startsWith('http')) {
+            // Try to extract text from query parameter (?text=...)
             try {
-                const url = new URL(fullUrl);
+                const url = new URL(textOrUrl);
                 const textParam = url.searchParams.get('text');
-                if (textParam) {
-                    const text = decodeURIComponent(textParam);
-                    console.log('[STAR INTERVIEW TTS] Fetching TTS audio for text:', text.substring(0, 50) + '...');
-                    
-                    // Use POST endpoint instead
-                    const response = await fetch(`${getApiBase()}/api/interview/text-to-speech`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ text: text.trim() })
-                    });
-                    
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error('[STAR INTERVIEW TTS] TTS endpoint error:', response.status, errorText);
-                        throw new Error(`TTS failed: ${response.status} - ${errorText}`);
-                    }
-                    
-                    const audioBlob = await response.blob();
-                    if (audioBlob.size === 0) {
-                        console.error('[STAR INTERVIEW TTS] Empty audio blob received');
-                        throw new Error('Empty audio blob received from TTS endpoint');
-                    }
-                    
-                    console.log('[STAR INTERVIEW TTS] ✅ Audio blob received, size:', audioBlob.size, 'bytes');
-                    fullUrl = URL.createObjectURL(audioBlob);
-                    console.log('[STAR INTERVIEW TTS] Created blob URL:', fullUrl.substring(0, 50) + '...');
+                if (textParam && textParam.trim()) {
+                    text = decodeURIComponent(textParam);
+                } else {
+                    // Direct audio URL with no text param – play it directly
+                    fullUrl = textOrUrl;
                 }
             } catch (e) {
-                console.error('[STAR INTERVIEW TTS] ❌ Error fetching TTS audio:', e);
-                throw e; // Re-throw to be caught by outer catch
+                // Not a valid URL, treat as text
+                console.warn('[STAR INTERVIEW TTS] Invalid URL, treating as plain text:', e.message);
+                text = textOrUrl;
+                fullUrl = null;
             }
+        } else {
+            // Plain text (question text or AI response)
+            text = textOrUrl;
+            fullUrl = null;
         }
-        
+
+        // If we don't have a direct URL, generate TTS from text via POST (like Technical)
+        if (!fullUrl) {
+            if (!text || !text.trim()) {
+                console.warn('[STAR INTERVIEW TTS] No text available for TTS generation');
+                return;
+            }
+
+            console.log('[STAR INTERVIEW TTS] Generating TTS from text:', text.substring(0, 80) + '...');
+
+            const response = await fetch(`${getApiBase()}/api/interview/text-to-speech`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ text: text.trim() })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('[STAR INTERVIEW TTS] TTS API error:', response.status, errorText);
+
+                // Retry on server errors (5xx) like Technical
+                if ((response.status >= 500 || response.status === 503) && retryCount < MAX_RETRIES) {
+                    await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+                    return playAudio(textOrUrl, retryCount + 1);
+                }
+
+                throw new Error(`TTS failed: ${response.status} - ${errorText}`);
+            }
+
+            const audioBlob = await response.blob();
+            if (audioBlob.size === 0) {
+                throw new Error('Empty audio blob received from TTS endpoint');
+            }
+
+            fullUrl = URL.createObjectURL(audioBlob);
+            console.log('[STAR INTERVIEW TTS] Created blob URL:', fullUrl.substring(0, 80) + '...');
+        }
+
         const audio = new Audio(fullUrl);
-        currentAudio = audio; // Store reference to current audio
-        
-        // Set up event handlers BEFORE attempting to play
+        currentAudio = audio;
+
+        // Attach listeners BEFORE play()
+        audio.onloadedmetadata = () => {
+            console.log('[STAR INTERVIEW TTS] loadedmetadata');
+        };
+        audio.oncanplaythrough = () => {
+            console.log('[STAR INTERVIEW TTS] canplaythrough');
+        };
+        audio.onplaying = () => {
+            console.log('[STAR INTERVIEW TTS] playing');
+        };
+
         audio.onerror = (error) => {
             console.error('[STAR INTERVIEW TTS] ❌ Audio playback error:', error);
             console.error('[STAR INTERVIEW TTS] Audio error details:', {
                 code: audio.error?.code,
                 message: audio.error?.message,
-                src: audio.src?.substring(0, 100)
+                src: audio.src?.substring(0, 120)
             });
             isAudioPlaying = false;
             if (voiceButton) voiceButton.classList.remove('listening');
             if (voiceStatus) voiceStatus.textContent = 'Click the microphone to record your answer';
-            
-            if (fullUrl.startsWith('blob:')) {
+
+            if (fullUrl && fullUrl.startsWith('blob:')) {
                 URL.revokeObjectURL(fullUrl);
             }
-            
-            // Retry on error
+
             if (retryCount < MAX_RETRIES) {
                 console.log(`[STAR INTERVIEW TTS] Retrying audio playback (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
-                setTimeout(() => playAudio(audioUrl, retryCount + 1), 1000 * (retryCount + 1));
+                setTimeout(() => playAudio(textOrUrl, retryCount + 1), 1000 * (retryCount + 1));
             } else {
-                // Show manual play button if all retries failed
-                showManualPlayButton(audioUrl);
+                showManualPlayButton(textOrUrl);
+                // After a terminal error, advance the queue (skip this item)
+                setTimeout(() => playNextFromStarQueue(), 100);
             }
         };
-        
+
         audio.onended = () => {
             console.log('[STAR INTERVIEW TTS] ✅ Audio playback completed');
             isAudioPlaying = false;
             if (voiceButton) voiceButton.classList.remove('listening');
             if (voiceStatus) voiceStatus.textContent = 'Click the microphone to record your answer';
-            
-            if (fullUrl.startsWith('blob:')) {
+
+            if (fullUrl && fullUrl.startsWith('blob:')) {
                 URL.revokeObjectURL(fullUrl);
             }
+
+            // Audio finished successfully; play next queued item if any
+            setTimeout(() => playNextFromStarQueue(), 100);
         };
-        
-        audio.onloadeddata = () => {
-            console.log('[STAR INTERVIEW TTS] ✅ Audio data loaded, ready to play');
-        };
-        
+
         audio.onloadstart = () => {
             console.log('[STAR INTERVIEW TTS] Audio loading started');
         };
-        
-        // Attempt to play audio
+
+        // Attempt to play audio with promise handling (like Technical)
+        console.log('[STAR INTERVIEW TTS] Attempting to play audio...');
         try {
-            console.log('[STAR INTERVIEW TTS] Attempting to play audio...');
             const playPromise = audio.play();
-            
-            // Handle play promise (required for autoplay policy)
             if (playPromise !== undefined) {
                 await playPromise;
                 console.log('[STAR INTERVIEW TTS] ✅ Audio playback started successfully');
             }
         } catch (playError) {
-            // Handle autoplay policy violation
-            if (playError.name === 'NotAllowedError' || playError.name === 'NotSupportedError') {
-                console.warn('[STAR INTERVIEW TTS] ⚠️ Autoplay blocked by browser policy:', playError.message);
+            console.error('[STAR INTERVIEW TTS] Error starting playback:', playError);
+            if (playError.name === 'NotAllowedError') {
+                console.warn('[STAR INTERVIEW TTS] ⚠️ Autoplay blocked by browser policy');
                 isAudioPlaying = false;
                 if (voiceButton) voiceButton.classList.remove('listening');
                 if (voiceStatus) {
                     voiceStatus.textContent = 'Click the play button below to hear the question';
                 }
-                // Show manual play button
-                showManualPlayButton(audioUrl);
-                return; // Don't retry for autoplay errors
-            } else {
-                // Re-throw other errors
-                throw playError;
+                showManualPlayButton(textOrUrl);
+                // Do NOT advance the queue here; wait for user interaction to start audio
+                return;
             }
+            throw playError;
         }
-        
     } catch (error) {
         console.error('[STAR INTERVIEW TTS] ❌ Error in playAudio:', error);
         console.error('[STAR INTERVIEW TTS] Error details:', {
@@ -1260,18 +1461,19 @@ async function playAudio(audioUrl, retryCount = 0) {
         const voiceStatus = document.getElementById('voiceStatus');
         if (voiceButton) voiceButton.classList.remove('listening');
         if (voiceStatus) voiceStatus.textContent = 'Click the microphone to record your answer';
-        
+
         // Retry on network/loading errors (but not autoplay errors)
-        if (retryCount < MAX_RETRIES && 
-            (error.message.includes('fetch') || 
-             error.message.includes('network') || 
+        if (retryCount < MAX_RETRIES &&
+            (error.message.includes('fetch') ||
+             error.message.includes('network') ||
              error.message.includes('Failed to load') ||
              error.message.includes('NetworkError'))) {
             console.log(`[STAR INTERVIEW TTS] Retrying due to network error (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
-            setTimeout(() => playAudio(audioUrl, retryCount + 1), 1000 * (retryCount + 1));
+            setTimeout(() => playAudio(textOrUrl, retryCount + 1), 1000 * (retryCount + 1));
         } else if (retryCount >= MAX_RETRIES) {
-            // Show manual play button after all retries exhausted
-            showManualPlayButton(audioUrl);
+            showManualPlayButton(textOrUrl);
+            // After giving up on this item, advance the queue
+            setTimeout(() => playNextFromStarQueue(), 100);
         }
     }
 }
@@ -1284,7 +1486,7 @@ function showManualPlayButton(audioUrl) {
     // Check if manual play button already exists
     let existingButton = document.getElementById('manualPlayButton');
     if (existingButton) {
-        existingButton.onclick = () => playAudio(audioUrl);
+        existingButton.onclick = () => enqueueAudio(audioUrl);
         return;
     }
     
@@ -1295,7 +1497,7 @@ function showManualPlayButton(audioUrl) {
     playButton.style.cssText = 'margin: 10px auto; display: block; padding: 10px 20px;';
     playButton.textContent = '▶ Play Question Audio';
     playButton.onclick = () => {
-        playAudio(audioUrl);
+        enqueueAudio(audioUrl);
         playButton.remove();
     };
     
