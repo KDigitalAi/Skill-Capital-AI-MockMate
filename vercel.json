@@ -1,14 +1,5 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "50mb"
-      }
-    }
-  ],
   "rewrites": [
     {
       "source": "/api/(.*)",
@@ -40,12 +31,9 @@
   ],
   "functions": {
     "api/index.py": {
-      "runtime": "python3.12",
+      "runtime": "python3.11",
       "includeFiles": "app/**",
       "excludeFiles": "**/__pycache__/**"
     }
-  },
-  "env": {
-    "PYTHON_VERSION": "3.12"
   }
 }
