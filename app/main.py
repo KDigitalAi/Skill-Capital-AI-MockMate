@@ -59,8 +59,13 @@ FRONTEND_DIR = PROJECT_ROOT / "frontend"
 async def lifespan(app: FastAPI):
     """Initialize services on application startup and cleanup on shutdown"""
     # Startup
-    logger.info("[STARTUP] Configuring Tesseract OCR...")
-    configure_tesseract()
+    # Configure Tesseract OCR (gracefully handles missing Tesseract on Vercel)
+    try:
+        logger.info("[STARTUP] Configuring Tesseract OCR...")
+        configure_tesseract()
+    except Exception as ocr_error:
+        # Tesseract is optional - continue without it
+        logger.warning(f"[STARTUP] OCR configuration skipped: {str(ocr_error)}")
     
     # Test Supabase connection on startup
     logger.info("[STARTUP] Testing Supabase connection...")
