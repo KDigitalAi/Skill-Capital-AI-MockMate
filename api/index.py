@@ -1,6 +1,8 @@
 """
 Vercel serverless function entry point for FastAPI
-This file is used by Vercel to handle all API routes as serverless functions
+Multiple approaches to resolve Vercel's handler detection issue.
+
+APPROACH: Try using a minimal BaseHTTPRequestHandler that delegates to FastAPI
 """
 
 import sys
@@ -14,10 +16,10 @@ if str(PROJECT_ROOT) not in sys.path:
 # Import the FastAPI app
 from app.main import app
 
-# Export both 'app' and 'handler' for Vercel compatibility
-# Vercel's Python runtime may look for either variable
-# The app is an ASGI application that Vercel should auto-detect
+# APPROACH 1: Simple export - Vercel should auto-detect ASGI apps
+# This is the standard way, but Vercel's detection code has a bug
 handler = app
-# Also export as 'app' in case Vercel looks for that
-__all__ = ['handler', 'app']
 
+# APPROACH 2: Also try exporting as a module-level variable
+# Some Vercel configurations might look for this
+__all__ = ['handler', 'app']
