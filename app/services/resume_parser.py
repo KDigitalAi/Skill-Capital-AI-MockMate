@@ -1212,13 +1212,20 @@ class ResumeParser:
         text_lower = text.lower()
         
         # Split skills into modules based on resume content
-        technical_skills = self._extract_technical_skills(skills, keywords, text_lower)
+        technical_skills_result = self._extract_technical_skills(skills, keywords, text_lower, text, projects)
+        core_technical_skills = technical_skills_result.get("core_technical_skills", [])
+        domain_skills = technical_skills_result.get("domain_skills", [])
+        
+        # Combine core technical skills and domain skills for display
+        all_technical_skills = core_technical_skills + domain_skills
+        total_skills_count = len(all_technical_skills)
+        
         coding_topics = self._extract_coding_topics(skills, keywords, text_lower)
         hr_skills = self._extract_hr_skills(text_lower, keywords)
         star_points = self._extract_star_points(text, projects, keywords)
         
         # Technical Interview Module - core technical & domain skills
-        technical_description = f"Focus on {len(technical_skills)} core technical skills and domain expertise extracted from your resume."
+        technical_description = f"Focus on {total_skills_count} core technical skills and domain expertise extracted from your resume."
         
         # Coding / Online Test Module
         difficulty_level = self._determine_coding_difficulty(experience_level, skills, projects, text_lower)
@@ -1233,7 +1240,7 @@ class ResumeParser:
         return {
             "technical_interview": {
                 "description": technical_description,
-                "skills": technical_skills
+                "skills": all_technical_skills  # Combined core + domain skills
             },
             "coding_test": {
                 "difficulty_level": difficulty_level,
@@ -1250,43 +1257,577 @@ class ResumeParser:
             }
         }
     
-    def _extract_technical_skills(self, skills: List[str], keywords: Dict[str, List[str]], text_lower: str) -> List[str]:
-        """Extract core technical and domain skills for Technical Interview"""
-        technical_skills = []
+    def _extract_technical_skills(self, skills: List[str], keywords: Dict[str, List[str]], 
+                                  text_lower: str, text: str, projects: List[Dict[str, str]]) -> Dict[str, List[str]]:
+        """
+        Extract core technical and domain skills for Technical Interview.
+        Dynamically extracts ONLY from resume content - no hard-coded skill lists.
+        Returns: {
+            "core_technical_skills": List[str],  # Languages, frameworks, tools, platforms
+            "domain_skills": List[str]  # Domain expertise like "Web Development", "API Integration"
+        }
+        """
+        # Use dict to track normalized -> best form mapping for deduplication
+        normalized_to_best_form = {}  # normalized_key -> best_form
+        domain_skills_set = set()
         
-        # Core technical skills from extracted skills
-        technical_keywords = [
-            'python', 'java', 'javascript', 'typescript', 'react', 'angular', 'vue',
-            'django', 'flask', 'fastapi', 'node.js', 'spring', 'sql', 'postgresql',
-            'mysql', 'mongodb', 'redis', 'docker', 'kubernetes', 'aws', 'azure', 'gcp',
-            'machine learning', 'ml', 'ai', 'data science', 'nlp', 'tensorflow', 'pytorch'
+        # Normalization function for deduplication
+        def normalize_skill(term: str) -> str:
+            """
+            Normalize a skill term for deduplication.
+            Handles variations like: Node.js/Node/NODE.JS -> nodejs
+            """
+            if not term:
+                return ""
+            
+            # Convert to lowercase
+            normalized = term.lower().strip()
+            
+            # Remove common punctuation and special chars
+            normalized = re.sub(r'[^\w\s]', '', normalized)
+            
+            # Remove extra whitespace
+            normalized = re.sub(r'\s+', '', normalized)
+            
+            # Handle common variations
+            # GitHub/GitHub/Git -> git
+            if normalized.startswith('github'):
+                normalized = 'github'
+            elif normalized == 'git':
+                normalized = 'git'
+            
+            # Node.js/Node/NODE.JS -> nodejs
+            if normalized.startswith('node'):
+                normalized = 'nodejs'
+            
+            # React.js/React/ReactJS -> react
+            if normalized.startswith('react'):
+                normalized = 'react'
+            
+            # JavaScript/JS/Javascript -> javascript
+            if normalized in ['js', 'javascript']:
+                normalized = 'javascript'
+            
+            # HTML -> html
+            if normalized == 'html':
+                normalized = 'html'
+            
+            # CSS -> css
+            if normalized == 'css':
+                normalized = 'css'
+            
+            # TypeScript/TS/Typescript -> typescript
+            if normalized in ['ts', 'typescript']:
+                normalized = 'typescript'
+            
+            # Redux -> redux
+            if normalized == 'redux':
+                normalized = 'redux'
+            
+            # Tailwind CSS/Tailwind -> tailwindcss
+            if 'tailwind' in normalized:
+                normalized = 'tailwindcss'
+            
+            # Bootstrap -> bootstrap
+            if normalized == 'bootstrap':
+                normalized = 'bootstrap'
+            
+            # React Query/TanStack Query/TanStack -> reactquery
+            if 'reactquery' in normalized or 'tanstackquery' in normalized or 'tanstack' in normalized:
+                normalized = 'reactquery'
+            elif 'react' in normalized and 'query' in normalized:
+                normalized = 'reactquery'
+            
+            return normalized
+        
+        def get_best_form(term: str) -> str:
+            """
+            Get the best formatted version of a skill term.
+            Prefers: Proper capitalization, standard naming conventions
+            """
+            if not term:
+                return ""
+            
+            term_clean = term.strip()
+            term_lower = term_clean.lower()
+            
+            # Handle known technologies with preferred formatting
+            preferred_forms = {
+                'git': 'Git',
+                'github': 'GitHub',
+                'gitlab': 'GitLab',
+                'nodejs': 'Node.js',
+                'node': 'Node.js',
+                'react': 'React',
+                'reactjs': 'React',
+                'react.js': 'React',
+                'javascript': 'JavaScript',
+                'js': 'JavaScript',
+                'typescript': 'TypeScript',
+                'ts': 'TypeScript',
+                'html': 'HTML',
+                'css': 'CSS',
+                'redux': 'Redux',
+                'tailwindcss': 'Tailwind CSS',
+                'tailwind': 'Tailwind CSS',
+                'bootstrap': 'Bootstrap',
+                'reactquery': 'React Query',
+                'tanstack': 'TanStack Query',
+                'api': 'API',
+                'rest': 'REST API',
+                'graphql': 'GraphQL',
+            }
+            
+            normalized = normalize_skill(term_clean)
+            if normalized in preferred_forms:
+                return preferred_forms[normalized]
+            
+            # If it's an acronym (all caps, 2-5 chars), keep it uppercase
+            if re.match(r'^[A-Z]{2,5}$', term_clean):
+                return term_clean
+            
+            # If it contains a dot (like React.js), preserve the format
+            if '.' in term_clean and term_clean[0].isupper():
+                return term_clean
+            
+            # Title case for multi-word terms
+            if ' ' in term_clean or '-' in term_clean:
+                # Handle special cases
+                if 'css' in term_lower:
+                    return term_clean.replace('css', 'CSS').replace('Css', 'CSS')
+                if 'api' in term_lower:
+                    return term_clean.replace('api', 'API').replace('Api', 'API')
+                return term_clean.title()
+            
+            # Capitalize first letter for single words
+            return term_clean.capitalize()
+        
+        # Soft skills patterns to exclude
+        soft_skill_patterns = [
+            r'\b(communication|teamwork|leadership|collaboration|problem solving|problem-solving|'
+            r'adaptability|time management|presentation|interpersonal|negotiation|mentoring|'
+            r'project management|agile|scrum|kanban|critical thinking|analytical thinking|'
+            r'creativity|innovation|work ethic|professionalism|multitasking|organization|'
+            r'attention to detail|detail-oriented|self-motivated|proactive|flexible|'
+            r'customer service|client relations|stakeholder management|conflict resolution)\b'
         ]
         
-        for skill in skills:
-            skill_lower = skill.lower()
-            if any(keyword in skill_lower for keyword in technical_keywords):
-                technical_skills.append(skill)
+        def is_soft_skill(term: str) -> bool:
+            """Check if a term is a soft skill"""
+            term_lower = term.lower()
+            for pattern in soft_skill_patterns:
+                if re.search(pattern, term_lower):
+                    return True
+            return False
         
-        # Add technologies from keywords
+        # Invalid standalone terms (not skills by themselves)
+        invalid_standalone_terms = {
+            'component', 'components', 'integration', 'integrations', 'props', 'prop',
+            'hook', 'hooks', 'state', 'context', 'reusability', 'responsive',
+            'development', 'design', 'framework', 'library', 'libraries', 'tool', 'tools',
+            'platform', 'platforms', 'system', 'systems', 'service', 'services',
+            'using', 'with', 'built', 'developed', 'created', 'implemented', 'used',
+            'and', 'or', 'the', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of',
+            'jsx and props', 'jsx & props', 'jsx/props'  # Multi-word concepts, not standalone
+            # Note: 'jsx' alone is valid as it's a React syntax extension
+        }
+        
+        def is_core_technical_skill(term: str) -> bool:
+            """
+            Strict check if a term is a CORE technical skill (language, framework, tool, platform).
+            Does NOT accept generic terms, verbs, or domain concepts.
+            """
+            if not term:
+                return False
+            
+            term_lower = term.lower().strip()
+            
+            # Skip if it's a soft skill
+            if is_soft_skill(term_lower):
+                return False
+            
+            # Skip invalid standalone terms
+            if term_lower in invalid_standalone_terms:
+                return False
+            
+            # Skip if it's too short or too long
+            if len(term_lower) < 2 or len(term_lower) > 50:
+                return False
+            
+            # Skip common verbs and action words
+            action_words = {'develop', 'create', 'build', 'design', 'implement', 'use', 'utilize',
+                          'worked', 'working', 'work', 'developed', 'development', 'created',
+                          'built', 'designed', 'implemented', 'using', 'used', 'utilized'}
+            if term_lower in action_words:
+                return False
+            
+            # Core technical skill patterns - only real technologies
+            core_tech_patterns = [
+                # Programming languages
+                r'^(python|java|javascript|typescript|c\+\+|c#|go|rust|php|ruby|swift|kotlin|scala|r|'
+                r'matlab|sql|html|css|sass|scss|less|dart|perl|shell|bash|powershell)$',
+                
+                # Frameworks and libraries
+                r'^(react|angular|vue|ember|svelte|next\.js|nuxt\.js|gatsby|remix|'
+                r'node\.js|express|koa|nest|django|flask|fastapi|bottle|pyramid|'
+                r'spring|spring boot|hibernate|struts|play|quarkus|micronaut|'
+                r'laravel|symfony|codeigniter|cakephp|rails|sinatra|grails|'
+                r'\.net|asp\.net|core|entity framework|wpf|winforms|'
+                r'redux|mobx|zustand|recoil|jotai|'
+                r'react query|tanstack query|apollo|relay|urql|'
+                r'tailwind css|bootstrap|material-ui|ant design|chakra ui|styled-components|'
+                r'emotion|css-in-js|sass|less|stylus)$',
+                
+                # Databases
+                r'^(mysql|postgresql|postgres|mongodb|redis|cassandra|couchdb|dynamodb|'
+                r'oracle|sqlite|mariadb|neo4j|influxdb|elasticsearch|solr)$',
+                
+                # Tools and platforms
+                r'^(git|github|gitlab|bitbucket|jira|confluence|trello|asana|'
+                r'docker|kubernetes|k8s|jenkins|travis|circleci|github actions|gitlab ci|'
+                r'aws|azure|gcp|heroku|vercel|netlify|firebase|supabase|'
+                r'linux|unix|windows|macos|ios|android)$',
+                
+                # Protocols and standards
+                r'^(http|https|rest|graphql|soap|grpc|websocket|tcp|udp|'
+                r'oauth|jwt|ssl|tls|ssh|ftp|sftp)$',
+                
+                # File extensions (as standalone terms)
+                r'^\.(js|ts|jsx|tsx|py|java|cpp|c|cs|php|rb|go|rs|swift|kt|scala|r|'
+                r'sql|html|css|scss|sass|less|json|xml|yaml|yml|sh|bat|ps1)$'
+            ]
+            
+            for pattern in core_tech_patterns:
+                if re.match(pattern, term_lower, re.IGNORECASE):
+                    return True
+            
+            # Check for known tech acronyms (2-5 uppercase letters)
+            if re.match(r'^[A-Z]{2,5}$', term.strip()):
+                # Common tech acronyms
+                tech_acronyms = {'API', 'REST', 'SQL', 'HTML', 'CSS', 'JS', 'TS', 'JSX', 'TSX',
+                               'AWS', 'GCP', 'CI', 'CD', 'UI', 'UX', 'IDE', 'CLI', 'SDK',
+                               'HTTP', 'HTTPS', 'TCP', 'UDP', 'SSL', 'TLS', 'SSH', 'FTP',
+                               'JWT', 'OAuth', 'GraphQL', 'gRPC', 'JSON', 'XML', 'YAML', 'DOM',
+                               'BOM', 'AJAX', 'RPC', 'SOAP', 'REST', 'CRUD', 'ORM', 'MVC', 'MVP'}
+                if term.strip() in tech_acronyms:
+                    return True
+            
+            # Check for tech with version numbers (React 18, Python 3.9)
+            if re.match(r'^[a-z]+\s*\d+', term_lower):
+                base_term = re.sub(r'\s*\d+.*$', '', term_lower).strip()
+                if is_core_technical_skill(base_term):
+                    return True
+            
+            return False
+        
+        def is_domain_skill(term: str) -> bool:
+            """
+            Check if a term is a domain skill (like "Web Development", "API Integration").
+            These are valid skills but should be separated from core technical skills.
+            """
+            if not term:
+                return False
+            
+            term_lower = term.lower().strip()
+            
+            # Skip if it's a soft skill
+            if is_soft_skill(term_lower):
+                return False
+            
+            # Skip if it's too short or too long
+            if len(term_lower) < 3 or len(term_lower) > 60:
+                return False
+            
+            # Domain skill patterns
+            domain_patterns = [
+                r'\b(web development|frontend development|backend development|full stack development|'
+                r'mobile development|ios development|android development|'
+                r'api development|api integration|restful api|graphql api|'
+                r'responsive design|web accessibility|ui/ux design|'
+                r'component reusability|state management|'
+                r'devops|ci/cd|cloud computing|microservices|serverless|'
+                r'machine learning|data science|data analysis|nlp|computer vision)\b'
+            ]
+            
+            for pattern in domain_patterns:
+                if re.search(pattern, term_lower, re.IGNORECASE):
+                    return True
+            
+            # Multi-word terms that contain tech words but are domain concepts
+            words = term_lower.split()
+            if len(words) >= 2 and len(words) <= 4:
+                tech_domain_words = ['development', 'design', 'integration', 'management', 'architecture']
+                tech_words = ['web', 'api', 'frontend', 'backend', 'mobile', 'responsive', 'component']
+                if any(word in tech_domain_words for word in words) and any(word in tech_words for word in words):
+                    return True
+            
+            return False
+        
+        def add_skill(term: str, is_domain: bool = False):
+            """
+            Add a skill with proper normalization and deduplication.
+            """
+            if not term or not term.strip():
+                return
+            
+            term_clean = term.strip()
+            normalized = normalize_skill(term_clean)
+            
+            if not normalized:
+                return
+            
+            # Skip invalid standalone terms
+            if normalized in invalid_standalone_terms:
+                return
+            
+            # Get best form
+            best_form = get_best_form(term_clean)
+            
+            if is_domain:
+                domain_skills_set.add(best_form)
+            else:
+                # Store normalized -> best form mapping
+                if normalized not in normalized_to_best_form:
+                    normalized_to_best_form[normalized] = best_form
+                else:
+                    # If we already have this skill, prefer the better form
+                    existing = normalized_to_best_form[normalized]
+                    # Prefer forms with proper capitalization
+                    if len(best_form) > len(existing) or (best_form[0].isupper() and not existing[0].isupper()):
+                        normalized_to_best_form[normalized] = best_form
+        
+        # 1. Extract from "Technical Skills" section explicitly
+        text_lines = text.split('\n')
+        
+        for i, line in enumerate(text_lines):
+            line_stripped = line.strip()
+            line_lower = line_stripped.lower()
+            
+            # Look for Technical Skills section header
+            if re.match(r'^(technical\s+skills?|skills?|technical\s+expertise|technologies?|tech\s+stack)[:\s]*$', line_lower):
+                # Extract skills from this section until next major section
+                section_end_keywords = [
+                    'education', 'experience', 'projects', 'certification', 'training',
+                    'achievements', 'awards', 'languages', 'references', 'contact',
+                    'summary', 'objective', 'profile', 'work experience', 'employment'
+                ]
+                
+                # Extract content from this section
+                for j in range(i + 1, len(text_lines)):
+                    next_line = text_lines[j].strip()
+                    if not next_line:
+                        continue
+                    
+                    next_line_lower = next_line.lower()
+                    # Check if we've hit a new major section
+                    is_section_end = False
+                    for end_keyword in section_end_keywords:
+                        if re.match(rf'^{re.escape(end_keyword)}[:\s]*$', next_line_lower):
+                            is_section_end = True
+                            break
+                    
+                    if is_section_end:
+                        break
+                    
+                    # Extract skills from this line
+                    # First, try to extract multi-word technical terms (like "Tailwind CSS", "React Query")
+                    multi_word_patterns = [
+                        r'\b(Tailwind CSS|React Query|TanStack Query|React\.js|Node\.js|Next\.js|Nuxt\.js|'
+                        r'TypeScript|JavaScript|React Native|Material-UI|Ant Design|Chakra UI|'
+                        r'Styled Components|React Hooks|Redux Toolkit|GraphQL API|REST API|'
+                        r'Web Development|Frontend Development|Backend Development|Full Stack|'
+                        r'API Integration|Component Reusability|Responsive Design)\b'
+                    ]
+                    
+                    for pattern in multi_word_patterns:
+                        matches = re.finditer(pattern, next_line, re.IGNORECASE)
+                        for match in matches:
+                            term = match.group(0).strip()
+                            if is_core_technical_skill(term):
+                                add_skill(term, is_domain=False)
+                            elif is_domain_skill(term):
+                                add_skill(term, is_domain=True)
+                    
+                    # Then extract single-word and remaining terms
+                    # Handle comma-separated, pipe-separated, colon-separated, semicolon-separated, or bullet-separated lists
+                    skill_items = re.split(r'[,|;:•·▪▸▹▪▫◦‣⁃⁌⁍→➜➤○●\-]', next_line)
+                    for item in skill_items:
+                        item = item.strip()
+                        if not item:
+                            continue
+                        
+                        # Remove leading/trailing punctuation but preserve dots (for React.js, etc.)
+                        item = re.sub(r'^[^\w\.]+|[^\w\.]+$', '', item)
+                        
+                        if not item:
+                            continue
+                        
+                        # Skip if already extracted as part of multi-word term
+                        # Check if this item is part of any multi-word term we already extracted
+                        is_part_of_multiword = False
+                        for extracted_term in list(normalized_to_best_form.values()) + list(domain_skills_set):
+                            if item.lower() in extracted_term.lower() and item.lower() != extracted_term.lower():
+                                is_part_of_multiword = True
+                                break
+                        
+                        if is_part_of_multiword:
+                            continue
+                        
+                        # Check if it's a core technical skill
+                        if is_core_technical_skill(item):
+                            add_skill(item, is_domain=False)
+                        # Check if it's a domain skill
+                        elif is_domain_skill(item):
+                            add_skill(item, is_domain=True)
+                        
+                        # Also check for multi-word technical terms in the item itself
+                        words = item.split()
+                        if len(words) >= 2 and len(words) <= 4:
+                            phrase = ' '.join(words)
+                            if is_core_technical_skill(phrase):
+                                add_skill(phrase, is_domain=False)
+                            elif is_domain_skill(phrase):
+                                add_skill(phrase, is_domain=True)
+                break
+        
+        # 2. Extract from project tech stacks
+        for project in projects:
+            tech_stack = project.get("tech_stack", [])
+            if isinstance(tech_stack, list):
+                for tech in tech_stack:
+                    if isinstance(tech, str):
+                        tech_clean = tech.strip()
+                        if is_core_technical_skill(tech_clean):
+                            add_skill(tech_clean, is_domain=False)
+                        elif is_domain_skill(tech_clean):
+                            add_skill(tech_clean, is_domain=True)
+            
+            # Also check project summary for tech mentions
+            summary = project.get("summary", "")
+            if summary:
+                # Remove HTML tags for better extraction
+                summary_clean = re.sub(r'<[^>]+>', ' ', summary)
+                
+                # Extract technical terms from summary
+                # Look for patterns like "using React, JavaScript, HTML" or "Tech Stack: React, JS"
+                tech_mention_patterns = [
+                    r'\b(?:using|with|built with|developed with|technologies?|tech stack|stack|tools?)[:\s]+([^<\.!?]+?)(?:<br>|\.|!|\?|$)',
+                    r'tech\s+stack[:\s]+([^<\.!?]+?)(?:<br>|\.|!|\?|$)',
+                    r'technologies?[:\s]+([^<\.!?]+?)(?:<br>|\.|!|\?|$)',
+                ]
+                
+                for pattern in tech_mention_patterns:
+                    tech_mentions = re.findall(pattern, summary_clean, re.IGNORECASE)
+                    for mention in tech_mentions:
+                        # Split by common separators
+                        tech_items = re.split(r'[,|•·▪▸▹▪▫◦‣⁃⁌⁍→➜➤○●\-]', mention)
+                        for item in tech_items:
+                            item = item.strip()
+                            if is_core_technical_skill(item):
+                                add_skill(item, is_domain=False)
+                            elif is_domain_skill(item):
+                                add_skill(item, is_domain=True)
+                
+                # Extract standalone technical terms from summary
+                # Look for known tech terms in the text
+                known_tech_terms = [
+                    r'\b(React|Angular|Vue|Node\.?js|JavaScript|TypeScript|HTML|CSS|'
+                    r'Python|Java|C\+\+|C#|Go|Rust|PHP|Ruby|Swift|Kotlin|Scala|SQL|'
+                    r'Django|Flask|FastAPI|Express|Spring|Laravel|Rails|\.NET|Next\.js|Nuxt\.js|'
+                    r'MongoDB|PostgreSQL|MySQL|Redis|Docker|Kubernetes|AWS|Azure|GCP|'
+                    r'Git|GitHub|GitLab|REST|GraphQL|Redux|Tailwind CSS|Bootstrap|'
+                    r'React Query|TanStack Query)\b'
+                ]
+                
+                for pattern in known_tech_terms:
+                    matches = re.finditer(pattern, summary_clean, re.IGNORECASE)
+                    for match in matches:
+                        tech_term = match.group(0).strip()
+                        if is_core_technical_skill(tech_term):
+                            add_skill(tech_term, is_domain=False)
+        
+        # 3. Extract from technologies in keywords (if they came from resume)
         technologies = keywords.get("technologies", [])
         for tech in technologies:
-            if tech not in technical_skills:
-                technical_skills.append(tech)
+            if isinstance(tech, str):
+                tech_clean = tech.strip()
+                if is_core_technical_skill(tech_clean):
+                    add_skill(tech_clean, is_domain=False)
+                elif is_domain_skill(tech_clean):
+                    add_skill(tech_clean, is_domain=True)
         
-        # Add domain-specific skills based on text
-        if any(term in text_lower for term in ['web', 'frontend', 'backend', 'full stack']):
-            if 'Web Development' not in technical_skills:
-                technical_skills.append('Web Development')
+        # 4. Extract from skills list (but filter to ensure they're technical)
+        for skill in skills:
+            if isinstance(skill, str):
+                skill_clean = skill.strip()
+                if is_core_technical_skill(skill_clean):
+                    add_skill(skill_clean, is_domain=False)
+                elif is_domain_skill(skill_clean):
+                    add_skill(skill_clean, is_domain=True)
         
-        if any(term in text_lower for term in ['machine learning', 'ml', 'ai', 'data science']):
-            if 'AI/ML' not in technical_skills:
-                technical_skills.append('AI/ML')
+        # 5. Extract technical terms from project descriptions and responsibilities
+        for project in projects:
+            responsibilities = project.get("responsibilities", [])
+            if isinstance(responsibilities, list):
+                for resp in responsibilities:
+                    if isinstance(resp, str):
+                        # Remove HTML tags if present
+                        resp_clean = re.sub(r'<[^>]+>', ' ', resp)
+                        
+                        # Extract core technical skills from responsibility text
+                        # Look for known tech patterns
+                        tech_patterns = [
+                            r'\b(react|angular|vue|node\.?js|javascript|typescript|html|css|'
+                            r'python|java|c\+\+|c#|go|rust|php|ruby|swift|kotlin|scala|sql|'
+                            r'django|flask|fastapi|express|spring|laravel|rails|\.net|'
+                            r'mongodb|postgresql|mysql|redis|docker|kubernetes|aws|azure|gcp|'
+                            r'git|github|gitlab|rest|graphql|redux|tailwind css|bootstrap|'
+                            r'react query|tanstack query|apollo|relay|material-ui|ant design|'
+                            r'chakra ui|styled-components|sass|scss|less|webpack|vite|babel)\b'
+                        ]
+                        for pattern in tech_patterns:
+                            matches = re.finditer(pattern, resp_clean, re.IGNORECASE)
+                            for match in matches:
+                                tech_term = match.group(0).strip()
+                                if is_core_technical_skill(tech_term):
+                                    add_skill(tech_term, is_domain=False)
+                        
+                        # Extract domain skills from responsibilities
+                        domain_patterns = [
+                            r'\b(api\s+integration|component\s+reusability|responsive\s+design|'
+                            r'rest\s+api|graphql\s+api|web\s+development|frontend\s+development|'
+                            r'backend\s+development|full\s+stack\s+development)\b'
+                        ]
+                        for pattern in domain_patterns:
+                            matches = re.finditer(pattern, resp_clean, re.IGNORECASE)
+                            for match in matches:
+                                domain_term = match.group(0).strip()
+                                if is_domain_skill(domain_term):
+                                    add_skill(domain_term, is_domain=True)
         
-        if any(term in text_lower for term in ['mobile', 'android', 'ios', 'react native']):
-            if 'Mobile Development' not in technical_skills:
-                technical_skills.append('Mobile Development')
+        # 6. Extract from tools mentioned in projects
+        for project in projects:
+            tools = project.get("tools", [])
+            if isinstance(tools, list):
+                for tool in tools:
+                    if isinstance(tool, str):
+                        tool_clean = tool.strip()
+                        if is_core_technical_skill(tool_clean):
+                            add_skill(tool_clean, is_domain=False)
         
-        return list(dict.fromkeys(technical_skills))[:20]  # Remove duplicates, limit to 20
+        # Get deduplicated core technical skills
+        core_technical_skills = list(normalized_to_best_form.values())
+        core_technical_skills.sort(key=lambda x: x.lower())
+        
+        # Get domain skills
+        domain_skills = list(domain_skills_set)
+        domain_skills.sort(key=lambda x: x.lower())
+        
+        # Return both lists
+        return {
+            "core_technical_skills": core_technical_skills[:25],  # Limit core skills
+            "domain_skills": domain_skills[:10]  # Limit domain skills
+        }
     
     def _extract_coding_topics(self, skills: List[str], keywords: Dict[str, List[str]], text_lower: str) -> List[str]:
         """Extract programming, DSA, and problem-solving topics for Coding Test"""
