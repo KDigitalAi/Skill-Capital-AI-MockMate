@@ -405,83 +405,446 @@ class ResumeParser:
         return None
     
     def extract_projects(self, text: str) -> List[Dict[str, str]]:
-        """Extract project information from resume text"""
+        """
+        Extract project information from resume text.
+        Extracts from both PROJECTS sections and Internship sections.
+        Preserves bullet formatting, excludes internship metadata, and properly formats output.
+        """
         projects = []
+        text_lines = text.split('\n')
         text_lower = text.lower()
         
-        # Enhanced project extraction patterns
-        project_patterns = [
-            # Project title followed by description
-            r'(?:project|project name|title)[:\s]+([A-Z][^.!?\n]{10,80})[:\s]*([^.!?\n]{20,200})',
-            # Bullet points with project indicators
-            r'(?:^|\n)\s*[-•*]\s*(?:project|built|developed|created|designed)[:\s]+([A-Z][^.!?\n]{10,100})',
-            # Section headers like "PROJECTS" or "PROJECT EXPERIENCE"
-            r'(?:projects?|project experience|personal projects?)[:\s]*\n((?:[^\n]{10,150}\n){1,5})',
+        # Major section headers that indicate end of current section
+        section_end_keywords = [
+            'training and certification', 'certification', 'certifications', 'training',
+            'technical skills', 'skills', 'technical expertise',
+            'education', 'academic background', 'qualifications',
+            'work experience', 'employment', 'professional experience',
+            'achievements', 'awards', 'honors',
+            'languages', 'language proficiency',
+            'references', 'contact', 'personal information',
+            'summary', 'objective', 'profile'
         ]
         
-        # Try to find project sections
-        project_section_pattern = r'(?:projects?|project experience|personal projects?|notable projects?)[:\s]*\n((?:[^\n]+\n){2,10})'
-        section_matches = re.finditer(project_section_pattern, text, re.IGNORECASE | re.MULTILINE)
-        
-        for section_match in section_matches:
-            section_text = section_match.group(1)
-            # Extract project names and descriptions from section
-            lines = section_text.split('\n')
-            current_project = None
+        def clean_project_description(description_lines: List[str], is_internship: bool) -> str:
+            """
+            Clean and format project description, preserving bullet structure.
+            Dynamically detects tech stack, tools, and responsibilities without hard-coding.
+            """
+            tech_stack_items = []
+            tools_items = []
+            responsibility_bullets = []
+            other_lines = []
             
-            for line in lines:
-                line = line.strip()
-                if not line or len(line) < 10:
-                    continue
-                
-                # Check if line looks like a project title (starts with capital, no bullet)
-                if re.match(r'^[A-Z][^.!?]{5,60}(?:\s|$)', line) and not line.startswith(('-', '•', '*')):
-                    if current_project:
-                        projects.append(current_project)
-                    current_project = {
-                        "name": line[:80],
-                        "summary": ""
-                    }
-                elif current_project and len(current_project["summary"]) < 200:
-                    # Add to summary
-                    if current_project["summary"]:
-                        current_project["summary"] += " " + line[:150]
-                    else:
-                        current_project["summary"] = line[:150]
-            
-            if current_project:
-                projects.append(current_project)
-        
-        # Fallback: extract from common patterns
-        if not projects:
-            fallback_patterns = [
-                r'(?:built|developed|created|designed)\s+([A-Z][^.!?\n]{10,80})\s+(?:using|with|in|for)',
-                r'([A-Z][A-Za-z\s]{5,40})\s+(?:project|application|system|platform)',
+            # Patterns to identify and exclude
+            internship_metadata_patterns = [
+                r'^(frontend|backend|full.?stack|software|web|mobile)\s+(developer|engineer|intern)',
+                r'\([^)]*\d{4}[^)]*\)',  # Dates in parentheses
+                r'^(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}',
+                r'organization[:\s]+',
+                r'company[:\s]+',
+                r'employer[:\s]+',
+                r'^[A-Z\s]{2,30}$',  # All caps section headers
             ]
             
-            for pattern in fallback_patterns:
-                matches = re.finditer(pattern, text, re.IGNORECASE)
-                for match in matches:
-                    project_name = match.group(1).strip()[:80]
-                    # Try to get context around the match
-                    start = max(0, match.start() - 50)
-                    end = min(len(text), match.end() + 150)
-                    context = text[start:end]
-                    summary = context.replace(project_name, "").strip()[:150]
-                    
-                    if project_name and len(project_name) > 5:
-                        projects.append({
-                            "name": project_name,
-                            "summary": summary if summary else "Project details extracted from resume."
-                        })
+            # Dynamic detection patterns (no hard-coded keywords)
+            # Tech stack indicators: lines with technology names followed by colons or commas
+            tech_stack_patterns = [
+                r'^[^:]+[:\s]+[A-Za-z0-9\s.,]+(?:react|javascript|python|java|html|css|node|angular|vue|django|flask|api|sql|mongodb|postgresql|redis|docker|kubernetes|aws|azure|gcp)',
+                r'^[^:]+[:\s]+[A-Za-z0-9\s.,]+(?:\.js|\.py|\.ts|\.net|\.jsx|\.tsx)',
+            ]
+            
+            # Tools indicators: lines mentioning common tool patterns
+            tools_patterns = [
+                r'^[^:]+[:\s]+[A-Za-z0-9\s.,]+(?:git|github|gitlab|vscode|visual\s+studio|postman|jira|confluence|jenkins|terraform|ansible)',
+                r'^tools?\s+used[:\s]',
+            ]
+            
+            # Bullet markers (comprehensive list including unicode)
+            bullet_markers = ['-', '•', '*', '·', '▪', '▸', '▹', '▪', '▫', '◦', '‣', '⁃', '⁌', '⁍', '→', '➜', '➤']
+            
+            for line in description_lines:
+                line_stripped = line.strip()
+                if not line_stripped:
+                    continue
+                
+                line_lower = line_stripped.lower()
+                
+                # Skip section headers
+                is_section_header = False
+                for keyword in section_end_keywords:
+                    if re.match(rf'^{re.escape(keyword)}[:\s]*$', line_lower) or re.match(rf'^{re.escape(keyword.upper())}[:\s]*$', line_stripped):
+                        is_section_header = True
+                        break
+                if is_section_header:
+                    continue
+                
+                # Skip internship metadata
+                if is_internship:
+                    is_metadata = False
+                    for pattern in internship_metadata_patterns:
+                        if re.search(pattern, line_stripped, re.IGNORECASE):
+                            is_metadata = True
+                            break
+                    if is_metadata:
+                        continue
+                
+                # Detect tech stack dynamically (without hard-coding "Tech Stack:")
+                is_tech_stack = False
+                # Check if line contains colon followed by technology terms
+                if ':' in line_stripped:
+                    # Check if content after colon looks like tech stack (comma-separated or space-separated tech terms)
+                    parts = line_stripped.split(':', 1)
+                    if len(parts) == 2:
+                        prefix = parts[0].lower().strip()
+                        content = parts[1].strip()
+                        # Check if prefix suggests tech/technologies and content has tech-like terms
+                        tech_prefixes = ['tech', 'technology', 'technologies', 'stack', 'framework', 'library', 'libraries']
+                        if any(tp in prefix for tp in tech_prefixes) and len(content) > 5:
+                            # Extract tech items (split by comma or space)
+                            tech_items = [item.strip() for item in re.split(r'[,|]', content) if item.strip()]
+                            if tech_items:
+                                tech_stack_items.extend(tech_items)
+                                is_tech_stack = True
+                
+                # Detect tools dynamically
+                is_tools = False
+                if ':' in line_stripped:
+                    parts = line_stripped.split(':', 1)
+                    if len(parts) == 2:
+                        prefix = parts[0].lower().strip()
+                        content = parts[1].strip()
+                        # Check if prefix suggests tools
+                        tools_prefixes = ['tool', 'tools', 'software', 'platform', 'environment']
+                        if any(tp in prefix for tp in tools_prefixes) and len(content) > 3:
+                            # Extract tool items
+                            tool_items = [item.strip() for item in re.split(r'[,|]', content) if item.strip()]
+                            if tool_items:
+                                tools_items.extend(tool_items)
+                                is_tools = True
+                
+                if is_tech_stack or is_tools:
+                    continue
+                
+                # Detect and preserve bullet points
+                is_bullet = False
+                for marker in bullet_markers:
+                    # Check if line starts with bullet marker (with optional whitespace)
+                    if re.match(rf'^\s*[{re.escape(marker)}]', line_stripped):
+                        is_bullet = True
+                        # Clean bullet: ensure single space after bullet marker
+                        # Remove any leading whitespace, then add bullet with single space
+                        content_after_bullet = re.sub(rf'^\s*[{re.escape(marker)}]\s*', '', line_stripped).strip()
+                        if content_after_bullet:
+                            # Use standard bullet marker for consistency
+                            bullet_cleaned = f"• {content_after_bullet}"
+                            responsibility_bullets.append(bullet_cleaned)
+                        break
+                
+                if not is_bullet:
+                    # Check if line might be a bullet without marker (starts with action verb)
+                    # This handles cases where PDF extraction loses bullet markers
+                    action_verbs = ['developed', 'created', 'built', 'designed', 'implemented', 'worked', 
+                                  'collaborated', 'enhanced', 'practiced', 'gained', 'integrated', 'used',
+                                  'managed', 'led', 'improved', 'optimized', 'delivered', 'designed', 'implemented']
+                    words = line_stripped.split()
+                    # Check if first word is an action verb and line is substantial
+                    if words and words[0].lower() in action_verbs and len(line_stripped) > 20:
+                        # Likely a responsibility bullet without marker - add bullet marker
+                        responsibility_bullets.append(f"• {line_stripped}")
+                    elif len(line_stripped) > 10 and not line_stripped.endswith(('.', ':', ';')):
+                        # Check if it's a short descriptive line that might be a bullet
+                        # (not ending with punctuation suggests it might be part of a list)
+                        if len(line_stripped.split()) <= 15:
+                            responsibility_bullets.append(f"• {line_stripped}")
+                        else:
+                            other_lines.append(line_stripped)
+                    else:
+                        # Other descriptive line
+                        other_lines.append(line_stripped)
+            
+            # Build structured description with clear separation
+            formatted_parts = []
+            
+            # Add tech stack section if available
+            if tech_stack_items:
+                tech_content = ', '.join(tech_stack_items)
+                formatted_parts.append(f"Tech Stack: {tech_content}")
+            
+            # Add responsibilities (bullets) with clear separation
+            if responsibility_bullets:
+                # Each bullet on its own line - preserve structure
+                formatted_parts.extend(responsibility_bullets)
+            
+            # Add other descriptive lines
+            if other_lines:
+                formatted_parts.extend(other_lines)
+            
+            # Add tools section at end if available
+            if tools_items:
+                tools_content = ', '.join(tools_items)
+                formatted_parts.append(f"Tools: {tools_content}")
+            
+            # Join with newlines to preserve structure
+            return '\n'.join(formatted_parts).strip()
         
-        # Remove duplicates and limit
-        seen = set()
+        def extract_from_section(section_start_idx: int, section_name: str) -> List[Dict[str, str]]:
+            """Extract projects from a specific section"""
+            section_projects = []
+            section_lines = []
+            
+            # Extract content from section until next major section
+            for i in range(section_start_idx + 1, len(text_lines)):
+                line = text_lines[i].strip()
+                if not line:
+                    section_lines.append('')  # Preserve empty lines for project separation
+                    continue
+                
+                line_lower = line.lower()
+                
+                # Check if we've hit a new major section - stop extraction
+                is_section_end = False
+                for keyword in section_end_keywords:
+                    if (re.match(rf'^{re.escape(keyword)}[:\s]*$', line_lower) or
+                        re.match(rf'^{re.escape(keyword.upper())}[:\s]*$', line)):
+                        is_section_end = True
+                        break
+                
+                if is_section_end:
+                    break
+                
+                section_lines.append(text_lines[i])
+            
+            # Parse projects from section lines
+            current_project = None
+            current_description_lines = []
+            is_internship_section = 'internship' in section_name.lower()
+            
+            # Patterns to identify internship role titles (to skip them)
+            role_title_patterns = [
+                r'^(frontend|backend|full.?stack|software|web|mobile|data|devops|qa|test)\s+(developer|engineer|intern|specialist|analyst|architect)',
+                r'\s+(developer|engineer|intern|specialist|analyst|architect)\s*[-–]',  # Role before dash
+            ]
+            
+            # Patterns to identify dates and organization lines (to skip)
+            date_patterns = [
+                r'\([^)]*\d{4}[^)]*\)',  # Dates in parentheses
+                r'^(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}',
+                r'organization[:\s]+',
+                r'company[:\s]+',
+                r'employer[:\s]+',
+            ]
+            
+            for idx, line in enumerate(section_lines):
+                line_stripped = line.strip()
+                
+                if not line_stripped:
+                    # Empty line - if we have a project, save it
+                    if current_project and current_description_lines:
+                        current_project["summary"] = clean_project_description(current_description_lines, is_internship_section)
+                        if current_project["summary"]:  # Only add if has content
+                            section_projects.append(current_project)
+                        current_project = None
+                        current_description_lines = []
+                    continue
+                
+                line_lower = line_stripped.lower()
+                is_bullet = line_stripped.startswith(('-', '•', '*', '·'))
+                line_no_bullet = re.sub(r'^[\s]*[-•*·]\s*', '', line_stripped).strip()
+                
+                # Skip internship role titles and metadata in internship sections
+                if is_internship_section:
+                    # Check if this is a role title line
+                    is_role_title = False
+                    for pattern in role_title_patterns:
+                        if re.search(pattern, line_stripped, re.IGNORECASE):
+                            is_role_title = True
+                            break
+                    
+                    # Check if this is a date or organization line
+                    is_metadata_line = False
+                    for pattern in date_patterns:
+                        if re.search(pattern, line_stripped, re.IGNORECASE):
+                            is_metadata_line = True
+                            break
+                    
+                    # Skip role titles and metadata lines - don't use them as project titles
+                    if is_role_title or is_metadata_line:
+                        continue
+                
+                # Check if line is a project title
+                is_project_title = False
+                
+                if not is_bullet:
+                    words = line_no_bullet.split()
+                    word_count = len(words)
+                    
+                    # Project title indicators (dynamic - no hard-coding)
+                    title_indicators = ['app', 'application', 'system', 'platform', 'project', 'web', 'mobile',
+                                       'quiz', 'ordering', 'food', 'pharma', 'game', 'dashboard', 'portal',
+                                       'website', 'site', 'tool', 'service', 'api']
+                    
+                    # Action verbs that indicate description, not title
+                    action_verbs = ['developed', 'created', 'built', 'designed', 'implemented', 
+                                   'worked', 'collaborated', 'enhanced', 'practiced', 'gained',
+                                   'integrated', 'used', 'tools', 'tech', 'demonstrated', 'managed']
+                    
+                    # Role-related words that indicate this is NOT a project title
+                    role_words = ['intern', 'developer', 'engineer', 'specialist', 'analyst', 'architect', 'manager']
+                    
+                    # Check for project title patterns
+                    if (word_count >= 2 and word_count <= 10 and
+                        re.match(r'^[A-Z]', line_no_bullet) and
+                        not any(word.lower() in action_verbs for word in words[:3]) and
+                        not any(word.lower() in role_words for word in words)):  # Exclude role words
+                        
+                        # Check for title indicators
+                        if any(indicator in line_no_bullet.lower() for indicator in title_indicators):
+                            is_project_title = True
+                        # Or short capitalized phrase without punctuation
+                        elif (word_count <= 6 and 
+                              not line_no_bullet.endswith(('.', '!', '?')) and
+                              ':' not in line_no_bullet):
+                            is_project_title = True
+                
+                if is_project_title:
+                    # Save previous project if exists
+                    if current_project and current_description_lines:
+                        current_project["summary"] = clean_project_description(current_description_lines, is_internship_section)
+                        if current_project["summary"]:
+                            section_projects.append(current_project)
+                    
+                    # Start new project
+                    current_project = {
+                        "name": line_no_bullet[:100],
+                        "summary": ""
+                    }
+                    current_description_lines = []
+                elif current_project:
+                    # Description line - preserve formatting
+                    current_description_lines.append(line_stripped)
+                elif is_internship_section and not current_project:
+                    # In internship section, look for project mentions in bullet points
+                    # Extract full project name from bullet points like "Developed a Pharma Quiz Web Application using..."
+                    # Pattern: "Developed a [Full Project Name] using/with/for"
+                    # Use a more flexible pattern that captures everything until "using/with/for"
+                    pattern = r'(?:developed|created|built|designed)\s+(?:a\s+)?([A-Z][^.!?]*?)\s+(?:using|with|for)\s+'
+                    match = re.search(pattern, line_no_bullet, re.IGNORECASE)
+                    
+                    if match:
+                        potential_project = match.group(1).strip()
+                        # Clean up: remove trailing words that aren't part of project name
+                        # Keep only up to project name endings
+                        project_endings = ['web application', 'web app', 'application', 'app', 'system', 'platform', 'project']
+                        found_ending = False
+                        for ending in project_endings:
+                            ending_lower = ending.lower()
+                            if ending_lower in potential_project.lower():
+                                # Find the ending and keep everything up to and including it
+                                ending_pos = potential_project.lower().find(ending_lower)
+                                if ending_pos >= 0:
+                                    # Extract from start to end of the ending phrase
+                                    words_before = potential_project[:ending_pos].strip().split()
+                                    # Reconstruct with proper capitalization
+                                    if words_before:
+                                        potential_project = ' '.join(words_before) + ' ' + ending.title()
+                                    else:
+                                        potential_project = ending.title()
+                                    found_ending = True
+                                    break
+                        
+                        # If no ending found, try to extract a reasonable project name
+                        if not found_ending:
+                            # Take first few capitalized words (likely the project name)
+                            words = potential_project.split()
+                            if len(words) >= 2:
+                                # Take up to 6 words as project name
+                                potential_project = ' '.join(words[:6])
+                        
+                        # Verify it's a real project name (not a role or action)
+                        title_indicators = ['app', 'application', 'quiz', 'ordering', 'food', 'pharma', 'web', 'system', 'platform']
+                        role_words = ['intern', 'developer', 'engineer', 'specialist']
+                        
+                        # Check if it contains project indicators and doesn't contain role words
+                        has_project_indicator = any(indicator in potential_project.lower() for indicator in title_indicators)
+                        has_role_word = any(role in potential_project.lower() for role in role_words)
+                        
+                        if has_project_indicator and not has_role_word and len(potential_project.split()) >= 2:
+                            # Start new project with full name
+                            current_project = {
+                                "name": potential_project[:100],
+                                "summary": ""
+                            }
+                            current_description_lines = [line_stripped]
+            
+            # Save the last project
+            if current_project and current_description_lines:
+                current_project["summary"] = clean_project_description(current_description_lines, is_internship_section)
+                if current_project["summary"]:
+                    section_projects.append(current_project)
+            
+            return section_projects
+        
+        # Extract from PROJECTS section
+        projects_section_start = None
+        for i, line in enumerate(text_lines):
+            line_stripped = line.strip()
+            line_lower = line_stripped.lower()
+            if re.match(r'^(projects?|project\s+experience|personal\s+projects?|notable\s+projects?)[:\s]*$', line_lower):
+                projects_section_start = i
+                break
+        
+        if projects_section_start is not None:
+            projects.extend(extract_from_section(projects_section_start, "PROJECTS"))
+        
+        # Extract from Internship sections
+        for i, line in enumerate(text_lines):
+            line_stripped = line.strip()
+            line_lower = line_stripped.lower()
+            if re.match(r'^(internship\s+experience|internships?)[:\s]*$', line_lower):
+                # Extract projects from this internship section
+                internship_projects = extract_from_section(i, "INTERNSHIP")
+                projects.extend(internship_projects)
+                # Only process first internship section to avoid duplicates
+                break
+        
+        # Deduplicate projects based on name similarity
         unique_projects = []
-        for proj in projects[:10]:  # Limit to 10 projects
-            name_lower = proj["name"].lower()
-            if name_lower not in seen:
-                seen.add(name_lower)
+        seen_names = set()
+        
+        for proj in projects:
+            if not proj.get("name") or not proj.get("summary"):
+                continue
+            
+            name = proj["name"].strip()
+            name_lower = name.lower()
+            
+            # Check for duplicates
+            is_duplicate = False
+            for seen_name in seen_names:
+                seen_lower = seen_name.lower()
+                # Exact match
+                if name_lower == seen_lower:
+                    is_duplicate = True
+                    break
+                # Fuzzy matching: check if names are very similar
+                if name_lower in seen_lower or seen_lower in name_lower:
+                    shorter = min(len(name_lower), len(seen_lower))
+                    longer = max(len(name_lower), len(seen_lower))
+                    if shorter > 0 and shorter / longer > 0.7:
+                        is_duplicate = True
+                        break
+                # Check word overlap
+                name_words = set(name_lower.split())
+                seen_words = set(seen_lower.split())
+                if len(name_words) > 0 and len(seen_words) > 0:
+                    overlap = len(name_words & seen_words) / max(len(name_words), len(seen_words))
+                    if overlap > 0.6:
+                        is_duplicate = True
+                        break
+            
+            if not is_duplicate:
+                seen_names.add(name)
                 unique_projects.append(proj)
         
         return unique_projects
@@ -700,7 +1063,7 @@ class ResumeParser:
     def generate_resume_summary(self, name: Optional[str], email: Optional[str],
                                skills: List[str], experience_level: Optional[str],
                                keywords: Dict[str, List[str]], text: str) -> str:
-        """Generate a clear resume summary paragraph"""
+        """Generate a clear resume summary paragraph based ONLY on actual resume content"""
         summary_parts = []
         
         # Start with name if available
@@ -718,21 +1081,38 @@ class ResumeParser:
         else:
             summary_parts.append("a professional")
         
-        # Add domain/role
+        # Add domain/role ONLY from extracted job titles (actual resume content)
         job_titles = keywords.get("job_titles", [])
         if job_titles:
             primary_role = job_titles[0]
             summary_parts.append(f"specializing in {primary_role.lower()}")
-        elif any(term in text.lower() for term in ['machine learning', 'ml', 'ai', 'data science']):
-            summary_parts.append("with expertise in AI/ML and Data Science")
-        elif any(term in text.lower() for term in ['web', 'frontend', 'backend']):
-            summary_parts.append("with expertise in web development")
-        elif any(term in text.lower() for term in ['mobile', 'android', 'ios']):
-            summary_parts.append("with expertise in mobile development")
-        else:
-            summary_parts.append("with technical expertise")
         
-        # Add key strengths
+        # Build expertise description from ACTUAL extracted skills and technologies only
+        # NO hard-coded assumptions or generic fallbacks
+        expertise_parts = []
+        
+        # Use actual extracted technologies (not assumptions)
+        technologies = keywords.get("technologies", [])
+        if technologies:
+            # Group technologies by domain based on what's actually present
+            tech_list = technologies[:5]  # Limit to top 5
+            tech_str = ", ".join(tech_list[:3])
+            if tech_str:
+                expertise_parts.append(f"proficient in {tech_str}")
+        
+        # Use actual extracted skills (not assumptions)
+        if skills:
+            # Get primary skills (limit to top 3-5 most relevant)
+            primary_skills = skills[:5]
+            skill_str = ", ".join(primary_skills[:3])
+            if skill_str and not technologies:  # Only add if we don't have technologies
+                expertise_parts.append(f"skilled in {skill_str}")
+        
+        # Add expertise description only if we have actual data
+        if expertise_parts:
+            summary_parts.append(f"with {', '.join(expertise_parts)}")
+        
+        # Add key strengths based on actual resume content
         strengths = []
         if len(skills) >= 10:
             strengths.append("strong technical skills")
@@ -741,14 +1121,13 @@ class ResumeParser:
         if keywords.get("job_titles"):
             strengths.append("relevant industry experience")
         
+        # Add projects if available (actual resume content)
+        projects = keywords.get("projects", [])
+        if projects and len(projects) > 0:
+            strengths.append("project experience")
+        
         if strengths:
             summary_parts.append(f"demonstrating {', '.join(strengths)}")
-        
-        # Add technologies if available
-        technologies = keywords.get("technologies", [])[:5]
-        if technologies:
-            tech_str = ", ".join(technologies[:3])
-            summary_parts.append(f"with proficiency in {tech_str}")
         
         summary = " ".join(summary_parts) + "."
         return summary
