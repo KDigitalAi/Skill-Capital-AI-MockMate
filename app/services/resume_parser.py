@@ -1830,33 +1830,117 @@ class ResumeParser:
         }
     
     def _extract_coding_topics(self, skills: List[str], keywords: Dict[str, List[str]], text_lower: str) -> List[str]:
-        """Extract programming, DSA, and problem-solving topics for Coding Test"""
+        """
+        Extract ONLY DSA/algorithm topics from resume. 
+        DO NOT include frontend/UI topics (React, Components, Hooks, Routing, CSS, HTML, API Integration, etc.)
+        These belong in Technical Interview section, NOT Coding section.
+        """
         coding_topics = []
         
-        # Programming languages
-        programming_langs = ['python', 'java', 'javascript', 'c++', 'c#', 'go', 'rust']
-        for skill in skills:
-            skill_lower = skill.lower()
-            if any(lang in skill_lower for lang in programming_langs):
-                coding_topics.append(skill)
+        # Normalization mapping for consistent output
+        normalization_map = {
+            'javascript': 'JavaScript',
+            'js': 'JavaScript',
+            'typescript': 'TypeScript',
+            'ts': 'TypeScript',
+            'python': 'Python',
+            'java': 'Java',
+            'c++': 'C++',
+            'c#': 'C#',
+            'sql': 'SQL',
+            'sql queries': 'SQL Queries',
+            'sql query': 'SQL Queries',
+            'database query': 'SQL Queries',
+            'arrays': 'Arrays',
+            'strings': 'Strings',
+            'arrays & strings': 'Arrays and Strings',
+            'arrays and strings': 'Arrays and Strings',
+            'hash table': 'Hash Tables',
+            'hash tables': 'Hash Tables',
+            'maps': 'Hash Tables',
+            'linked list': 'Linked List',
+            'stack': 'Stack',
+            'queue': 'Queue',
+            'recursion': 'Recursion',
+            'two pointer': 'Two Pointers',
+            'two pointers': 'Two Pointers',
+            'sorting': 'Sorting',
+            'searching': 'Searching',
+            'graph': 'Basic Graph',
+            'graphs': 'Basic Graph',
+            'dynamic programming': 'Dynamic Programming',
+            'time complexity': 'Time & Space Complexity',
+            'space complexity': 'Time & Space Complexity',
+            'complexity': 'Time & Space Complexity'
+        }
         
-        # DSA topics based on skills and text
-        if any(term in text_lower for term in ['algorithm', 'data structure', 'dsa', 'leetcode', 'hackerrank']):
-            coding_topics.extend(['Data Structures', 'Algorithms', 'Problem Solving'])
+        # Extract DSA topics ONLY if explicitly mentioned in resume
+        dsa_keywords = {
+            'arrays': 'Arrays',
+            'strings': 'Strings',
+            'hash table': 'Hash Tables',
+            'hash tables': 'Hash Tables',
+            'map': 'Hash Tables',
+            'maps': 'Hash Tables',
+            'linked list': 'Linked List',
+            'stack': 'Stack',
+            'queue': 'Queue',
+            'recursion': 'Recursion',
+            'two pointer': 'Two Pointers',
+            'two pointers': 'Two Pointers',
+            'sorting': 'Sorting',
+            'searching': 'Searching',
+            'graph': 'Basic Graph',
+            'graphs': 'Basic Graph',
+            'dynamic programming': 'Dynamic Programming',
+            'time complexity': 'Time & Space Complexity',
+            'space complexity': 'Time & Space Complexity',
+            'complexity': 'Time & Space Complexity',
+            'algorithm': 'Algorithms',
+            'algorithms': 'Algorithms',
+            'data structure': 'Data Structures',
+            'data structures': 'Data Structures',
+            'dsa': 'Data Structures'
+        }
         
-        # Add common DSA topics if programming skills exist
-        if coding_topics:
-            coding_topics.extend(['Arrays & Strings', 'Hash Tables', 'Two Pointers', 'Dynamic Programming'])
+        # Check for DSA topics in resume text
+        for keyword, topic_name in dsa_keywords.items():
+            if keyword in text_lower:
+                coding_topics.append(topic_name)
         
-        # Database-related coding
-        if any(term in text_lower for term in ['sql', 'database', 'query']):
+        # Extract JavaScript Logic (programming fundamentals) if JavaScript is mentioned
+        # But NOT React, Components, Hooks, Routing, etc.
+        if any('javascript' in s.lower() or 'js' in s.lower() for s in skills) or 'javascript' in text_lower:
+            # Only add JavaScript Logic if JavaScript is used for programming/logic (not just UI)
+            # Check if JavaScript is used for algorithms/logic, not just React/UI
+            if any(term in text_lower for term in ['logic', 'algorithm', 'problem solving', 'programming', 'function', 'variable']):
+                coding_topics.append('JavaScript Logic')
+        
+        # SQL Queries only if explicitly mentioned
+        if any(term in text_lower for term in ['sql', 'sql query', 'database query', 'query', 'database']):
             coding_topics.append('SQL Queries')
         
-        # System design if mentioned
-        if any(term in text_lower for term in ['system design', 'architecture', 'scalability']):
-            coding_topics.extend(['System Design', 'Scalability'])
+        # Normalize topics
+        normalized_topics = []
+        for topic in coding_topics:
+            topic_lower = topic.lower()
+            # Check normalization map
+            normalized = normalization_map.get(topic_lower, topic)
+            # Handle "Arrays & Strings" vs "Arrays and Strings"
+            if 'arrays' in topic_lower and 'strings' in topic_lower:
+                normalized = 'Arrays and Strings'
+            normalized_topics.append(normalized)
         
-        return list(dict.fromkeys(coding_topics))[:15]  # Remove duplicates, limit to 15
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_topics = []
+        for topic in normalized_topics:
+            topic_lower = topic.lower()
+            if topic_lower not in seen:
+                seen.add(topic_lower)
+                unique_topics.append(topic)
+        
+        return unique_topics
     
     def _extract_hr_skills(self, text_lower: str, keywords: Dict[str, List[str]]) -> List[str]:
         """Extract communication, teamwork, leadership skills for HR Interview"""
@@ -1943,39 +2027,106 @@ class ResumeParser:
     
     def _determine_coding_difficulty(self, experience_level: str, skills: List[str], 
                                     projects: List[Dict[str, str]], text_lower: str) -> str:
-        """Determine coding test difficulty level"""
-        if not experience_level or experience_level in ["Fresher", "Not specified", "Unknown"]:
+        """
+        Calculate difficulty level based on resume depth and skill diversity.
+        - Basic programming (HTML, CSS, JS) → Beginner
+        - JavaScript + React + API usage → Easy to Medium
+        - DSA terms explicitly mentioned → Medium to Hard
+        """
+        # Count programming languages detected
+        programming_langs = ['python', 'java', 'javascript', 'typescript', 'c++', 'c#', 'go', 'rust', 'php', 'ruby', 'swift', 'kotlin', 'c', 'cpp']
+        detected_langs = [lang for lang in programming_langs if lang in text_lower]
+        
+        # Check for basic programming only (HTML, CSS, basic JS)
+        basic_programming = ['html', 'css']
+        has_basic_only = any(tech in text_lower for tech in basic_programming) and len(detected_langs) <= 1
+        
+        # Check for JavaScript + React + API usage
+        has_javascript = 'javascript' in text_lower or 'js' in text_lower
+        has_react = 'react' in text_lower
+        has_api = 'api' in text_lower or 'rest' in text_lower
+        has_js_react_api = has_javascript and has_react and has_api
+        
+        # Check for DSA terms explicitly mentioned
+        dsa_indicators = ['algorithm', 'data structure', 'dsa', 'data structures', 'arrays', 'strings', 
+                         'hash table', 'linked list', 'stack', 'queue', 'recursion', 'two pointer',
+                         'sorting', 'searching', 'graph', 'dynamic programming', 'complexity',
+                         'leetcode', 'hackerrank', 'codechef', 'codeforces', 'competitive programming']
+        has_dsa_mention = any(indicator in text_lower for indicator in dsa_indicators)
+        
+        # Count projects
+        project_count = len(projects) if projects else 0
+        
+        # Calculate difficulty based on resume depth
+        # Rule 1: Basic programming only → Beginner
+        if has_basic_only and not has_javascript and not has_dsa_mention:
+            return "Beginner"
+        
+        # Rule 2: JavaScript + React + API → Easy to Medium
+        if has_js_react_api and not has_dsa_mention:
             return "Easy to Medium"
         
-        # Check for years of experience
-        years_match = re.search(r'(\d+)', str(experience_level))
-        years = int(years_match.group(1)) if years_match else 0
+        # Rule 3: DSA terms explicitly mentioned → Medium to Hard
+        if has_dsa_mention:
+            # Adjust based on project count and skill diversity
+            if project_count >= 3 and len(detected_langs) >= 2:
+                return "Medium to Hard"
+            else:
+                return "Easy to Medium"
         
-        if years >= 5:
-            return "Hard"
-        elif years >= 2:
-            return "Medium to Hard"
-        else:
+        # Rule 4: Multiple programming languages but no DSA → Easy to Medium
+        if len(detected_langs) >= 2 and project_count >= 2:
             return "Easy to Medium"
+        
+        # Rule 5: Single language with projects → Beginner to Easy
+        if len(detected_langs) == 1 and project_count >= 1:
+            return "Beginner to Easy"
+        
+        # Default: Beginner
+        return "Beginner"
     
     def _recommend_coding_platforms(self, skills: List[str], text_lower: str) -> List[str]:
-        """Recommend coding platforms based on skills"""
+        """
+        Recommend coding platforms dynamically based on detected programming languages.
+        Only show platforms if programming languages are detected in resume.
+        """
         platforms = []
         
-        # Always include common platforms
-        platforms.extend(["LeetCode", "HackerRank", "CodeSignal"])
+        # Detect programming languages in resume
+        programming_langs = ['javascript', 'python', 'java', 'c++', 'c', 'cpp', 'c#', 'go', 'rust', 'php', 'ruby', 'swift', 'kotlin', 'typescript']
+        detected_langs = [lang for lang in programming_langs if lang in text_lower]
         
-        # Add platform-specific recommendations
-        if any(skill.lower() in ['python', 'java', 'javascript', 'c++'] for skill in skills):
-            platforms.append("CodeChef")
+        # Only recommend platforms if programming languages are detected
+        if not detected_langs:
+            return []  # Return empty if no programming languages found
         
-        if any(term in text_lower for term in ['algorithm', 'data structure', 'competitive']):
-            platforms.append("Codeforces")
+        # Standard platforms to recommend if programming languages detected
+        standard_platforms = ['LeetCode', 'HackerRank', 'CodeSignal', 'CodeChef']
+        platforms.extend(standard_platforms)
         
-        if any(term in text_lower for term in ['system design', 'architecture', 'distributed']):
-            platforms.append("Pramp")
+        # Also check if platforms are explicitly mentioned in resume
+        platform_mentions = {
+            'leetcode': 'LeetCode',
+            'hackerrank': 'HackerRank',
+            'codesignal': 'CodeSignal',
+            'codechef': 'CodeChef',
+            'codeforces': 'Codeforces',
+            'codewars': 'Codewars',
+            'geeksforgeeks': 'GeeksforGeeks',
+            'pramp': 'Pramp',
+            'interviewbit': 'InterviewBit',
+            'topcoder': 'TopCoder',
+            'atcoder': 'AtCoder',
+            'spoj': 'SPOJ'
+        }
         
-        return list(dict.fromkeys(platforms))[:5]  # Remove duplicates, limit to 5
+        # Add explicitly mentioned platforms
+        for platform_key, platform_name in platform_mentions.items():
+            if platform_key in text_lower and platform_name not in platforms:
+                platforms.append(platform_name)
+        
+        # Remove duplicates and return
+        return list(dict.fromkeys(platforms))
     
     def _recommend_coding_topics(self, skills: List[str], keywords: Dict[str, List[str]], 
                                 text_lower: str) -> List[str]:
