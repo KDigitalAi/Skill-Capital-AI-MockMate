@@ -426,10 +426,11 @@ class ResumeParser:
             'summary', 'objective', 'profile'
         ]
         
-        def clean_project_description(description_lines: List[str], is_internship: bool) -> str:
+        def clean_project_description(description_lines: List[str], is_internship: bool) -> Dict[str, Any]:
             """
             Clean and format project description, preserving bullet structure.
-            Dynamically detects tech stack, tools, and responsibilities without hard-coding.
+            Returns structured data with tech_stack, responsibilities, and tools as separate arrays.
+            Dynamically detects content types without hard-coding keywords.
             """
             tech_stack_items = []
             tools_items = []
@@ -447,21 +448,24 @@ class ResumeParser:
                 r'^[A-Z\s]{2,30}$',  # All caps section headers
             ]
             
-            # Dynamic detection patterns (no hard-coded keywords)
-            # Tech stack indicators: lines with technology names followed by colons or commas
-            tech_stack_patterns = [
-                r'^[^:]+[:\s]+[A-Za-z0-9\s.,]+(?:react|javascript|python|java|html|css|node|angular|vue|django|flask|api|sql|mongodb|postgresql|redis|docker|kubernetes|aws|azure|gcp)',
-                r'^[^:]+[:\s]+[A-Za-z0-9\s.,]+(?:\.js|\.py|\.ts|\.net|\.jsx|\.tsx)',
+            # Technology/framework patterns for dynamic detection
+            tech_term_patterns = [
+                r'\b(react|angular|vue|node|javascript|typescript|python|java|html|css|django|flask|fastapi|express|spring|laravel|rails|\.net|\.js|\.py|\.ts|\.jsx|\.tsx|api|rest|graphql|sql|mongodb|postgresql|mysql|redis|docker|kubernetes|aws|azure|gcp)\b',
             ]
             
-            # Tools indicators: lines mentioning common tool patterns
-            tools_patterns = [
-                r'^[^:]+[:\s]+[A-Za-z0-9\s.,]+(?:git|github|gitlab|vscode|visual\s+studio|postman|jira|confluence|jenkins|terraform|ansible)',
-                r'^tools?\s+used[:\s]',
+            # Tool patterns for dynamic detection
+            tool_term_patterns = [
+                r'\b(git|github|gitlab|vscode|visual\s+studio|postman|jira|confluence|jenkins|terraform|ansible|puppet|chef|vagrant)\b',
             ]
             
             # Bullet markers (comprehensive list including unicode)
-            bullet_markers = ['-', '•', '*', '·', '▪', '▸', '▹', '▪', '▫', '◦', '‣', '⁃', '⁌', '⁍', '→', '➜', '➤']
+            bullet_markers = ['-', '•', '*', '·', '▪', '▸', '▹', '▪', '▫', '◦', '‣', '⁃', '⁌', '⁍', '→', '➜', '➤', '○', '●']
+            
+            # Action verbs that indicate responsibilities
+            action_verbs = ['developed', 'created', 'built', 'designed', 'implemented', 'worked', 
+                          'collaborated', 'enhanced', 'practiced', 'gained', 'integrated', 'used',
+                          'managed', 'led', 'improved', 'optimized', 'delivered', 'established',
+                          'configured', 'deployed', 'maintained', 'debugged', 'tested', 'wrote']
             
             for line in description_lines:
                 line_stripped = line.strip()
@@ -489,34 +493,50 @@ class ResumeParser:
                     if is_metadata:
                         continue
                 
-                # Detect tech stack dynamically (without hard-coding "Tech Stack:")
+                # Detect tech stack dynamically using semantic analysis
                 is_tech_stack = False
-                # Check if line contains colon followed by technology terms
                 if ':' in line_stripped:
-                    # Check if content after colon looks like tech stack (comma-separated or space-separated tech terms)
                     parts = line_stripped.split(':', 1)
                     if len(parts) == 2:
                         prefix = parts[0].lower().strip()
                         content = parts[1].strip()
-                        # Check if prefix suggests tech/technologies and content has tech-like terms
-                        tech_prefixes = ['tech', 'technology', 'technologies', 'stack', 'framework', 'library', 'libraries']
-                        if any(tp in prefix for tp in tech_prefixes) and len(content) > 5:
-                            # Extract tech items (split by comma or space)
+                        
+                        # Check if prefix suggests tech/technologies (dynamic pattern matching)
+                        tech_prefix_indicators = ['tech', 'technology', 'technologies', 'stack', 'framework', 'library', 'libraries', 'language', 'languages']
+                        has_tech_prefix = any(indicator in prefix for indicator in tech_prefix_indicators)
+                        
+                        # Check if content contains technology terms
+                        has_tech_terms = any(re.search(pattern, content, re.IGNORECASE) for pattern in tech_term_patterns)
+                        
+                        # Check if content looks like a list (comma-separated or pipe-separated)
+                        is_list_like = ',' in content or '|' in content or len(content.split()) <= 10
+                        
+                        if has_tech_prefix and has_tech_terms and is_list_like and len(content) > 5:
+                            # Extract tech items
                             tech_items = [item.strip() for item in re.split(r'[,|]', content) if item.strip()]
                             if tech_items:
                                 tech_stack_items.extend(tech_items)
                                 is_tech_stack = True
                 
-                # Detect tools dynamically
+                # Detect tools dynamically using semantic analysis
                 is_tools = False
                 if ':' in line_stripped:
                     parts = line_stripped.split(':', 1)
                     if len(parts) == 2:
                         prefix = parts[0].lower().strip()
                         content = parts[1].strip()
-                        # Check if prefix suggests tools
-                        tools_prefixes = ['tool', 'tools', 'software', 'platform', 'environment']
-                        if any(tp in prefix for tp in tools_prefixes) and len(content) > 3:
+                        
+                        # Check if prefix suggests tools (dynamic pattern matching)
+                        tools_prefix_indicators = ['tool', 'tools', 'software', 'platform', 'environment', 'ide', 'editor']
+                        has_tools_prefix = any(indicator in prefix for indicator in tools_prefix_indicators)
+                        
+                        # Check if content contains tool terms
+                        has_tool_terms = any(re.search(pattern, content, re.IGNORECASE) for pattern in tool_term_patterns)
+                        
+                        # Check if content looks like a list
+                        is_list_like = ',' in content or '|' in content or len(content.split()) <= 10
+                        
+                        if has_tools_prefix and has_tool_terms and is_list_like and len(content) > 3:
                             # Extract tool items
                             tool_items = [item.strip() for item in re.split(r'[,|]', content) if item.strip()]
                             if tool_items:
@@ -532,38 +552,31 @@ class ResumeParser:
                     # Check if line starts with bullet marker (with optional whitespace)
                     if re.match(rf'^\s*[{re.escape(marker)}]', line_stripped):
                         is_bullet = True
-                        # Clean bullet: ensure single space after bullet marker
-                        # Remove any leading whitespace, then add bullet with single space
+                        # Extract content after bullet marker
                         content_after_bullet = re.sub(rf'^\s*[{re.escape(marker)}]\s*', '', line_stripped).strip()
                         if content_after_bullet:
-                            # Use standard bullet marker for consistency
-                            bullet_cleaned = f"• {content_after_bullet}"
-                            responsibility_bullets.append(bullet_cleaned)
+                            # Store bullet content without marker (we'll format it later)
+                            responsibility_bullets.append(content_after_bullet)
                         break
                 
                 if not is_bullet:
                     # Check if line might be a bullet without marker (starts with action verb)
                     # This handles cases where PDF extraction loses bullet markers
-                    action_verbs = ['developed', 'created', 'built', 'designed', 'implemented', 'worked', 
-                                  'collaborated', 'enhanced', 'practiced', 'gained', 'integrated', 'used',
-                                  'managed', 'led', 'improved', 'optimized', 'delivered', 'designed', 'implemented']
                     words = line_stripped.split()
-                    # Check if first word is an action verb and line is substantial
                     if words and words[0].lower() in action_verbs and len(line_stripped) > 20:
-                        # Likely a responsibility bullet without marker - add bullet marker
-                        responsibility_bullets.append(f"• {line_stripped}")
+                        # Likely a responsibility bullet without marker
+                        responsibility_bullets.append(line_stripped)
                     elif len(line_stripped) > 10 and not line_stripped.endswith(('.', ':', ';')):
                         # Check if it's a short descriptive line that might be a bullet
-                        # (not ending with punctuation suggests it might be part of a list)
                         if len(line_stripped.split()) <= 15:
-                            responsibility_bullets.append(f"• {line_stripped}")
+                            responsibility_bullets.append(line_stripped)
                         else:
                             other_lines.append(line_stripped)
                     else:
                         # Other descriptive line
                         other_lines.append(line_stripped)
             
-            # Build structured description with clear separation
+            # Build formatted summary string with HTML line breaks for proper display
             formatted_parts = []
             
             # Add tech stack section if available
@@ -571,10 +584,11 @@ class ResumeParser:
                 tech_content = ', '.join(tech_stack_items)
                 formatted_parts.append(f"Tech Stack: {tech_content}")
             
-            # Add responsibilities (bullets) with clear separation
+            # Add responsibilities (bullets) - each on its own line with HTML breaks
             if responsibility_bullets:
-                # Each bullet on its own line - preserve structure
-                formatted_parts.extend(responsibility_bullets)
+                # Format each bullet with proper spacing
+                for bullet in responsibility_bullets:
+                    formatted_parts.append(f"• {bullet}")
             
             # Add other descriptive lines
             if other_lines:
@@ -585,8 +599,17 @@ class ResumeParser:
                 tools_content = ', '.join(tools_items)
                 formatted_parts.append(f"Tools: {tools_content}")
             
-            # Join with newlines to preserve structure
-            return '\n'.join(formatted_parts).strip()
+            # Join with HTML line breaks for proper rendering in frontend
+            formatted_summary = '<br>'.join(formatted_parts)
+            
+            # Return structured data
+            return {
+                "summary": formatted_summary,  # HTML-formatted string for display
+                "tech_stack": tech_stack_items,  # Array of tech items
+                "responsibilities": responsibility_bullets,  # Array of bullet point texts
+                "tools": tools_items,  # Array of tool items
+                "raw_text": '\n'.join(description_lines)  # Original text for fallback
+            }
         
         def extract_from_section(section_start_idx: int, section_name: str) -> List[Dict[str, str]]:
             """Extract projects from a specific section"""
@@ -641,8 +664,10 @@ class ResumeParser:
                 if not line_stripped:
                     # Empty line - if we have a project, save it
                     if current_project and current_description_lines:
-                        current_project["summary"] = clean_project_description(current_description_lines, is_internship_section)
-                        if current_project["summary"]:  # Only add if has content
+                        cleaned_data = clean_project_description(current_description_lines, is_internship_section)
+                        if cleaned_data.get("summary"):  # Only add if has content
+                            # Merge structured data into project
+                            current_project.update(cleaned_data)
                             section_projects.append(current_project)
                         current_project = None
                         current_description_lines = []
@@ -710,14 +735,19 @@ class ResumeParser:
                 if is_project_title:
                     # Save previous project if exists
                     if current_project and current_description_lines:
-                        current_project["summary"] = clean_project_description(current_description_lines, is_internship_section)
-                        if current_project["summary"]:
+                        cleaned_data = clean_project_description(current_description_lines, is_internship_section)
+                        if cleaned_data.get("summary"):
+                            # Merge structured data into project
+                            current_project.update(cleaned_data)
                             section_projects.append(current_project)
                     
                     # Start new project
                     current_project = {
                         "name": line_no_bullet[:100],
-                        "summary": ""
+                        "summary": "",
+                        "tech_stack": [],
+                        "responsibilities": [],
+                        "tools": []
                     }
                     current_description_lines = []
                 elif current_project:
@@ -773,14 +803,19 @@ class ResumeParser:
                             # Start new project with full name
                             current_project = {
                                 "name": potential_project[:100],
-                                "summary": ""
+                                "summary": "",
+                                "tech_stack": [],
+                                "responsibilities": [],
+                                "tools": []
                             }
                             current_description_lines = [line_stripped]
             
             # Save the last project
             if current_project and current_description_lines:
-                current_project["summary"] = clean_project_description(current_description_lines, is_internship_section)
-                if current_project["summary"]:
+                cleaned_data = clean_project_description(current_description_lines, is_internship_section)
+                if cleaned_data.get("summary"):
+                    # Merge structured data into project
+                    current_project.update(cleaned_data)
                     section_projects.append(current_project)
             
             return section_projects
