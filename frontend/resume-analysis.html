@@ -643,6 +643,19 @@
         }
 
         // Make function globally accessible - define it early to ensure it's available
+        function buildNavigationUrl(targetPage) {
+            const search = window.location.search && window.location.search.trim();
+            if (!search) return targetPage;
+
+            // Ensure search string starts with '?'
+            const normalizedSearch = search.startsWith('?') ? search : `?${search}`;
+            // If target already has query params, append with &
+            if (targetPage.includes('?')) {
+                return `${targetPage}${normalizedSearch.replace('?', '&')}`;
+            }
+            return `${targetPage}${normalizedSearch}`;
+        }
+
         function startInterviewFromModule(moduleType) {
             // Normalize module type (trim and lowercase for safety)
             const normalizedType = String(moduleType || '').trim().toLowerCase();
@@ -655,7 +668,7 @@
             
             switch(normalizedType) {
                 case 'technical':
-                    targetUrl = 'interview.html';
+                    targetUrl = 'technical-guidelines.html';
                     break;
                 case 'coding':
                     targetUrl = 'coding-interview.html';
@@ -674,7 +687,7 @@
             
             // Perform navigation
             if (targetUrl) {
-                window.location.href = targetUrl;
+                window.location.href = buildNavigationUrl(targetUrl);
             }
             
             return false; // Prevent default behavior
