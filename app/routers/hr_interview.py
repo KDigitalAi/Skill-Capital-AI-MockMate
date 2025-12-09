@@ -16,14 +16,15 @@ from app.routers.interview_utils import (
 from app.utils.url_utils import get_api_base_url
 from app.config.settings import settings
 from app.services.question_generator import question_generator
-from app.services.answer_evaluator import answer_evaluator, AnswerScore
+from app.services.answer_evaluator import answer_evaluator
 from app.services.technical_interview_engine import technical_interview_engine
 from app.schemas.interview import (
     HRInterviewStartResponse,
     HRSubmitAnswerResponse,
     HRNextQuestionResponse,
     HRFeedbackResponse,
-    InterviewEndResponse
+    InterviewEndResponse,
+    AnswerScore
 )
 from app.utils.rate_limiter import check_rate_limit, rate_limit_by_session_id
 from app.utils.request_validator import validate_request_size

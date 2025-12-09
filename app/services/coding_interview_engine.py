@@ -216,17 +216,6 @@ class CodingInterviewEngine:
             return self._get_fallback_coding_question(session_data, previous_questions, suggested_type)
         
         try:
-            # Check which data science libraries are actually available
-            from app.routers.interview import get_available_python_libraries
-            available_libs = get_available_python_libraries()
-            available_lib_names = [lib for lib, available in available_libs.items() if available]
-            
-            # Build library availability message
-            if available_lib_names:
-                lib_message = f"Available data science libraries: {', '.join(available_lib_names)}. You CAN generate questions that use these libraries."
-            else:
-                lib_message = "Data science libraries (pandas, numpy, matplotlib, seaborn, scikit-learn) are NOT available. DO NOT generate questions that require these libraries. Use only Python standard library."
-            
             # ✅ FIX: Enhanced system prompt with difficulty guidance
             years_for_prompt = self._parse_experience_years(experience_level) or 0
             difficulty_guidance = ""
@@ -281,12 +270,7 @@ FOR SENIOR DEVELOPERS (3+ years experience):
    - Be appropriate for the candidate's experience level
    - NEVER repeat any previous question (check the previous questions list)
 
-4. **IMPORTANT: The execution environment supports:**
-   - Python standard library (math, collections, itertools, heapq, bisect, functools, operator, etc.)
-   - {lib_message}
-   - **CRITICAL: Only generate questions that use libraries that are actually available.**
-
-5. **Question Type Variety:**
+4. **Question Type Variety:**
    - Ensure you generate different types of problems across the interview
    - Mix array, string, OOP, SQL, API, debugging, logic, DSA patterns, and real-world tasks
    - Suggested question type for this round: {suggested_type}

@@ -262,7 +262,7 @@ async def submit_star_answer(
         # For "No Answer", set all scores to 0
         if answer == "No Answer":
             logger.debug(f"[STAR][SUBMIT-ANSWER] Setting all scores to 0 for 'No Answer'")
-            from app.services.answer_evaluator import AnswerScore
+            from app.schemas.interview import AnswerScore
             scores = AnswerScore(
                 relevance=0,
                 confidence=0,
