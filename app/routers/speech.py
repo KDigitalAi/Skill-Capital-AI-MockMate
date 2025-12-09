@@ -111,6 +111,21 @@ async def text_to_speech_options():
     )
 
 
+@router.options("/generate-audio")
+async def generate_audio_options():
+    """Handle CORS preflight requests for generate-audio endpoint"""
+    from fastapi.responses import Response
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "3600"
+        }
+    )
+
+
 @router.post("/text-to-speech", responses={200: {"content": {"audio/mpeg": {}}}})
 async def text_to_speech(
     http_request: Request,
@@ -189,6 +204,23 @@ async def text_to_speech(
         import traceback
         logger.error(f"[SPEECH][TEXT-TO-SPEECH] Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Error converting text to speech: {str(e)}")
+
+
+@router.post("/generate-audio", responses={200: {"content": {"audio/mpeg": {}}}})
+async def generate_audio(
+    http_request: Request,
+    request_body: Dict[str, Any] = Body(...),
+    supabase: Client = Depends(get_supabase_client),
+    _: None = Depends(validate_request_size)
+):
+    """
+    Generate audio from text using OpenAI TTS (alias for text-to-speech)
+    Accepts: {"text": "question text"}
+    Returns audio file as streaming response
+    This endpoint uses TECH_BACKEND_URL environment variable for deployment flexibility
+    """
+    # Delegate to text_to_speech function
+    return await text_to_speech(http_request, request_body, supabase, _)
 
 
 @router.get("/text-to-speech", responses={200: {"content": {"audio/mpeg": {}}}})

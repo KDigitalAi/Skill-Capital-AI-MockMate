@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     environment: str = Field(default="development", env="ENVIRONMENT")
     frontend_url: Optional[str] = Field(default=None, env="FRONTEND_URL")
     vercel_url: Optional[str] = Field(default=None, env="VERCEL_URL")  # Vercel provides this automatically
+    tech_backend_url: Optional[str] = Field(default=None, env="TECH_BACKEND_URL")  # Backend URL for technical interview audio generation
     
     # CORS Configuration - Use computed field to avoid pydantic-settings JSON parsing
     @computed_field

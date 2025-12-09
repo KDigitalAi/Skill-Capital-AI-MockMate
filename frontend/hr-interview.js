@@ -1294,11 +1294,15 @@ async function playAudio(audioUrl, retryCount = 0) {
                 if (textParam) {
                     const text = decodeURIComponent(textParam);
                     console.log('[HR INTERVIEW TTS] Fetching TTS audio for text:', text.substring(0, 50) + '...');
-                    console.debug('[HR DEBUG TTS] About to call POST /api/interview/text-to-speech');
+                    console.debug('[HR DEBUG TTS] About to call POST /api/interview/generate-audio');
                     console.debug('[HR DEBUG TTS] Text to convert:', text.substring(0, 100) + '...');
                     
+                    // Use TECH_BACKEND_URL for audio generation (supports separate backend deployment)
+                    const techBackendUrl = typeof getTechBackendUrl !== 'undefined' ? getTechBackendUrl() : getApiBase();
+                    const audioApiUrl = `${techBackendUrl}/api/interview/generate-audio`;
+                    
                     // Use POST endpoint instead
-                    const response = await fetch(`${getApiBase()}/api/interview/text-to-speech`, {
+                    const response = await fetch(audioApiUrl, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'

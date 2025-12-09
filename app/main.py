@@ -220,11 +220,14 @@ async def get_frontend_config(request: Request):
     
     # Determine API base URL dynamically based on environment
     # CRITICAL: Always return the BACKEND URL, not the frontend URL
-    # Priority: VERCEL_URL > Backend host:port (for local dev)
+    # Priority: TECH_BACKEND_URL > VERCEL_URL > Backend host:port (for local dev)
     # NOTE: We do NOT use FRONTEND_URL because it might be wrong (e.g., localhost:3000)
     api_base_url = None
     
-    if settings.vercel_url:
+    # Priority 1: Use TECH_BACKEND_URL if explicitly set (for separate backend deployment)
+    if settings.tech_backend_url:
+        api_base_url = settings.tech_backend_url.rstrip('/')
+    elif settings.vercel_url:
         # Vercel provides VERCEL_URL (e.g., "your-app.vercel.app")
         # On Vercel, frontend and backend are on the same domain
         api_base_url = f"https://{settings.vercel_url}"
@@ -243,13 +246,15 @@ async def get_frontend_config(request: Request):
             "supabase_url": "",
             "supabase_anon_key": "",
             "api_base_url": api_base_url,
+            "tech_backend_url": settings.tech_backend_url or api_base_url,
             "help": "Get your credentials from Supabase Dashboard → Settings → API"
         }
     
     return {
         "supabase_url": supabase_url,
         "supabase_anon_key": supabase_key,
-        "api_base_url": api_base_url
+        "api_base_url": api_base_url,
+        "tech_backend_url": settings.tech_backend_url or api_base_url
     }
 
 # Serve static files from frontend directory

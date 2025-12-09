@@ -11,10 +11,12 @@
 if (typeof window.API_BASE === 'undefined') {
     window.API_BASE = null; // Will be set by initApiBase
     window.API_BASE_READY = false; // Flag to track if API_BASE is configured
+    window.TECH_BACKEND_URL = null; // Will be set by initApiBase for audio generation
 } else {
     // If already exists (from cached script), reset it
     window.API_BASE = null;
     window.API_BASE_READY = false;
+    window.TECH_BACKEND_URL = null;
 }
 
 // Determine default API base URL based on environment
@@ -35,6 +37,7 @@ function getDefaultApiBase() {
 (async function initApiBase() {
     // Set default first (for immediate use)
     window.API_BASE = getDefaultApiBase();
+    window.TECH_BACKEND_URL = getDefaultApiBase(); // Default to same as API_BASE
     window.API_BASE_READY = true;
     
     // Then try to fetch from backend config endpoint for accurate URL
@@ -58,6 +61,15 @@ function getDefaultApiBase() {
         
         if (response.ok) {
             const config = await response.json();
+            
+            // Set TECH_BACKEND_URL from config (for audio generation)
+            if (config.tech_backend_url) {
+                window.TECH_BACKEND_URL = config.tech_backend_url;
+            } else if (config.api_base_url) {
+                // Fallback to api_base_url if tech_backend_url not set
+                window.TECH_BACKEND_URL = config.api_base_url;
+            }
+            
             if (config.api_base_url) {
                 // Validate the URL from backend - for local dev, ensure it's 127.0.0.1:8000
                 let backendUrl = config.api_base_url;
@@ -92,6 +104,10 @@ function getDefaultApiBase() {
                         backendUrl = backendUrl.replace('localhost', '127.0.0.1');
                     }
                     window.API_BASE = backendUrl;
+                    // Also update TECH_BACKEND_URL if not explicitly set
+                    if (!config.tech_backend_url) {
+                        window.TECH_BACKEND_URL = backendUrl;
+                    }
                 } else {
                     // Backend returned invalid URL - keep our default (127.0.0.1:8000)
                     // Don't change window.API_BASE, it's already set to the correct default
@@ -160,5 +176,18 @@ function getApiBase() {
     }
     
     return apiBase;
+}
+
+// Helper function to get TECH_BACKEND_URL for audio generation
+// Uses TECH_BACKEND_URL environment variable if set, otherwise falls back to API_BASE
+function getTechBackendUrl() {
+    // Check if TECH_BACKEND_URL is explicitly set via environment variable (injected at build time)
+    // Vercel injects environment variables at build time, so we check for a global variable
+    if (typeof window.TECH_BACKEND_URL !== 'undefined' && window.TECH_BACKEND_URL) {
+        return window.TECH_BACKEND_URL;
+    }
+    
+    // Fallback to API_BASE if TECH_BACKEND_URL not set
+    return getApiBase();
 }
 

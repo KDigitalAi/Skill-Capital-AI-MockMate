@@ -1339,7 +1339,11 @@ async function playAudio(textOrUrl, retryCount = 0) {
 
             console.log('[STAR INTERVIEW TTS] Generating TTS from text:', text.substring(0, 80) + '...');
 
-            const response = await fetch(`${getApiBase()}/api/interview/text-to-speech`, {
+            // Use TECH_BACKEND_URL for audio generation (supports separate backend deployment)
+            const techBackendUrl = typeof getTechBackendUrl !== 'undefined' ? getTechBackendUrl() : getApiBase();
+            const audioApiUrl = `${techBackendUrl}/api/interview/generate-audio`;
+
+            const response = await fetch(audioApiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
