@@ -336,6 +336,19 @@ if FRONTEND_DIR.exists():
                 status_code=404
             )
     
+    # Serve HR interview page
+    @app.get("/hr-interview.html", response_class=HTMLResponse, include_in_schema=False)
+    async def serve_hr_interview():
+        """Serve HR interview page"""
+        hr_path = FRONTEND_DIR / "hr-interview.html"
+        if hr_path.exists():
+            return FileResponse(hr_path, media_type="text/html")
+        else:
+            return HTMLResponse(
+                content="<h1>HR Interview Page Not Found</h1><p>hr-interview.html not found in frontend directory.</p>",
+                status_code=404
+            )
+    
     # Serve static files (CSS, JS, etc.) - catch-all for frontend files
     # Note: FastAPI matches routes in order, and API routes from routers above
     # will be matched before this catch-all route
