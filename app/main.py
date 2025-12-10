@@ -47,9 +47,8 @@ from app.routers.speech import router as speech_router
 # Import configuration
 from app.config.settings import get_cors_origins, settings
 
-
-# Get project root directory (parent of app/)
-PROJECT_ROOT = Path(__file__).parent.parent
+# FRONTEND_DIR is already defined above (line 31 uses PROJECT_ROOT which is resolved)
+# Ensure FRONTEND_DIR uses resolved path for consistency in Vercel serverless environment
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
 
 # Lifespan event handler (replaces deprecated @app.on_event)
@@ -397,12 +396,30 @@ if FRONTEND_DIR.exists():
         # Check if file exists
         if full_path.exists() and full_path.is_file():
             # Determine content type based on extension
+            # Explicitly set Content-Type headers to ensure correct MIME type
             if file_path_clean.endswith(".html"):
-                return FileResponse(full_path, media_type="text/html")
+                return FileResponse(
+                    full_path, 
+                    media_type="text/html",
+                    headers={"Cache-Control": "no-cache"}
+                )
             elif file_path_clean.endswith(".css"):
-                return FileResponse(full_path, media_type="text/css")
+                return FileResponse(
+                    full_path, 
+                    media_type="text/css",
+                    headers={"Cache-Control": "public, max-age=3600"}
+                )
             elif file_path_clean.endswith(".js"):
-                return FileResponse(full_path, media_type="application/javascript")
+                # CRITICAL: Ensure JavaScript files are served with correct Content-Type
+                # This prevents browsers from trying to execute HTML/text as JavaScript
+                return FileResponse(
+                    full_path, 
+                    media_type="application/javascript",
+                    headers={
+                        "Content-Type": "application/javascript; charset=utf-8",
+                        "Cache-Control": "public, max-age=3600"
+                    }
+                )
             elif file_path_clean.endswith(".json"):
                 return FileResponse(full_path, media_type="application/json")
             elif file_path_clean.endswith(".png"):
@@ -414,7 +431,23 @@ if FRONTEND_DIR.exists():
             else:
                 return FileResponse(full_path)
         else:
-            # File not found - for SPA routing, serve index.html
+            # File not found
+            # For JavaScript/CSS files, return proper 404 with text/plain content-type
+            # This prevents HTML from being served as JavaScript/CSS (which causes syntax errors)
+            # Using text/plain instead of HTML makes it clearer in browser console that file is missing
+            if file_path_clean.endswith(".js"):
+                return HTMLResponse(
+                    content=f"// 404 Not Found: {file_path_clean}\n// File not found in deployment bundle.\n// Check Vercel deployment logs and ensure file is included in vercel.json includeFiles.",
+                    status_code=404,
+                    media_type="application/javascript"
+                )
+            elif file_path_clean.endswith(".css"):
+                return HTMLResponse(
+                    content=f"/* 404 Not Found: {file_path_clean} */\n/* File not found in deployment bundle. */",
+                    status_code=404,
+                    media_type="text/css"
+                )
+            # For SPA routing (HTML files), serve index.html as fallback
             index_path = FRONTEND_DIR / "index.html"
             if index_path.exists():
                 return FileResponse(index_path, media_type="text/html")
