@@ -7,6 +7,9 @@
  * 
  * VERSION: 2.0 - Custom Modal Implementation (2025-01-12)
  */
+// ✅ CRITICAL: Top-level console.log for Vercel build verification
+console.log("HR Interview JS loaded on Vercel");
+
 // Build verification log (dev-only)
 if (typeof console !== 'undefined' && console.debug) {
     console.debug('[HR INTERVIEW] HR script loaded - Build verification');
@@ -207,234 +210,147 @@ function showToast(message, type = 'error', duration = 4000) {
 }
 
 async function startInterview() {
-    // Prevent double submission
-    if (isLoading.startInterview) {
-        return;
-    }
-    
     try {
-        setLoadingState('startInterview', true);
+        // Ensure we have current user
+        if (!currentUserId) {
+            await getCurrentUser();
+        }
         
-        // Ensure API_BASE is ready before making requests
-        await ensureApiBaseReady();
-        
-        // Get API base URL using helper function
-        const API_BASE = typeof window.getApiBase === 'function' ? window.getApiBase() : getApiBase();
-        const TECH_BACKEND = typeof window.getTechBackendUrl === 'function' ? window.getTechBackendUrl() : getTechBackendUrl();
-        
-        // Fail-fast: Validate API_BASE is available
-        if (!API_BASE) {
-            const errorMsg = 'API configuration error: Unable to determine API base URL. Please refresh the page.';
-            console.error('[HR INTERVIEW]', errorMsg);
-            showToast(errorMsg, 'error');
+        // Validate userId is available
+        if (!currentUserId) {
+            const errorMsg = 'userId is not defined. Please ensure you have uploaded a resume and have a valid user profile.';
+            console.error('[HR INTERVIEW] Start error:', errorMsg);
+            alert('Failed to start HR interview. Check console.');
             throw new Error(errorMsg);
         }
         
-        console.log('[HR INTERVIEW] Using API_BASE:', API_BASE);
-        console.log('[HR INTERVIEW] Using TECH_BACKEND:', TECH_BACKEND);
-        
-    // Ensure we have current user
-    if (!currentUserId) {
-        await getCurrentUser();
-    }
-    
-    // Validate userId is available
-    if (!currentUserId) {
-        throw new Error('userId is not defined. Please ensure you have uploaded a resume and have a valid user profile.');
-    }
-    
-    const userId = currentUserId;
-    
-    // Show loading
-    document.getElementById('setupSection').classList.add('hidden');
-    document.getElementById('interviewSection').classList.remove('hidden');
-    document.getElementById('loadingMessage').classList.remove('hidden');
-    document.getElementById('interviewStatus').textContent = 'Starting Interview...';
-    document.getElementById('interviewStatus').classList.add('active');
-    
-    // Clear conversation container
-    const container = document.getElementById('conversationContainer');
-    container.innerHTML = '<div class="loading" id="loadingMessage">Initializing interview...</div>';
-
-    try {
-        // Start HR interview session
-        // Use endpoint: /api/interview/hr/start with API_BASE helper
-        const startUrl = `${API_BASE}/api/interview/hr/start`;
-        const payload = { user_id: userId };
-        console.log('[HR INTERVIEW] Starting interview with URL:', startUrl);
-        console.log('[HR INTERVIEW] Payload:', payload);
-        
         let response;
-        let data;
-        
         try {
-            response = await fetch(startUrl, {
+            response = await fetch(`${getApiBase()}/api/interview/hr/start`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ user_id: currentUserId })
             });
-            
-            // Parse response as JSON (even if error response)
-            try {
-                data = await response.json();
-            } catch (jsonError) {
-                // If JSON parsing fails, try to get text
-                const errorText = await response.text().catch(() => 'Unknown error');
-                console.error('[HR INTERVIEW] Failed to parse response as JSON:', errorText);
-                data = { error: errorText, detail: errorText };
-            }
-            
-            // Check if response is not OK
-            if (!response.ok) {
-                console.error('[HR INTERVIEW] HR start failed:', {
-                    status: response.status,
-                    statusText: response.statusText,
-                    data: data
-                });
-                const errorMsg = 'Unable to start HR interview: ' + (data.detail || data.error || response.statusText || `HTTP ${response.status}`);
-                showToast(errorMsg, 'error');
-                throw new Error(errorMsg);
-            }
-            
-            // Validate session_id is present
-            if (!data.session_id) {
-                console.error('[HR INTERVIEW] HR start missing session_id:', data);
-                showToast('HR interview failed: session id missing', 'error');
-                throw new Error('HR interview failed: session id missing');
-            }
-            
-            // Success - continue with existing success handling
-            console.log('[HR INTERVIEW] ✅ HR interview started successfully:', {
-                session_id: data.session_id,
-                question: data.question ? data.question.substring(0, 50) + '...' : 'No question',
-                audio_url: data.audio_url ? 'Present' : 'Missing'
-            });
-            
-        } catch (err) {
-            // Network error or other fetch-related errors
-            if (err.message && err.message.includes('Unable to start HR interview')) {
-                // Already handled above, re-throw
-                throw err;
-            }
-            console.error('[HR INTERVIEW] HR start network error:', err);
+        } catch (fetchError) {
+            // ✅ CRITICAL: Fail-fast on network errors (matches Technical Interview pattern)
+            console.error('[HR INTERVIEW] Fetch error:', fetchError);
             console.error('[HR INTERVIEW] Error details:', {
-                name: err.name,
-                message: err.message,
-                stack: err.stack
+                name: fetchError.name,
+                message: fetchError.message,
+                stack: fetchError.stack
             });
-            showToast('Network error while starting HR interview. Check console for details.', 'error');
-            throw err;
+            alert('Failed to start HR interview. Check console.');
+            throw new Error(`Network error: ${fetchError.message || 'Unable to connect to server'}`);
+        }
+
+        if (!response.ok) {
+            // ✅ CRITICAL: Fail-fast on non-OK responses (matches Technical Interview pattern)
+            const errorText = await response.text();
+            const errorMsg = `Failed to start interview: ${response.status} - ${errorText}`;
+            console.error('[HR INTERVIEW] Response not OK:', {
+                status: response.status,
+                statusText: response.statusText,
+                errorText: errorText
+            });
+            alert('Failed to start HR interview. Check console.');
+            throw new Error(errorMsg);
+        }
+
+        let data;
+        try {
+            data = await response.json();
+        } catch (jsonError) {
+            // ✅ CRITICAL: Fail-fast on JSON parse errors
+            console.error('[HR INTERVIEW] JSON parse error:', jsonError);
+            alert('Failed to start HR interview. Check console.');
+            throw new Error('Invalid response format from server');
+        }
+        
+        // ✅ CRITICAL: Log the response (matches Technical Interview pattern)
+        console.log("HR start response:", data);
+        
+        // ✅ CRITICAL: Validate session_id is present (matches Technical Interview pattern)
+        if (!data.session_id) {
+            const errorMsg = 'Session ID missing from response. Please try again.';
+            console.error('[HR INTERVIEW] Missing session_id:', data);
+            alert('Failed to start HR interview. Check console.');
+            throw new Error(errorMsg);
         }
         
         interviewSessionId = data.session_id;
         interviewActive = true;
-        conversationHistory = [];
+        conversationHistory = [];  // Start with empty history (like Technical Interview)
 
-        // IMPORTANT: Once we have a session ID, keep interview section visible
-        // Don't hide it even if getting questions fails
+        // Hide loading, show interview
         document.getElementById('setupSection').classList.add('hidden');
         document.getElementById('interviewSection').classList.remove('hidden');
 
         // Update status
-        document.getElementById('interviewStatus').textContent = 'Interview Active';
-        document.getElementById('interviewStatus').classList.add('active');
-        
-        // Clear loading message
-        const loadingMsg = document.getElementById('loadingMessage');
-        if (loadingMsg) {
-            loadingMsg.classList.add('hidden');
+        const statusEl = document.getElementById('interviewStatus');
+        if (statusEl) {
+            statusEl.textContent = 'Interview Active';
+            statusEl.classList.add('active');
         }
-        
-        // Clear container and prepare for messages
-        container.innerHTML = '';
 
-        // Display first question if available
-        if (data.question) {
-            currentQuestion = data.question;
+        // Clear container and prepare for messages
+        const container = document.getElementById('conversationContainer');
+        if (container) {
+            container.innerHTML = '';
+        }
+
+        // ✅ CONVERSATIONAL FLOW: Display first question if available (like Technical Interview)
+        // Normalize response: support both 'question' and 'first_question' fields
+        const firstQuestion = data.question || data.first_question;
+        const audioUrl = data.audio_url;
+        
+        if (firstQuestion) {
+            currentQuestion = firstQuestion;
             conversationHistory.push({
                 role: 'ai',
-                content: data.question,
-                audio_url: data.audio_url
+                content: firstQuestion,
+                audio_url: audioUrl
             });
-            // Display question with audio URL (same as technical interview)
-            displayMessage('ai', data.question, data.audio_url);
+            // Display question with audio URL
+            displayMessage('ai', firstQuestion, audioUrl);
             
-            // Play audio if available (same as technical interview)
-            // Note: playAudio is called after user interaction (button click), so autoplay should work
-            if (data.audio_url) {
-                console.log('[HR INTERVIEW] ✅ audio_url found, enqueueing audio:', data.audio_url);
-                // Use setTimeout to ensure this runs in next event loop tick but still within user interaction context
+            // Play audio if available (matches Technical Interview pattern)
+            if (audioUrl) {
                 setTimeout(() => {
-                    enqueueHRAudio(data.audio_url);
-                }, 100); // Small delay to ensure UI is updated
+                    enqueueHRAudio(audioUrl).catch(err => {
+                        // Audio playback failed, manual play button will be shown
+                    });
+                }, 100);
             } else {
-                console.error('[HR INTERVIEW] ❌ No audio_url received for first question. Response keys:', Object.keys(data));
-                document.getElementById('voiceStatus').textContent = 'Click the microphone to record your answer';
+                console.error('[HR INTERVIEW] ❌ No audio_url received for first question');
             }
         } else {
             showError('No question received. Please try again.');
         }
 
     } catch (error) {
-        // Network or API error - show toast and log details
-        const errorMessage = error.message || 'Failed to start interview. Please try again.';
-        console.error('[HR INTERVIEW] Start interview error:', error);
+        // ✅ CRITICAL: Fail-fast error handling (matches Technical Interview pattern)
+        console.error('[HR INTERVIEW] Start error:', error);
         console.error('[HR INTERVIEW] Error stack:', error.stack);
         
-        // Show user-visible toast
-        showToast(errorMessage, 'error');
+        // Show user-visible alert
+        alert('Failed to start HR interview. Check console.');
         
-        // Create error object with status if available
-        const errorObj = {
-            message: errorMessage,
-            status: error.status || (error.response?.status),
-            response: error.response,
-            originalError: error
-        };
-        
-        showUserFriendlyError(errorObj, 'startInterview', true);
-        
-        // Show setup section again so user can retry
-        document.getElementById('setupSection').classList.remove('hidden');
-        document.getElementById('interviewSection').classList.add('hidden');
-        document.getElementById('interviewStatus').textContent = 'Ready to Start';
-        document.getElementById('interviewStatus').classList.remove('active');
-        
-        // Reset interview state
-        interviewActive = false;
-        interviewSessionId = null;
-    }
-    } catch (outerError) {
-        // Outer catch for unexpected errors (e.g., from ensureApiBaseReady, getCurrentUser, etc.)
-        const errorMessage = outerError.message || 'An unexpected error occurred.';
-        console.error('[HR INTERVIEW] Unexpected error:', outerError);
-        console.error('[HR INTERVIEW] Error stack:', outerError.stack);
-        showToast(errorMessage, 'error');
-        
-        const errorObj = {
-            message: errorMessage,
-            originalError: outerError
-        };
-        showUserFriendlyError(errorObj, 'startInterview', true);
-        
-        // Show setup section again so user can retry
-        document.getElementById('setupSection').classList.remove('hidden');
-        document.getElementById('interviewSection').classList.add('hidden');
-        document.getElementById('interviewStatus').textContent = 'Ready to Start';
-        document.getElementById('interviewStatus').classList.remove('active');
-        
-        // Reset interview state
-        interviewActive = false;
-        interviewSessionId = null;
-    } finally {
-        // Always re-enable button and hide loading states
-        setLoadingState('startInterview', false);
-        const loadingMsg = document.getElementById('loadingMessage');
-        if (loadingMsg) {
-            loadingMsg.classList.add('hidden');
-        }
+        // Display error in UI (matches Technical Interview pattern)
+        document.getElementById('setupSection').innerHTML = `
+            <div class="error-message">
+                <h3>Failed to Start Interview</h3>
+                <p>${error.message || 'Please ensure you have uploaded a resume and have a valid user profile.'}</p>
+                <button class="btn btn-primary" onclick="window.location.reload()" style="margin-top: 15px;">
+                    Retry
+                </button>
+            </div>
+        `;
     }
 }
+
+// ✅ CRITICAL: Expose startInterview globally for Vercel compatibility (matches Technical Interview pattern)
+window.startHRInterview = startInterview;
+window.startInterview = startInterview; // Also expose as startInterview for compatibility
 
 async function toggleRecording() {
     if (!interviewActive) return;

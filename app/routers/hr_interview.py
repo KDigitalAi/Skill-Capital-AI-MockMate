@@ -223,10 +223,11 @@ async def start_hr_interview(
         # Harmonize response shape with Technical interview endpoint
         # Core fields matching Technical: session_id, question, audio_url
         # Additional HR-specific fields preserved for backwards compatibility
+        # ✅ CRITICAL: Ensure all required keys are always present (set to None if missing)
         response_data = {
             "session_id": session_id if session_id else None,
             "question": question_text if question_text else None,  # Primary key matching Technical
-            "first_question": question_text if question_text else None,  # Alias for frontend compatibility
+            "first_question": question_text if question_text else None,  # Alias for frontend compatibility (always present)
             "question_type": "HR",
             "question_number": 1,
             "total_questions": HR_WARMUP_COUNT + 7,  # 3 warm-up + 7 resume-based = 10 total
@@ -236,9 +237,18 @@ async def start_hr_interview(
             "audio_url": audio_url if audio_url else None  # Ensure audio_url is always present (null if not available)
         }
         
-        # Log response payload at debug level for verification
+        # ✅ CRITICAL: Verify required keys are present (fail-fast if missing)
+        if response_data["session_id"] is None:
+            logger.error("[HR][START] ❌ session_id is None in response_data")
+        if response_data["first_question"] is None:
+            logger.warning("[HR][START] ⚠️ first_question is None in response_data")
+        if response_data["audio_url"] is None:
+            logger.warning("[HR][START] ⚠️ audio_url is None in response_data")
+        
+        # ✅ CRITICAL: Debug log (matches Technical Interview pattern)
+        print("HR start response:", response_data)
         logger.debug(f"[HR][START] Response payload: {response_data}")
-        logger.info(f"[HR][START] ✅ Returning response with session_id: {session_id is not None}, question: {question_text is not None}, audio_url: {audio_url is not None}")
+        logger.info(f"[HR][START] ✅ Returning response with session_id: {response_data['session_id'] is not None}, first_question: {response_data['first_question'] is not None}, audio_url: {response_data['audio_url'] is not None}")
         logger.info(f"[HR][START] Response keys (harmonized with Technical): {list(response_data.keys())}")
         
         return response_data
