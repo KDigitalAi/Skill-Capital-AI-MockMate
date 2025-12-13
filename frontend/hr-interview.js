@@ -135,24 +135,76 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function init() {
     try {
+        // ✅ CRITICAL: Hide guidelines section immediately, show interview section with loading state
+        // This matches Technical Interview lifecycle: loadingState → interviewInterface
+        const setupSection = document.getElementById('setupSection');
+        const interviewSection = document.getElementById('interviewSection');
+        if (setupSection) {
+            setupSection.classList.add('hidden');
+        }
+        if (interviewSection) {
+            interviewSection.classList.remove('hidden');
+        }
+        
         // Get current user first
         await getCurrentUser();
         
         // Setup event listeners
         setupEventListeners();
+
+        // ✅ CRITICAL: Auto-start interview on page load (matches Technical Interview pattern)
+        // This eliminates dependency on button click event binding, making it work reliably on Vercel
+        await startInterview();
     } catch (e) {
         console.error('Initialization failed:', e);
-        alert(`Error: ${e.message}`);
+        // Show error in setupSection if interview section is not available
+        const setupSection = document.getElementById('setupSection');
+        if (setupSection) {
+            setupSection.classList.remove('hidden');
+            setupSection.innerHTML = `
+                <div class="error-message">
+                    <h3>Failed to Start Interview</h3>
+                    <p>${e.message || 'Please ensure you have uploaded a resume and have a valid user profile.'}</p>
+                    <button class="btn btn-primary" onclick="window.location.reload()" style="margin-top: 15px;">
+                        Retry
+                    </button>
+                </div>
+            `;
+        } else {
+            alert(`Error: ${e.message}`);
+        }
     }
 }
 
 function setupEventListeners() {
-    document.getElementById('startInterviewBtn').addEventListener('click', startInterview);
-    document.getElementById('endInterviewBtn').addEventListener('click', endInterview);
-    document.getElementById('voiceButton').addEventListener('click', toggleRecording);
-    document.getElementById('restartInterviewBtn').addEventListener('click', () => {
-        window.location.reload();
-    });
+    // ✅ CRITICAL: All event listeners are defensive - elements may not exist at init time
+    // Interview auto-starts on page load, so button listeners are optional
+    
+    // Start Interview button (optional - interview auto-starts anyway)
+    const startBtn = document.getElementById('startInterviewBtn');
+    if (startBtn) {
+        startBtn.addEventListener('click', startInterview);
+    }
+    
+    // End Interview button (only exists when interview is active)
+    const endBtn = document.getElementById('endInterviewBtn');
+    if (endBtn) {
+        endBtn.addEventListener('click', endInterview);
+    }
+    
+    // Voice recording button (only exists when interview is active)
+    const voiceBtn = document.getElementById('voiceButton');
+    if (voiceBtn) {
+        voiceBtn.addEventListener('click', toggleRecording);
+    }
+    
+    // Restart Interview button (only exists in feedback section)
+    const restartBtn = document.getElementById('restartInterviewBtn');
+    if (restartBtn) {
+        restartBtn.addEventListener('click', () => {
+            window.location.reload();
+        });
+    }
 }
 
 // Auto-hides after specified duration (default 4s for errors)
@@ -281,9 +333,17 @@ async function startInterview() {
         interviewActive = true;
         conversationHistory = [];  // Start with empty history (like Technical Interview)
 
-        // Hide loading, show interview
-        document.getElementById('setupSection').classList.add('hidden');
-        document.getElementById('interviewSection').classList.remove('hidden');
+        // ✅ CRITICAL: Ensure UI is in interview state (setupSection already hidden in init())
+        // Interview section should already be visible from init(), but ensure it's shown
+        // This matches Technical Interview pattern: loadingState → interviewInterface
+        const setupSection = document.getElementById('setupSection');
+        const interviewSection = document.getElementById('interviewSection');
+        if (setupSection) {
+            setupSection.classList.add('hidden');
+        }
+        if (interviewSection) {
+            interviewSection.classList.remove('hidden');
+        }
 
         // Update status
         const statusEl = document.getElementById('interviewStatus');
