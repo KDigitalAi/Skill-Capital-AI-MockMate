@@ -165,8 +165,11 @@ async def start_hr_interview(
         try:
             if question_text:
                 encoded_text = urllib.parse.quote(question_text)
-                # Use absolute URL - works for both localhost and production
-                base_url = get_api_base_url()
+                # ✅ CRITICAL FIX: Use TECH_BACKEND_URL if set, otherwise use request-based URL detection
+                # This ensures correct domain resolution on Vercel (matches Technical Interview pattern)
+                base_url = settings.tech_backend_url or get_api_base_url(http_request)
+                # Ensure base_url doesn't end with slash
+                base_url = base_url.rstrip('/')
                 audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"
                 logger.info(f"[HR][INTERVIEW] ✅ Generated audio_url: {audio_url}")
                 logger.info(f"[HR][INTERVIEW] Base URL: {base_url}, Question text length: {len(question_text)}")
@@ -701,7 +704,11 @@ Return ONLY the question text, nothing else. Make it sound natural and conversat
         try:
             if question_text:
                 encoded_text = urllib.parse.quote(question_text)
-                base_url = get_api_base_url()
+                # ✅ CRITICAL FIX: Use TECH_BACKEND_URL if set, otherwise use request-based URL detection
+                # This ensures correct domain resolution on Vercel (matches Technical Interview pattern)
+                base_url = settings.tech_backend_url or get_api_base_url(http_request)
+                # Ensure base_url doesn't end with slash
+                base_url = base_url.rstrip('/')
                 audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"
                 logger.info(f"[HR][NEXT-QUESTION] ✅ Generated audio_url for question {question_number}: {audio_url}")
                 logger.debug(f"[HR][DEBUG Q2+] ✅ audio_url generated successfully: {audio_url}")
@@ -709,7 +716,9 @@ Return ONLY the question text, nothing else. Make it sound natural and conversat
                 logger.error(f"[HR][NEXT-QUESTION] ❌ question_text is empty, cannot generate audio_url")
                 logger.debug(f"[HR][DEBUG Q2+] ❌ question_text is empty - using fallback")
                 # Fallback: generate a basic TTS URL even if question_text is empty (shouldn't happen)
-                base_url = get_api_base_url()
+                # ✅ CRITICAL FIX: Use request-based URL detection for fallback too
+                base_url = settings.tech_backend_url or get_api_base_url(http_request)
+                base_url = base_url.rstrip('/')
                 audio_url = f"{base_url}/api/interview/text-to-speech?text="
                 logger.debug(f"[HR][DEBUG Q2+] Fallback audio_url (empty text): {audio_url}")
         except Exception as e:
@@ -717,8 +726,10 @@ Return ONLY the question text, nothing else. Make it sound natural and conversat
             logger.error(f"[HR][NEXT-QUESTION] ❌ Could not generate audio URL: {str(e)}", exc_info=True)
             logger.debug(f"[HR][DEBUG Q2+] Exception during audio_url generation: {str(e)}")
             try:
-                # Fallback: generate basic TTS URL
-                base_url = get_api_base_url()
+                # Fallback: generate basic TTS URL with request-based URL detection
+                # ✅ CRITICAL FIX: Use request-based URL detection for fallback too
+                base_url = settings.tech_backend_url or get_api_base_url(http_request)
+                base_url = base_url.rstrip('/')
                 if question_text:
                     encoded_text = urllib.parse.quote(question_text)
                     audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"
@@ -981,9 +992,13 @@ Provide brief, encouraging feedback for this HR interview answer."""
         if ai_response:
             try:
                 encoded_text = urllib.parse.quote(ai_response)
-                base_url = get_api_base_url()
+                # ✅ CRITICAL FIX: Use TECH_BACKEND_URL if set, otherwise use request-based URL detection
+                # This ensures correct domain resolution on Vercel (matches Technical Interview pattern)
+                base_url = settings.tech_backend_url or get_api_base_url(http_request)
+                # Ensure base_url doesn't end with slash
+                base_url = base_url.rstrip('/')
                 ai_response_audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"
-                logger.info(f"[HR][SUBMIT-ANSWER] Generated AI response audio URL")
+                logger.info(f"[HR][SUBMIT-ANSWER] Generated AI response audio URL: {ai_response_audio_url}")
             except Exception as e:
                 logger.warning(f"[HR][SUBMIT-ANSWER] Could not generate audio URL: {str(e)}")
         

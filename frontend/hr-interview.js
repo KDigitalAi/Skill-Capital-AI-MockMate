@@ -9,6 +9,7 @@
  */
 // ✅ CRITICAL: Top-level console.log for Vercel build verification
 console.log("HR Interview JS loaded on Vercel");
+console.log("[HR INTERVIEW] ✅ HR JS LOADED - File is being served");
 
 // Build verification log (dev-only)
 if (typeof console !== 'undefined' && console.debug) {
@@ -130,33 +131,53 @@ async function getCurrentUser() {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+    console.log("[HR INTERVIEW] ✅ DOMContentLoaded fired - Page is ready");
     init();
 });
 
 async function init() {
+    console.log("[HR INTERVIEW] ✅ HR INIT RUNNING - init() function called");
     try {
-        // ✅ CRITICAL: Hide guidelines section immediately, show interview section with loading state
-        // This matches Technical Interview lifecycle: loadingState → interviewInterface
+        // ✅ CRITICAL: On execution page, interviewSection is already visible
+        // setupSection only exists on guidelines page (hr-interview.html)
+        // This matches Technical Interview lifecycle: execution page auto-starts
         const setupSection = document.getElementById('setupSection');
         const interviewSection = document.getElementById('interviewSection');
+        console.log("[HR INTERVIEW] UI elements found:", {
+            setupSection: !!setupSection,
+            interviewSection: !!interviewSection,
+            pageType: setupSection ? 'guidelines' : 'execution'
+        });
+        
+        // Only hide setupSection if it exists (guidelines page)
         if (setupSection) {
             setupSection.classList.add('hidden');
         }
+        
+        // Ensure interviewSection is visible (execution page)
         if (interviewSection) {
             interviewSection.classList.remove('hidden');
         }
         
         // Get current user first
+        console.log("[HR INTERVIEW] Getting current user...");
         await getCurrentUser();
+        console.log("[HR INTERVIEW] Current user ID:", currentUserId);
         
         // Setup event listeners
         setupEventListeners();
 
         // ✅ CRITICAL: Auto-start interview on page load (matches Technical Interview pattern)
         // This eliminates dependency on button click event binding, making it work reliably on Vercel
+        console.log("[HR INTERVIEW] ✅ HR startInterview CALLED - About to call startInterview()");
         await startInterview();
     } catch (e) {
-        console.error('Initialization failed:', e);
+        console.error('[HR INTERVIEW] ❌ Initialization failed:', e);
+        console.error('[HR INTERVIEW] Error details:', {
+            name: e.name,
+            message: e.message,
+            stack: e.stack
+        });
         // Show error in setupSection if interview section is not available
         const setupSection = document.getElementById('setupSection');
         if (setupSection) {
@@ -262,26 +283,56 @@ function showToast(message, type = 'error', duration = 4000) {
 }
 
 async function startInterview() {
+    console.log("[HR INTERVIEW] ✅ startInterview() function executing");
     try {
         // Ensure we have current user
         if (!currentUserId) {
+            console.log("[HR INTERVIEW] currentUserId missing, fetching user...");
             await getCurrentUser();
         }
         
         // Validate userId is available
         if (!currentUserId) {
             const errorMsg = 'userId is not defined. Please ensure you have uploaded a resume and have a valid user profile.';
-            console.error('[HR INTERVIEW] Start error:', errorMsg);
+            console.error('[HR INTERVIEW] ❌ Start error:', errorMsg);
+            console.error('[HR INTERVIEW] currentUserId is:', currentUserId);
             alert('Failed to start HR interview. Check console.');
             throw new Error(errorMsg);
         }
         
+        // ✅ CRITICAL: Verify api-config.js is loaded before making API call
+        if (typeof getApiBase !== 'function') {
+            const errorMsg = 'api-config.js not loaded. getApiBase() is not available.';
+            console.error('[HR INTERVIEW] ❌', errorMsg);
+            console.error('[HR INTERVIEW] window.getApiBase:', typeof window.getApiBase);
+            console.error('[HR INTERVIEW] getApiBase:', typeof getApiBase);
+            alert('Configuration error: API config not loaded. Please refresh the page.');
+            throw new Error(errorMsg);
+        }
+        
+        // ✅ CRITICAL: Log API call details before making request
+        const apiBase = getApiBase();
+        const apiUrl = `${apiBase}/api/interview/hr/start`;
+        const payload = { user_id: currentUserId };
+        console.log("[HR INTERVIEW] ✅ About to make API call:", {
+            url: apiUrl,
+            method: 'POST',
+            payload: payload,
+            apiBase: apiBase,
+            getApiBaseAvailable: typeof getApiBase === 'function'
+        });
+        
         let response;
         try {
-            response = await fetch(`${getApiBase()}/api/interview/hr/start`, {
+            response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: currentUserId })
+                body: JSON.stringify(payload)
+            });
+            console.log("[HR INTERVIEW] ✅ API call completed:", {
+                status: response.status,
+                statusText: response.statusText,
+                ok: response.ok
             });
         } catch (fetchError) {
             // ✅ CRITICAL: Fail-fast on network errors (matches Technical Interview pattern)

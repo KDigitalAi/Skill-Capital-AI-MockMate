@@ -267,99 +267,7 @@
             border-left: 4px solid #c62828;
         }
 
-        /* Interview Guidelines Section */
-        .guidelines-section {
-            background: linear-gradient(135deg, #fafbfc 0%, #f5f7fa 100%);
-            border-radius: 16px;
-            padding: 28px;
-            margin: 30px 0;
-            border: 1.5px solid var(--border-light);
-            box-shadow: 0 2px 12px var(--shadow-sm);
-        }
-
-        .guidelines-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 24px;
-            padding-bottom: 16px;
-            border-bottom: 2px solid var(--border-light);
-        }
-
-        .guidelines-header h3 {
-            font-size: 22px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            margin: 0;
-            letter-spacing: -0.3px;
-        }
-
-        .guidelines-header-icon {
-            font-size: 28px;
-        }
-
-        .guideline-category {
-            margin-bottom: 24px;
-            padding: 20px;
-            background: var(--bg-secondary);
-            border-radius: 12px;
-            border-left: 4px solid var(--primary);
-            box-shadow: 0 1px 4px var(--shadow-sm);
-            transition: all 0.3s ease;
-        }
-
-        .guideline-category:hover {
-            transform: translateX(4px);
-            box-shadow: 0 2px 8px var(--shadow-md);
-        }
-
-        .guideline-category-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 16px;
-        }
-
-        .guideline-category-header h4 {
-            font-size: 18px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            margin: 0;
-            letter-spacing: -0.2px;
-        }
-
-        .guideline-category-icon {
-            font-size: 20px;
-        }
-
-        .guideline-list {
-            list-style: none;
-            padding-left: 0;
-            margin: 0;
-        }
-
-        .guideline-list li {
-            padding: 10px 0 10px 28px;
-            color: var(--text-primary);
-            line-height: 1.7;
-            position: relative;
-            font-size: 15px;
-        }
-
-        .guideline-list li:before {
-            content: "→";
-            position: absolute;
-            left: 0;
-            color: var(--primary);
-            font-weight: bold;
-            font-size: 18px;
-        }
-
-        .guideline-list li:not(:last-child) {
-            border-bottom: 1px solid var(--border-light);
-        }
-
-        /* Modern Modal Styles - Matching Technical Interview */
+        /* Modern Modal Styles */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -511,113 +419,69 @@
         <!-- Main Content -->
         <main class="main-content">
             <div class="interview-container">
-                <!-- Interview Header -->
+                <!-- Interview Status -->
                 <div class="interview-header">
-                    <h2>HR Interview Guidelines</h2>
-                    <p style="color: var(--text-light); text-align: center; margin-top: 10px;">
-                        Review the guidelines below before starting your interview
-                    </p>
+                    <div class="interview-status" id="interviewStatus">Initializing Interview...</div>
                 </div>
 
-                <!-- Guidelines Section (Always visible on guidelines page) -->
-                <div id="setupSection" class="card">
-                    <h2>Start HR Interview</h2>
-                    <p style="color: var(--text-light); margin-bottom: 20px;">
-                        This interview will focus on your communication skills, leadership abilities, and cultural fit.
-                        You'll answer using your voice, and the AI will evaluate your responses in real-time.
-                    </p>
-
-                    <!-- Interview Guidelines Section -->
-                    <div class="guidelines-section">
-                        <div class="guidelines-header">
-                            <span class="guidelines-header-icon">👔</span>
-                            <h3>HR Interview Guidelines</h3>
-                        </div>
-
-                        <!-- Communication Guidelines -->
-                        <div class="guideline-category">
-                            <div class="guideline-category-header">
-                                <span class="guideline-category-icon">→</span>
-                                <h4>Communication Guidelines</h4>
-                            </div>
-                            <ul class="guideline-list">
-                                <li>Speak clearly and confidently with a professional tone.</li>
-                                <li>Use structured answers: Situation → Action → Result format when appropriate.</li>
-                                <li>Be concise but thorough - avoid rambling or overly brief responses.</li>
-                                <li>Show enthusiasm and genuine interest in the role and company.</li>
-                                <li>Listen carefully to questions and ask for clarification if needed.</li>
-                            </ul>
-                        </div>
-
-                        <!-- Leadership & Teamwork Guidelines -->
-                        <div class="guideline-category">
-                            <div class="guideline-category-header">
-                                <span class="guideline-category-icon">→</span>
-                                <h4>Leadership & Teamwork Guidelines</h4>
-                            </div>
-                            <ul class="guideline-list">
-                                <li>Provide specific examples from your past experiences.</li>
-                                <li>Highlight your ability to work in teams and collaborate effectively.</li>
-                                <li>Demonstrate leadership qualities through concrete achievements.</li>
-                                <li>Show how you handle conflicts and difficult situations.</li>
-                                <li>Emphasize your adaptability and willingness to learn.</li>
-                            </ul>
-                        </div>
-
-                        <!-- Professional Guidelines -->
-                        <div class="guideline-category">
-                            <div class="guideline-category-header">
-                                <span class="guideline-category-icon">→</span>
-                                <h4>Professional Guidelines</h4>
-                            </div>
-                            <ul class="guideline-list">
-                                <li>Maintain a positive and professional demeanor throughout.</li>
-                                <li>Be honest and authentic - don't exaggerate or fabricate experiences.</li>
-                                <li>Show cultural awareness and respect for diversity.</li>
-                                <li>Demonstrate your understanding of the company's values and mission.</li>
-                                <li>Express your career goals and how they align with the role.</li>
-                            </ul>
-                        </div>
-
-                        <!-- Voice Interview Guidelines -->
-                        <div class="guideline-category">
-                            <div class="guideline-category-header">
-                                <span class="guideline-category-icon">→</span>
-                                <h4>Voice Interview Guidelines</h4>
-                            </div>
-                            <ul class="guideline-list">
-                                <li>Speak clearly and hold your microphone close for best audio quality.</li>
-                                <li>Answer naturally, as if having a conversation with a real HR interviewer.</li>
-                                <li>Pause briefly after the interviewer finishes speaking before responding.</li>
-                                <li>The AI will analyze your communication clarity, confidence, and professionalism.</li>
-                                <li>Take a moment to think before answering complex questions.</li>
-                            </ul>
-                        </div>
-
-                        <!-- Evaluation Criteria -->
-                        <div class="guideline-category">
-                            <div class="guideline-category-header">
-                                <span class="guideline-category-icon">→</span>
-                                <h4>Evaluation Criteria</h4>
-                            </div>
-                            <ul class="guideline-list">
-                                <li>Communication skills and clarity</li>
-                                <li>Leadership and teamwork abilities</li>
-                                <li>Professionalism and cultural fit</li>
-                                <li>Problem-solving and conflict resolution</li>
-                                <li>Career motivation and alignment</li>
-                                <li>Confidence and authenticity</li>
-                                <li>Overall interview presence</li>
-                            </ul>
-                        </div>
+                <!-- Interview Interface (Auto-starts on page load) -->
+                <div id="interviewSection">
+                    <!-- Conversation Display -->
+                    <div class="conversation-container" id="conversationContainer">
+                        <div class="loading" id="loadingMessage">Initializing interview...</div>
                     </div>
 
+                    <!-- Voice Controls -->
+                    <div class="voice-controls">
+                        <button class="voice-button" id="voiceButton" title="Click to record your answer">
+                            🎤
+                        </button>
+                        <div class="voice-status" id="voiceStatus">Click the microphone to start recording</div>
+                    </div>
+
+                    <!-- Interview Actions -->
                     <div class="interview-actions">
-                        <button class="btn btn-primary" id="startInterviewBtn">Start Interview</button>
-                        <button class="btn btn-secondary" onclick="window.location.href='index.html'">Back to Dashboard</button>
+                        <button class="btn btn-danger" id="endInterviewBtn">End Interview</button>
                     </div>
                 </div>
 
+                <!-- Feedback Section (Hidden until interview ends) -->
+                <div id="feedbackSection" class="feedback-section hidden">
+                    <h2>Interview Feedback</h2>
+                    <div class="loading" id="feedbackLoading">Generating feedback...</div>
+                    <div id="feedbackContent" class="hidden">
+                        <div class="score-display">
+                            <div style="font-size: 18px; color: var(--text-light);">Overall Score</div>
+                            <div class="score-value" id="overallScore">0</div>
+                            <div style="font-size: 14px; color: var(--text-light);">out of 100</div>
+                        </div>
+
+                        <div class="feedback-item">
+                            <h3>✨ Strengths</h3>
+                            <ul id="strengthsList"></ul>
+                        </div>
+
+                        <div class="feedback-item">
+                            <h3>📈 Areas for Improvement</h3>
+                            <ul id="improvementsList"></ul>
+                        </div>
+
+                        <div class="feedback-item">
+                            <h3>💡 Recommendations</h3>
+                            <ul id="recommendationsList"></ul>
+                        </div>
+
+                        <div class="feedback-item">
+                            <h3>📝 Summary</h3>
+                            <p id="feedbackSummary" style="color: var(--text-primary); line-height: 1.6;"></p>
+                        </div>
+
+                        <div class="interview-actions" style="margin-top: 30px;">
+                            <button class="btn btn-primary" onclick="window.location.href='index.html'">Back to Dashboard</button>
+                            <button class="btn btn-secondary" id="restartInterviewBtn">Start New Interview</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
 
@@ -627,38 +491,26 @@
         </footer>
     </div>
 
-    <!-- Navigation script - matches Technical Interview pattern -->
-    <script>
-        // Build navigation URL with query parameters (matches Technical Interview pattern)
-        function buildNavigationUrl(targetPage) {
-            const search = window.location.search && window.location.search.trim();
-            if (!search) return targetPage;
-            
-            // Preserve query parameters when navigating
-            const normalizedSearch = search.startsWith('?') ? search : `?${search}`;
-            return `${targetPage}${normalizedSearch}`;
-        }
+    <!-- Modern Confirmation Modal -->
+    <div id="confirmationModal" class="modal-overlay">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">Confirm Action</h3>
+            </div>
+            <div class="modal-body">
+                <p class="modal-message" id="modalMessage">Are you sure?</p>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn modal-btn-cancel" id="modalCancelBtn">Cancel</button>
+                <button class="modal-btn modal-btn-confirm" id="modalConfirmBtn">Yes, End Interview</button>
+            </div>
+        </div>
+    </div>
 
-        document.addEventListener('DOMContentLoaded', () => {
-            const startBtn = document.getElementById('startInterviewBtn');
-            const backBtn = document.querySelector('.btn-secondary[onclick*="index.html"]');
-
-            if (startBtn) {
-                startBtn.addEventListener('click', () => {
-                    // ✅ CRITICAL: Only navigate, do NOT start interview logic here
-                    // This matches Technical Interview pattern: guidelines page only navigates
-                    sessionStorage.setItem('selectedInterviewModule', 'hr');
-                    window.location.href = buildNavigationUrl('hr-interview-execution.html');
-                });
-            }
-
-            if (backBtn) {
-                backBtn.addEventListener('click', () => {
-                    window.location.href = buildNavigationUrl('resume-analysis.html');
-                });
-            }
-        });
-    </script>
+    <!-- Load API configuration first -->
+    <script src="api-config.js"></script>
+    <!-- ✅ CRITICAL: Load HR interview JS - auto-starts on DOMContentLoaded (matches Technical Interview pattern) -->
+    <script src="hr-interview.js?v=2.0"></script>
 </body>
 </html>
 
