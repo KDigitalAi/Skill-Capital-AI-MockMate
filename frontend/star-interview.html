@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <style>
-        .interview-container {
+        .interview-page-container {
             max-width: 900px;
             margin: 0 auto;
             padding: 20px;
@@ -585,6 +585,26 @@
             color: var(--text-light);
         }
 
+        .loading-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-light);
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid var(--border-light);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
         .error-message {
             background: #ffebee;
             color: #c62828;
@@ -908,112 +928,22 @@
 
         <!-- Main Content -->
         <main class="main-content">
-            <div class="interview-container">
-                <!-- Interview Status -->
-                <div class="interview-header">
-                    <div class="interview-status" id="interviewStatus">Ready to Start</div>
+            <div class="interview-page-container">
+                <!-- Loading State -->
+                <div id="loadingState" class="loading-state">
+                    <div class="spinner"></div>
+                    <h2 style="color: var(--text-secondary);">Initializing Interview...</h2>
+                    <p style="color: var(--text-light);">Please wait while we prepare your interview questions.</p>
                 </div>
 
-                <!-- Pre-Interview Setup (Hidden after start) -->
-                <div id="setupSection" class="card">
-                    <h2>Start STAR Interview</h2>
-                    <p style="color: var(--text-light); margin-bottom: 20px;">
-                        This interview will focus on behavioral questions using the STAR method (Situation, Task, Action, Result).
-                        You'll answer using your voice, and the AI will evaluate your responses based on STAR structure.
-                    </p>
-
-                    <!-- Interview Guidelines Section -->
-                    <div class="guidelines-section">
-                        <div class="guidelines-header">
-                            <span class="guidelines-header-icon">⭐</span>
-                            <h3>STAR Interview Guidelines</h3>
-                        </div>
-
-                        <!-- STAR Method Guidelines -->
-                        <div class="guideline-category">
-                            <div class="guideline-category-header">
-                                <span class="guideline-category-icon">→</span>
-                                <h4>STAR Method Structure</h4>
-                            </div>
-                            <ul class="guideline-list">
-                                <li><strong>Situation:</strong> Describe the context and background of your example</li>
-                                <li><strong>Task:</strong> Explain what you needed to accomplish or the challenge you faced</li>
-                                <li><strong>Action:</strong> Detail the specific actions you took to address the situation</li>
-                                <li><strong>Result:</strong> Share the outcomes and what you learned from the experience</li>
-                            </ul>
-                        </div>
-
-                        <!-- Communication Guidelines -->
-                        <div class="guideline-category">
-                            <div class="guideline-category-header">
-                                <span class="guideline-category-icon">→</span>
-                                <h4>Communication Guidelines</h4>
-                            </div>
-                            <ul class="guideline-list">
-                                <li>Speak clearly and confidently with a professional tone.</li>
-                                <li>Use the STAR format to structure your answers.</li>
-                                <li>Be specific and provide concrete examples from your experience.</li>
-                                <li>Focus on your actions and contributions, not just the team's.</li>
-                                <li>Quantify results when possible (e.g., "increased sales by 20%").</li>
-                            </ul>
-                        </div>
-
-                        <!-- Behavioral Guidelines -->
-                        <div class="guideline-category">
-                            <div class="guideline-category-header">
-                                <span class="guideline-category-icon">→</span>
-                                <h4>Behavioral Guidelines</h4>
-                            </div>
-                            <ul class="guideline-list">
-                                <li>Choose examples that demonstrate relevant skills and competencies.</li>
-                                <li>Select examples from your resume that showcase your abilities.</li>
-                                <li>Be honest and authentic - don't fabricate experiences.</li>
-                                <li>Show how you handle challenges and learn from experiences.</li>
-                                <li>Highlight your problem-solving and leadership abilities.</li>
-                            </ul>
-                        </div>
-
-                        <!-- Voice Interview Guidelines -->
-                        <div class="guideline-category">
-                            <div class="guideline-category-header">
-                                <span class="guideline-category-icon">→</span>
-                                <h4>Voice Interview Guidelines</h4>
-                            </div>
-                            <ul class="guideline-list">
-                                <li>Speak clearly and hold your microphone close for best audio quality.</li>
-                                <li>Answer naturally, as if having a conversation with a real interviewer.</li>
-                                <li>Pause briefly after the interviewer finishes speaking before responding.</li>
-                                <li>The AI will analyze your STAR structure, clarity, and behavioral examples.</li>
-                                <li>Take a moment to think before answering to structure your STAR response.</li>
-                            </ul>
-                        </div>
-
-                        <!-- Evaluation Criteria -->
-                        <div class="guideline-category">
-                            <div class="guideline-category-header">
-                                <span class="guideline-category-icon">→</span>
-                                <h4>Evaluation Criteria</h4>
-                            </div>
-                            <ul class="guideline-list">
-                                <li>STAR structure adherence (Situation, Task, Action, Result)</li>
-                                <li>Quality of situation description</li>
-                                <li>Clarity of task/challenge explanation</li>
-                                <li>Specificity of actions taken</li>
-                                <li>Impact and results achieved</li>
-                                <li>Overall behavioral response quality</li>
-                            </ul>
-                        </div>
+                <!-- Interview Interface (Chat-Based Flow) -->
+                <div id="interviewInterface" class="hidden">
+                    <!-- Interview Status -->
+                    <div class="interview-header">
+                        <div class="interview-status" id="interviewStatus">Ready to Start</div>
                     </div>
 
-                    <div class="interview-actions">
-                        <button class="btn btn-primary" id="startInterviewBtn">Start Interview</button>
-                        <button class="btn btn-secondary" onclick="window.location.href='index.html'">Back to Dashboard</button>
-                    </div>
-                </div>
-
-                <!-- Interview Interface (Hidden until start) -->
-                <div id="interviewSection" class="hidden">
-                    <!-- Conversation Display -->
+                    <!-- Conversation Display (Chat-Based) -->
                     <div class="conversation-container" id="conversationContainer">
                         <div class="loading" id="loadingMessage">Initializing interview...</div>
                     </div>
@@ -1235,9 +1165,1009 @@
 
     <!-- Load API configuration first -->
     <script src="api-config.js"></script>
-    <!-- Cache-busting version param to ensure latest JS is loaded -->
-    <script src="star-interview.js?v=2.0"></script>
-    
+    <script>
+        // ============================================
+        // STAR Interview - Embedded JavaScript
+        // Execution-only page - auto-starts on load
+        // ============================================
+        
+        // State
+        let currentUserId = null;
+        let interviewSessionId = null;
+        let conversationHistory = [];
+        let isRecording = false;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let currentQuestion = null;
+        let interviewActive = false;
+        let currentAudio = null;
+        let isAudioPlaying = false;
+        
+        // Loading state management
+        let isLoading = {
+            submitAnswer: false,
+            getNextQuestion: false
+        };
+        
+        // Stop and destroy any currently playing audio
+        function stopCurrentAudio() {
+            if (currentAudio) {
+                console.log('[STAR INTERVIEW] Stopping current audio playback');
+                try {
+                    currentAudio.pause();
+                    currentAudio.currentTime = 0;
+                    // Clean up blob URL if it exists
+                    if (currentAudio.src && currentAudio.src.startsWith('blob:')) {
+                        URL.revokeObjectURL(currentAudio.src);
+                    }
+                } catch (e) {
+                    console.warn('[STAR INTERVIEW] Error stopping audio:', e);
+                }
+                currentAudio = null;
+                isAudioPlaying = false;
+            }
+        }
+
+        function setLoadingState(key, value) {
+            isLoading[key] = value;
+        }
+
+        // Get current user
+        async function getCurrentUser() {
+            try {
+                const storedUserId = localStorage.getItem('user_id') || 
+                                    sessionStorage.getItem('resume_user_id') || 
+                                    window.CURRENT_USER_ID;
+                if (storedUserId) {
+                    currentUserId = storedUserId;
+                    window.CURRENT_USER_ID = storedUserId;
+                    return { user_id: storedUserId };
+                }
+                
+                const res = await fetch(`${getApiBase()}/api/profile/current`);
+                if (!res.ok) {
+                    throw new Error(`Failed to get current user: ${res.status}`);
+                }
+                const user = await res.json();
+                currentUserId = user.user_id;
+                
+                if (currentUserId) {
+                    localStorage.setItem('user_id', currentUserId);
+                    sessionStorage.setItem('resume_user_id', currentUserId);
+                    window.CURRENT_USER_ID = currentUserId;
+                }
+                
+                return user;
+            } catch (e) {
+                console.error('Error getting current user:', e);
+                const fallbackUserId = localStorage.getItem('user_id') || 
+                                       sessionStorage.getItem('resume_user_id') || 
+                                       window.CURRENT_USER_ID;
+                if (fallbackUserId) {
+                    currentUserId = fallbackUserId;
+                    window.CURRENT_USER_ID = fallbackUserId;
+                    return { user_id: fallbackUserId };
+                }
+                throw new Error('No authenticated user found. Please ensure you have uploaded a resume and have a valid user profile.');
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            init();
+        });
+
+        async function init() {
+            try {
+                // Get current user first
+                await getCurrentUser();
+                
+                // Setup event listeners
+                setupEventListeners();
+
+                // Start interview
+                await startInterview();
+            } catch (e) {
+                console.error('Initialization failed:', e);
+                document.body.innerHTML = `
+                    <div style="padding: 40px; text-align: center;">
+                        <h2 style="color: #c62828;">Error</h2>
+                        <p>${e.message}</p>
+                        <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px;">Retry</button>
+                    </div>
+                `;
+            }
+        }
+
+        function setupEventListeners() {
+            document.getElementById('voiceButton').addEventListener('click', toggleRecording);
+            document.getElementById('endInterviewBtn').addEventListener('click', endInterview);
+        }
+
+        async function startInterview() {
+            try {
+                // Ensure we have current user
+                if (!currentUserId) {
+                    await getCurrentUser();
+                }
+                
+                // Validate userId is available
+                if (!currentUserId) {
+                    throw new Error('userId is not defined. Please ensure you have uploaded a resume and have a valid user profile.');
+                }
+                
+                const response = await fetch(`${getApiBase()}/api/interview/star/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: currentUserId })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to start interview: ${response.status} - ${errorText}`);
+                }
+
+                const data = await response.json();
+                
+                interviewSessionId = data.session_id;
+                interviewActive = true;
+                conversationHistory = [];  // Start with empty history (like Technical Interview)
+
+                // Hide loading, show interview
+                document.getElementById('loadingState').classList.add('hidden');
+                document.getElementById('interviewInterface').classList.remove('hidden');
+
+                // Update status
+                const statusEl = document.getElementById('interviewStatus');
+                if (statusEl) {
+                    statusEl.textContent = 'Interview Active';
+                    statusEl.classList.add('active');
+                }
+
+                // Clear container and prepare for messages
+                const container = document.getElementById('conversationContainer');
+                if (container) {
+                    container.innerHTML = '';
+                }
+
+                // Display first question if available
+                if (data.question) {
+                    currentQuestion = data.question;
+                    conversationHistory.push({
+                        role: 'ai',
+                        content: data.question,
+                        audio_url: data.audio_url
+                    });
+                    // Display question with audio URL
+                    displayMessage('ai', data.question, data.audio_url);
+                    
+                    // Play audio if available
+                    if (data.audio_url) {
+                        setTimeout(() => {
+                            playAudio(data.audio_url).catch(err => {
+                                // Audio playback failed, manual play button will be shown
+                            });
+                        }, 100);
+                    } else {
+                        console.error('[STAR INTERVIEW] ❌ No audio_url received for first question');
+                    }
+                } else {
+                    showError('No question received. Please try again.');
+                }
+
+            } catch (error) {
+                console.error('[INTERVIEW] Start error:', error);
+                document.getElementById('loadingState').innerHTML = `
+                    <div class="error-message">
+                        <h3>Failed to Start Interview</h3>
+                        <p>${error.message || 'Please ensure you have uploaded a resume with behavioral examples.'}</p>
+                        <button class="btn btn-primary" onclick="window.location.href='star-interview.html'" style="margin-top: 15px;">
+                            Go Back
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        // Voice recording functions
+        async function toggleRecording() {
+            if (!interviewActive) return;
+            if (isAudioPlaying) {
+                console.log('[STAR INTERVIEW] Cannot record while audio is playing');
+                document.getElementById('voiceStatus').textContent = 'Please wait for the question to finish...';
+                return;
+            }
+            if (!isRecording) {
+                startRecording();
+            } else {
+                stopRecording();
+            }
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    await processAudioAnswer(audioBlob);
+                    stream.getTracks().forEach(track => track.stop());
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                document.getElementById('voiceButton').classList.add('recording');
+                document.getElementById('voiceStatus').textContent = 'Recording... Click again to stop';
+            } catch (error) {
+                console.error('Error accessing microphone:', error);
+                const errorMsg = 'Microphone access denied. Please allow microphone access and try again.';
+                showError(errorMsg);
+                alert(errorMsg);
+                document.getElementById('voiceStatus').textContent = 'Microphone access required. Please allow access and try again.';
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                document.getElementById('voiceButton').classList.remove('recording');
+                document.getElementById('voiceStatus').textContent = 'Processing your answer...';
+            }
+        }
+
+        // No-answer detection (simplified version)
+        function detectNoAnswer(sttText) {
+            if (!sttText || !sttText.trim()) {
+                return { isNoAnswer: true, reason: 'empty_or_whitespace' };
+            }
+            const trimmed = sttText.trim();
+            if (trimmed.length < 3) {
+                return { isNoAnswer: true, reason: `too_short: ${trimmed}` };
+            }
+            return { isNoAnswer: false, reason: null };
+        }
+
+        async function processAudioAnswer(audioBlob) {
+            try {
+                const formData = new FormData();
+                formData.append('audio', audioBlob, 'recording.webm');
+
+                const sttResponse = await fetch(`${getApiBase()}/api/interview/speech-to-text`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!sttResponse.ok) {
+                    throw new Error(`STT API failed with status: ${sttResponse.status}`);
+                }
+
+                const sttData = await sttResponse.json();
+                const rawUserAnswer = sttData.text || '';
+                
+                const noAnswerCheck = detectNoAnswer(rawUserAnswer);
+                let userAnswer;
+                if (noAnswerCheck.isNoAnswer) {
+                    console.log(`[STAR INTERVIEW] No Answer detected: ${noAnswerCheck.reason}`);
+                    userAnswer = 'No Answer';
+                } else {
+                    userAnswer = rawUserAnswer.trim();
+                }
+
+                displayMessage('user', userAnswer);
+                await submitAnswer(userAnswer);
+
+            } catch (error) {
+                console.error('Process audio error:', error);
+                console.log('[STAR INTERVIEW] STT failed, treating as No Answer');
+                const userAnswer = 'No Answer';
+                displayMessage('user', userAnswer);
+                await submitAnswer(userAnswer);
+            }
+        }
+
+        async function submitAnswer(answer) {
+            if (!answer || (!answer.trim() && answer !== 'No Answer')) {
+                showError('I could not hear your answer. Please speak again.');
+                return;
+            }
+
+            if (!interviewSessionId || !currentQuestion) {
+                showError('No active interview session or question');
+                return;
+            }
+
+            if (isLoading.submitAnswer) {
+                console.warn('[SUBMIT ANSWER] Submit answer already in progress, ignoring duplicate call');
+                return;
+            }
+
+            try {
+                setLoadingState('submitAnswer', true);
+                console.log('[SUBMIT ANSWER] Submitting STAR answer to backend...');
+                
+                const response = await fetch(`${getApiBase()}/api/interview/star/${interviewSessionId}/submit-answer`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        question: currentQuestion,
+                        answer: answer,
+                        response_time: null
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to submit answer: ${response.status} - ${errorText}`);
+                }
+
+                const data = await response.json();
+                console.log('[SUBMIT ANSWER] ✅ STAR answer submitted successfully');
+                
+                conversationHistory.push({
+                    role: 'user',
+                    content: answer
+                });
+
+                // Display AI response if any
+                if (data.ai_response) {
+                    conversationHistory.push({
+                        role: 'ai',
+                        content: data.ai_response,
+                        audio_url: data.audio_url
+                    });
+                    displayMessage('ai', data.ai_response, data.audio_url);
+                    
+                    if (data.audio_url) {
+                        await playAudio(data.audio_url).catch(err => {
+                            console.warn('[STAR INTERVIEW] AI response audio playback failed:', err);
+                        });
+                    }
+                }
+
+                // Check if interview is complete
+                const aiQuestionsCount = conversationHistory.filter(m => m.role === 'ai').length;
+                if (data.interview_completed || aiQuestionsCount >= 10) {
+                    console.log(`[SUBMIT ANSWER] Interview completed: ${aiQuestionsCount} questions asked`);
+                    await completeInterview();
+                } else if (!isLoading.getNextQuestion) {
+                    await getNextSTARQuestion(answer);
+                } else {
+                    console.warn('[SUBMIT ANSWER] getNextQuestion already in progress, ignoring duplicate call');
+                }
+
+                document.getElementById('voiceStatus').textContent = 'Click the microphone to record your answer';
+
+            } catch (error) {
+                console.error('[SUBMIT ANSWER] Error:', error);
+                showError(error.message || 'Failed to submit answer. Please try again.');
+                document.getElementById('voiceStatus').textContent = 'Error submitting answer. Click the microphone to try again.';
+            } finally {
+                setLoadingState('submitAnswer', false);
+            }
+        }
+
+        async function getNextSTARQuestion(userAnswer = null) {
+            if (!interviewSessionId) {
+                showError('No interview session found. Please start the interview again.');
+                return;
+            }
+
+            if (isLoading.getNextQuestion) {
+                console.warn('[STAR INTERVIEW] Get next question already in progress, ignoring duplicate call');
+                return;
+            }
+
+            try {
+                setLoadingState('getNextQuestion', true);
+                
+                const loadingMsg = document.getElementById('loadingMessage');
+                if (loadingMsg) {
+                    loadingMsg.classList.add('hidden');
+                }
+                
+                const requestBody = {};
+                if (userAnswer) {
+                    requestBody.user_answer = userAnswer;
+                }
+                
+                const response = await fetch(`${getApiBase()}/api/interview/star/${interviewSessionId}/next-question`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Backend error: ${response.status} - ${errorText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.interview_completed) {
+                    console.log('[STAR INTERVIEW] Interview completed:', data.message);
+                    await completeInterview();
+                    return;
+                }
+                
+                const nextQuestion = data.question;
+                const audioUrl = data.audio_url || data.audioUrl;
+                
+                if (!nextQuestion) {
+                    throw new Error('No question received from backend');
+                }
+                
+                currentQuestion = nextQuestion;
+                conversationHistory.push({
+                    role: 'ai',
+                    content: nextQuestion,
+                    audio_url: audioUrl
+                });
+                
+                displayMessage('ai', nextQuestion, audioUrl);
+                
+                await new Promise(resolve => setTimeout(resolve, 100));
+                if (audioUrl && audioUrl.trim()) {
+                    await playAudio(audioUrl).catch(err => {
+                        console.warn('[STAR INTERVIEW] Next question audio playback failed:', err);
+                    });
+                } else if (nextQuestion) {
+                    // Fallback: generate TTS from question text
+                    await playAudio(nextQuestion).catch(err => {
+                        console.warn('[STAR INTERVIEW] Fallback TTS generation failed:', err);
+                    });
+                }
+
+            } catch (error) {
+                console.error('[STAR INTERVIEW] ❌ Get question error:', error);
+                showError(`Failed to get question: ${error.message || 'Please try again.'}`);
+                document.getElementById('voiceStatus').textContent = 'Error occurred. Please try recording again or start a new interview.';
+            } finally {
+                setLoadingState('getNextQuestion', false);
+            }
+        }
+
+        async function completeInterview() {
+            interviewActive = false;
+            document.getElementById('interviewInterface').classList.add('hidden');
+            document.getElementById('feedbackSection').classList.remove('hidden');
+            await generateFeedback();
+        }
+
+        // Feedback generation (STAR-specific)
+        function setScoreBadge(score) {
+            const scoreBadgeEl = document.getElementById('scoreBadge');
+            if (scoreBadgeEl) {
+                const numericScore = typeof score === 'string' ? parseInt(score) : Math.round(score);
+                if (numericScore >= 80) {
+                    scoreBadgeEl.textContent = '⭐⭐⭐ Strong';
+                } else if (numericScore >= 60) {
+                    scoreBadgeEl.textContent = '⭐⭐ Improving';
+                } else {
+                    scoreBadgeEl.textContent = '⭐ Beginner';
+                }
+            }
+        }
+
+        function setScoreMessage(score) {
+            const scoreMessageEl = document.getElementById('scoreMessage');
+            if (scoreMessageEl) {
+                const numericScore = typeof score === 'string' ? parseInt(score) : Math.round(score);
+                if (numericScore >= 80) {
+                    scoreMessageEl.textContent = 'Outstanding performance! You demonstrated strong STAR method skills.';
+                } else if (numericScore >= 60) {
+                    scoreMessageEl.textContent = 'Good work! With more practice, you can improve your STAR responses.';
+                } else {
+                    scoreMessageEl.textContent = 'Keep practicing to improve your STAR responses!';
+                }
+            }
+        }
+
+        function displayPerformanceBreakdown(feedback) {
+            const components = [
+                { key: 'situation_score', id: 'situation', label: 'Situation' },
+                { key: 'task_score', id: 'task', label: 'Task' },
+                { key: 'action_score', id: 'action', label: 'Action' },
+                { key: 'result_score', id: 'result', label: 'Result' },
+                { key: 'star_structure_score', id: 'structure', label: 'STAR Structure' }
+            ];
+            
+            components.forEach(component => {
+                const score = Math.round(feedback[component.key] || 0);
+                const scoreEl = document.getElementById(component.id + 'Score');
+                const fillEl = document.getElementById(component.id + 'Fill');
+                
+                if (scoreEl) scoreEl.textContent = score;
+                if (fillEl) {
+                    setTimeout(() => {
+                        fillEl.style.width = score + '%';
+                    }, 100);
+                }
+            });
+        }
+
+        async function generateFeedback() {
+            if (!interviewSessionId) {
+                generateBasicFeedback();
+                return;
+            }
+
+            if (isLoading.generateFeedback) {
+                console.warn('[FEEDBACK] Generate feedback already in progress, ignoring duplicate call');
+                return;
+            }
+
+            try {
+                setLoadingState('generateFeedback', true);
+                console.log('[FEEDBACK] Requesting STAR feedback from backend...');
+                
+                const response = await fetch(`${getApiBase()}/api/interview/star/${interviewSessionId}/feedback`, {
+                    method: 'GET'
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('[FEEDBACK] STAR feedback endpoint error:', response.status, errorText);
+                    generateBasicFeedback();
+                    return;
+                }
+
+                const feedback = await response.json();
+                if (!feedback) {
+                    generateBasicFeedback();
+                    return;
+                }
+
+                console.log('[FEEDBACK] ✅ STAR feedback received successfully');
+                
+                const overallScore = Math.round(feedback.overall_score || 0);
+                document.getElementById('overallScore').textContent = overallScore;
+                setScoreBadge(overallScore);
+                setScoreMessage(overallScore);
+                
+                const welcomeTextEl = document.getElementById('welcomeText');
+                if (welcomeTextEl) {
+                    if (overallScore >= 80) {
+                        welcomeTextEl.textContent = 'Outstanding work! You completed your STAR interview with excellent performance. Here\'s your personalized breakdown.';
+                    } else if (overallScore >= 60) {
+                        welcomeTextEl.textContent = 'Great job completing your STAR interview! Here\'s your personalized performance report to help you improve.';
+                    } else {
+                        welcomeTextEl.textContent = 'Thank you for completing your STAR interview! Here\'s your personalized feedback to help you improve.';
+                    }
+                }
+                
+                const questionCount = feedback.question_count || 0;
+                const userMessages = conversationHistory.filter(m => m.role === 'user');
+                const answeredCount = userMessages.length;
+                const participationRate = questionCount > 0 ? Math.round((answeredCount / questionCount) * 100) : 0;
+                
+                const questionsAnsweredEl = document.getElementById('questionsAnswered');
+                if (questionsAnsweredEl) questionsAnsweredEl.textContent = answeredCount;
+                
+                const participationRateEl = document.getElementById('participationRate');
+                if (participationRateEl) participationRateEl.textContent = participationRate + '%';
+                
+                const participationNoteEl = document.getElementById('participationNote');
+                if (participationNoteEl) {
+                    if (participationRate >= 80) {
+                        participationNoteEl.textContent = 'Excellent! You actively engaged with all questions throughout the interview.';
+                    } else if (participationRate >= 60) {
+                        participationNoteEl.textContent = 'Good participation! You answered most of the questions asked.';
+                    } else {
+                        participationNoteEl.textContent = 'Try to answer more questions in your next interview to get better feedback.';
+                    }
+                }
+                
+                displayPerformanceBreakdown(feedback);
+                
+                const strengthsList = document.getElementById('strengthsList');
+                if (strengthsList) {
+                    const strengths = feedback.strengths || [];
+                    strengthsList.innerHTML = strengths.length > 0 
+                        ? strengths.map(s => `<li>${s}</li>`).join('')
+                        : '<li>Keep practicing to build your strengths!</li>';
+                }
+
+                const improvementsList = document.getElementById('improvementsList');
+                if (improvementsList) {
+                    const improvements = feedback.areas_for_improvement || [];
+                    improvementsList.innerHTML = improvements.length > 0
+                        ? improvements.map(a => `<li>${a}</li>`).join('')
+                        : '<li>Great job! Continue refining your STAR responses.</li>';
+                }
+
+                const recommendationsList = document.getElementById('recommendationsList');
+                if (recommendationsList) {
+                    const recommendations = feedback.recommendations || [];
+                    recommendationsList.innerHTML = recommendations.length > 0
+                        ? recommendations.map(r => `<li>${r}</li>`).join('')
+                        : '<li>Keep practicing your STAR method responses!</li>';
+                }
+
+                const feedbackSummaryEl = document.getElementById('feedbackSummary');
+                if (feedbackSummaryEl) {
+                    feedbackSummaryEl.textContent = feedback.feedback_summary || 'No summary available.';
+                }
+
+                const feedbackLoading = document.getElementById('feedbackLoading');
+                const feedbackContent = document.getElementById('feedbackContent');
+                if (feedbackLoading) feedbackLoading.classList.add('hidden');
+                if (feedbackContent) feedbackContent.classList.remove('hidden');
+
+            } catch (error) {
+                console.error('[FEEDBACK] Error:', error);
+                generateBasicFeedback();
+            } finally {
+                setLoadingState('generateFeedback', false);
+            }
+        }
+
+        function generateBasicFeedback() {
+            const userMessages = conversationHistory.filter(m => m.role === 'user');
+            const answerCount = userMessages.length;
+            const validAnswers = userMessages.filter(m => {
+                const text = m.content || '';
+                return text.trim() && text.trim() !== 'No Answer' && text.trim().split(/\s+/).length >= 3;
+            });
+            const validAnswerCount = validAnswers.length;
+
+            if (validAnswerCount === 0) {
+                document.getElementById('overallScore').textContent = '0';
+                setScoreBadge(0);
+                setScoreMessage(0);
+                const questionsAnsweredEl = document.getElementById('questionsAnswered');
+                if (questionsAnsweredEl) questionsAnsweredEl.textContent = '0';
+                const participationRateEl = document.getElementById('participationRate');
+                if (participationRateEl) participationRateEl.textContent = '0%';
+                displayPerformanceBreakdown({
+                    situation_score: 0, task_score: 0, action_score: 0,
+                    result_score: 0, star_structure_score: 0
+                });
+                document.getElementById('strengthsList').innerHTML = '<li>No valid response detected.</li>';
+                document.getElementById('improvementsList').innerHTML = '<li>Please provide spoken answers to receive accurate STAR feedback.</li>';
+                document.getElementById('recommendationsList').innerHTML = '<li>Try answering all STAR questions with clear Situation, Task, Action, and Result.</li>';
+                document.getElementById('feedbackSummary').textContent = 'Interview ended early with no valid responses.';
+                document.getElementById('feedbackLoading').classList.add('hidden');
+                document.getElementById('feedbackContent').classList.remove('hidden');
+                return;
+            }
+
+            const totalWords = validAnswers.reduce((sum, m) => {
+                return sum + (m.content || '').split(/\s+/).filter(Boolean).length;
+            }, 0);
+            const avgWords = validAnswerCount > 0 ? totalWords / validAnswerCount : 0;
+
+            let score = 0;
+            if (validAnswerCount >= 4) score += 20;
+            else if (validAnswerCount >= 2) score += 10;
+            if (avgWords >= 50) score += 25;
+            else if (avgWords >= 30) score += 18;
+            else if (avgWords >= 15) score += 8;
+            score = Math.max(0, Math.min(85, Math.round(score)));
+
+            const strengths = [`You provided ${validAnswerCount} STAR example${validAnswerCount > 1 ? 's' : ''} during the interview.`];
+            const improvements = [];
+            const recommendations = [];
+
+            if (avgWords >= 35) {
+                strengths.push('Your answers had reasonable detail and context for behavioral situations.');
+            } else if (avgWords >= 15) {
+                improvements.push('Some answers were quite brief; adding more detail for Situation, Task, Action, and Result will make them stronger.');
+            } else {
+                improvements.push('Answers were very short; try expanding each story with more context, actions, and results.');
+            }
+
+            improvements.push('Make sure each answer clearly covers all four STAR parts: Situation, Task, Action, and Result.');
+            recommendations.push('Write down 3–5 STAR stories and practice telling them out loud with clear outcomes and metrics.');
+
+            document.getElementById('overallScore').textContent = String(score);
+            setScoreBadge(score);
+            setScoreMessage(score);
+            
+            const questionsAnsweredEl = document.getElementById('questionsAnswered');
+            if (questionsAnsweredEl) questionsAnsweredEl.textContent = validAnswerCount;
+            const participationRateEl = document.getElementById('participationRate');
+            if (participationRateEl) {
+                const rate = answerCount > 0 ? Math.round((validAnswerCount / answerCount) * 100) : 0;
+                participationRateEl.textContent = rate + '%';
+            }
+            
+            displayPerformanceBreakdown({
+                situation_score: score, task_score: score, action_score: score,
+                result_score: score, star_structure_score: score
+            });
+            
+            document.getElementById('strengthsList').innerHTML = strengths.map(s => `<li>${s}</li>`).join('');
+            document.getElementById('improvementsList').innerHTML = improvements.map(a => `<li>${a}</li>`).join('');
+            document.getElementById('recommendationsList').innerHTML = recommendations.map(r => `<li>${r}</li>`).join('');
+            document.getElementById('feedbackSummary').textContent = 'We could not load the full AI report, so this quick summary is based on how many STAR examples you shared and how detailed they were. For a richer, fully personalized report, please try the interview again when your connection is stable.';
+
+            document.getElementById('feedbackLoading').classList.add('hidden');
+            document.getElementById('feedbackContent').classList.remove('hidden');
+        }
+
+        function displayMessage(role, content, audioUrl = null) {
+            const container = document.getElementById('conversationContainer');
+            if (!container) return;
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            const header = role === 'ai' ? 'AI Interviewer' : 'You';
+            messageDiv.innerHTML = `
+                <div class="message-header">${header}</div>
+                <div class="message-content">${content}</div>
+                ${audioUrl ? `<audio class="audio-player" controls src="${audioUrl}"></audio>` : ''}
+            `;
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        async function playAudio(textOrUrl, retryCount = 0) {
+            const MAX_RETRIES = 2;
+            if (!textOrUrl) {
+                return;
+            }
+            
+            // Stop any currently playing audio before starting a new one
+            stopCurrentAudio();
+            
+            try {
+                let text = textOrUrl;
+                
+                // If it's a URL, extract text from it or use it directly
+                if (textOrUrl.startsWith('http')) {
+                    // Try to extract text from query parameter
+                    try {
+                        const url = new URL(textOrUrl);
+                        
+                        // Detect localhost/127.0.0.1 URLs and regenerate audio
+                        const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+                        const textParam = url.searchParams.get('text');
+                        
+                        if (isLocalhost && textParam) {
+                            // Backend returned localhost URL - extract text and regenerate using correct endpoint
+                            console.warn('[TTS] Detected localhost URL from backend, regenerating audio with correct endpoint:', textOrUrl);
+                            text = decodeURIComponent(textParam);
+                            // Fall through to TTS generation below
+                        } else if (textParam) {
+                            // Valid URL with text parameter - extract text
+                            text = decodeURIComponent(textParam);
+                        } else {
+                            // If it's a direct audio URL (not localhost), try to play it
+                            if (!isLocalhost) {
+                                const audio = new Audio(textOrUrl);
+                                currentAudio = audio;
+                                isAudioPlaying = true;
+                                
+                                // Wait for audio to finish playing before returning
+                                const audioPlayPromise = new Promise((resolve, reject) => {
+                                    audio.onended = () => {
+                                        document.getElementById('voiceStatus').textContent = 'Click the microphone to start recording';
+                                        currentAudio = null;
+                                        isAudioPlaying = false;
+                                        resolve();
+                                    };
+                                    audio.onerror = (e) => {
+                                        console.error('[TTS] Direct audio URL playback failed:', e);
+                                        currentAudio = null;
+                                        isAudioPlaying = false;
+                                        reject(e);
+                                    };
+                                });
+                                
+                                await audio.play();
+                                await audioPlayPromise;
+                                return;
+                            }
+                        }
+                    } catch (e) {
+                        // Not a valid URL, treat as text
+                        text = textOrUrl;
+                    }
+                }
+                
+                if (!text || text.trim().length === 0) {
+                    return;
+                }
+                
+                // Show loading indicator
+                document.getElementById('voiceStatus').textContent = 'Generating audio...';
+                
+                // Use TECH_BACKEND_URL for audio generation (supports separate backend deployment)
+                const techBackendUrl = typeof getTechBackendUrl !== 'undefined' ? getTechBackendUrl() : getApiBase();
+                const audioApiUrl = `${techBackendUrl}/api/interview/generate-audio`;
+                
+                const response = await fetch(audioApiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ text: text.trim() })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('[TTS] API error:', response.status, errorText);
+                    
+                    // Retry on server errors (5xx) or service unavailable (503)
+                    if ((response.status >= 500 || response.status === 503) && retryCount < MAX_RETRIES) {
+                        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+                        return playAudio(textOrUrl, retryCount + 1);
+                    }
+                    
+                    throw new Error(`TTS failed: ${response.status} - ${errorText}`);
+                }
+                
+                // Get audio blob
+                const audioBlob = await response.blob();
+                
+                if (audioBlob.size === 0) {
+                    throw new Error('Empty audio blob received from server');
+                }
+                
+                const audioUrl_obj = URL.createObjectURL(audioBlob);
+                const audio = new Audio(audioUrl_obj);
+                currentAudio = audio;
+                isAudioPlaying = true;
+                
+                // Set up event handlers before playing
+                const audioPlayPromise = new Promise((resolve, reject) => {
+                    audio.onended = () => {
+                        URL.revokeObjectURL(audioUrl_obj);
+                        document.getElementById('voiceStatus').textContent = 'Click the microphone to start recording';
+                        currentAudio = null;
+                        isAudioPlaying = false;
+                        resolve();
+                    };
+                    
+                    audio.onerror = (error) => {
+                        console.error('[TTS] Audio playback error:', error);
+                        URL.revokeObjectURL(audioUrl_obj);
+                        document.getElementById('voiceStatus').textContent = 'Audio playback failed. Question is displayed above.';
+                        currentAudio = null;
+                        isAudioPlaying = false;
+                        reject(error);
+                    };
+                });
+                
+                audio.onloadstart = () => {
+                    document.getElementById('voiceStatus').textContent = 'Loading audio...';
+                };
+                
+                audio.oncanplay = () => {
+                    document.getElementById('voiceStatus').textContent = 'AI is speaking the question...';
+                };
+                
+                // Play audio
+                try {
+                    await audio.play();
+                    await audioPlayPromise;
+                } catch (playError) {
+                    console.error('[TTS] Error starting playback:', playError);
+                    if (playError.name === 'NotAllowedError') {
+                        document.getElementById('voiceStatus').textContent = 'Click anywhere to enable audio playback';
+                        document.addEventListener('click', async function enableAudio() {
+                            try {
+                                await audio.play();
+                                await audioPlayPromise;
+                                document.removeEventListener('click', enableAudio);
+                            } catch (e) {
+                                console.error('[TTS] Still cannot play after interaction:', e);
+                            }
+                        }, { once: true });
+                    } else {
+                        throw playError;
+                    }
+                }
+                
+            } catch (error) {
+                console.error('[TTS] Error in playAudio:', error);
+                
+                currentAudio = null;
+                isAudioPlaying = false;
+                
+                // Retry on network errors
+                if (retryCount < MAX_RETRIES && (error.message.includes('fetch') || error.message.includes('network'))) {
+                    await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+                    return playAudio(textOrUrl, retryCount + 1);
+                }
+                
+                document.getElementById('voiceStatus').textContent = 'Audio playback unavailable. Question is displayed above.';
+            }
+        }
+
+        function showError(message) {
+            const container = document.getElementById('conversationContainer');
+            if (!container) {
+                alert(message);
+                return;
+            }
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            container.appendChild(errorDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function showConfirmation(title, message) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('confirmationModal');
+                const modalTitle = document.getElementById('modalTitle');
+                const modalMessage = document.getElementById('modalMessage');
+                const confirmBtn = document.getElementById('modalConfirmBtn');
+                const cancelBtn = document.getElementById('modalCancelBtn');
+
+                if (!modal || !modalTitle || !modalMessage || !confirmBtn || !cancelBtn) {
+                    alert('Error: Modal elements not found. Please refresh the page.');
+                    resolve(false);
+                    return;
+                }
+
+                modalTitle.textContent = title;
+                modalMessage.textContent = message;
+                modal.classList.add('show');
+
+                const handleConfirm = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    modal.classList.remove('show');
+                    resolve(true);
+                };
+
+                const handleCancel = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    modal.classList.remove('show');
+                    resolve(false);
+                };
+
+                const newConfirmBtn = confirmBtn.cloneNode(true);
+                confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+                const newCancelBtn = cancelBtn.cloneNode(true);
+                cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+                
+                const finalConfirmBtn = document.getElementById('modalConfirmBtn');
+                const finalCancelBtn = document.getElementById('modalCancelBtn');
+                finalConfirmBtn.addEventListener('click', handleConfirm, { once: true });
+                finalCancelBtn.addEventListener('click', handleCancel, { once: true });
+            });
+        }
+
+        async function endInterview() {
+            const confirmed = await showConfirmation(
+                'End STAR Interview?',
+                'Are you sure you want to end your STAR Interview? Your progress will be saved.'
+            );
+            
+            if (confirmed) {
+                interviewActive = false;
+                if (isRecording) {
+                    stopRecording();
+                }
+                if (interviewSessionId) {
+                    try {
+                        await fetch(`${getApiBase()}/api/interview/star/${interviewSessionId}/end`, {
+                            method: 'POST'
+                        });
+                    } catch (error) {
+                        console.error('[STAR INTERVIEW] Error sending end signal:', error);
+                    }
+                }
+                await completeInterview();
+            }
+        }
+
+        function setLoadingState(operation, loading) {
+            isLoading[operation] = loading;
+            // UI updates handled by individual functions
+        }
+    </script>
 </body>
 </html>
 

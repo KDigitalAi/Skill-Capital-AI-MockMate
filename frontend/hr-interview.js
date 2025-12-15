@@ -136,9 +136,30 @@ async function getCurrentUser() {
 }
 
 // Initialize
-document.addEventListener('DOMContentLoaded', () => {
+// ✅ CRITICAL FIX: Make handler async to properly await init() and catch errors
+// This ensures init() completes before continuing and matches Technical Interview pattern
+document.addEventListener('DOMContentLoaded', async () => {
     console.log("[HR INTERVIEW] ✅ DOMContentLoaded fired - Page is ready");
-    init();
+    try {
+        await init();
+    } catch (error) {
+        console.error('[HR INTERVIEW] Fatal initialization error:', error);
+        // Show error in UI if interviewSection exists
+        const interviewSection = document.getElementById('interviewSection');
+        if (interviewSection) {
+            interviewSection.innerHTML = `
+                <div class="error-message" style="padding: 20px; text-align: center;">
+                    <h3>Failed to Initialize Interview</h3>
+                    <p>${error.message || 'Please refresh the page and try again.'}</p>
+                    <button class="btn btn-primary" onclick="window.location.reload()" style="margin-top: 15px;">
+                        Retry
+                    </button>
+                </div>
+            `;
+        } else {
+            alert(`Failed to initialize HR Interview: ${error.message || 'Please refresh the page.'}`);
+        }
+    }
 });
 
 async function init() {
@@ -198,7 +219,7 @@ async function init() {
                 </div>
             `;
         } else {
-            alert(`Error: ${e.message}`);
+        alert(`Error: ${e.message}`);
         }
     }
 }
@@ -229,9 +250,9 @@ function setupEventListeners() {
     const restartBtn = document.getElementById('restartInterviewBtn');
     if (restartBtn) {
         restartBtn.addEventListener('click', () => {
-            window.location.reload();
-        });
-    }
+        window.location.reload();
+    });
+}
 }
 
 // Auto-hides after specified duration (default 4s for errors)
@@ -291,14 +312,14 @@ function showToast(message, type = 'error', duration = 4000) {
 async function startInterview() {
     console.log("[HR INTERVIEW] ✅ startInterview() function executing");
     try {
-        // Ensure we have current user
-        if (!currentUserId) {
+    // Ensure we have current user
+    if (!currentUserId) {
             console.log("[HR INTERVIEW] currentUserId missing, fetching user...");
-            await getCurrentUser();
-        }
-        
-        // Validate userId is available
-        if (!currentUserId) {
+        await getCurrentUser();
+    }
+    
+    // Validate userId is available
+    if (!currentUserId) {
             const errorMsg = 'userId is not defined. Please ensure you have uploaded a resume and have a valid user profile.';
             console.error('[HR INTERVIEW] ❌ Start error:', errorMsg);
             console.error('[HR INTERVIEW] currentUserId is:', currentUserId);
@@ -331,8 +352,8 @@ async function startInterview() {
         let response;
         try {
             response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
             console.log("[HR INTERVIEW] ✅ API call completed:", {
@@ -351,7 +372,7 @@ async function startInterview() {
             alert('Failed to start HR interview. Check console.');
             throw new Error(`Network error: ${fetchError.message || 'Unable to connect to server'}`);
         }
-
+        
         if (!response.ok) {
             // ✅ CRITICAL: Fail-fast on non-OK responses (matches Technical Interview pattern)
             const errorText = await response.text();
@@ -408,11 +429,11 @@ async function startInterview() {
             statusEl.textContent = 'Interview Active';
             statusEl.classList.add('active');
         }
-
+        
         // Clear container and prepare for messages
         const container = document.getElementById('conversationContainer');
         if (container) {
-            container.innerHTML = '';
+        container.innerHTML = '';
         }
 
         // ✅ CONVERSATIONAL FLOW: Display first question if available (like Technical Interview)
@@ -448,7 +469,7 @@ async function startInterview() {
         // ✅ CRITICAL: Fail-fast error handling (matches Technical Interview pattern)
         console.error('[HR INTERVIEW] Start error:', error);
         console.error('[HR INTERVIEW] Error stack:', error.stack);
-        
+            
         // Show user-visible alert
         alert('Failed to start HR interview. Check console.');
         
