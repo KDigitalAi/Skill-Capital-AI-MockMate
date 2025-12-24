@@ -1,47 +1,18 @@
-"""
-Coding Interview Engine
-Generates coding questions based on resume skills and manages coding interview sessions
-"""
-
 from typing import List, Dict, Optional, Any
 from app.config.settings import settings
+from app.utils.openai_factory import get_openai_client
 import json
 import re
+import logging
 
-# Try to import OpenAI
-OPENAI_AVAILABLE = False
-OpenAI = None
-
-def _try_import_openai():
-    """Lazy import of OpenAI"""
-    global OPENAI_AVAILABLE, OpenAI
-    if OPENAI_AVAILABLE:
-        return True
-    
-    try:
-        from openai import OpenAI
-        OPENAI_AVAILABLE = True
-        return True
-    except ImportError:
-        OPENAI_AVAILABLE = False
-        return False
+logger = logging.getLogger(__name__)
 
 class CodingInterviewEngine:
     """Engine for managing coding interview sessions"""
     
     def __init__(self):
-        _try_import_openai()
-        self.openai_available = OPENAI_AVAILABLE and bool(settings.openai_api_key)
-        
-        if self.openai_available and OpenAI is not None:
-            try:
-                self.client = OpenAI(api_key=settings.openai_api_key)
-            except Exception as e:
-                pass  # OpenAI not available, will use fallback
-                self.openai_available = False
-                self.client = None
-        else:
-            self.client = None
+        self.client = get_openai_client("coding")
+        self.openai_available = self.client is not None
     
     def start_coding_session(
         self,

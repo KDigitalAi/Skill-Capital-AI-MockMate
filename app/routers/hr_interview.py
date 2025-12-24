@@ -602,7 +602,8 @@ Return ONLY the question text, nothing else. Make it sound natural and conversat
                     role="HR Interview",
                     experience_level=experience_level,
                     skills=skills,
-                    resume_context=resume_context
+                    resume_context=resume_context,
+                    interview_type="hr"
                 )
                 hr_questions = [q for q in questions if q.type.lower() == "hr"]
                 if hr_questions:
@@ -1423,7 +1424,10 @@ async def get_hr_interview_feedback(
         qa_block = "\n\n".join(qa_summaries)
 
         # Prefer LLM-based feedback when OpenAI is available
-        if technical_interview_engine.openai_available and technical_interview_engine.client is not None:
+        from app.utils.openai_factory import get_openai_client
+        client = get_openai_client("hr")
+        
+        if client is not None:
             try:
                 system_prompt = """
 You are an experienced HR interviewer and assessment specialist.
@@ -1517,7 +1521,7 @@ CONSTRAINTS:
 - The summary should read like a real HR interview report.
 """
 
-                response = technical_interview_engine.client.chat.completions.create(
+                response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
                     messages=[
                         {"role": "system", "content": system_prompt.strip()},

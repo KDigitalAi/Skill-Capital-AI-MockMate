@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     # OpenAI Configuration
     openai_api_key: str = Field(default="", env="OPENAI_API_KEY")
     
+    # Specific API Keys for Interview Types
+    openai_tech_api_key: Optional[str] = Field(default=None, env="OPENAI_TECH_API_KEY")
+    openai_hr_api_key: Optional[str] = Field(default=None, env="OPENAI_HR_API_KEY")
+    openai_star_api_key: Optional[str] = Field(default=None, env="OPENAI_STAR_API_KEY")
+    openai_coding_api_key: Optional[str] = Field(default=None, env="OPENAI_CODING_API_KEY")
+    
     # Supabase Configuration
     supabase_url: str = Field(default="", env="SUPABASE_URL")
     supabase_key: str = Field(default="", env="SUPABASE_KEY")  # Anon key

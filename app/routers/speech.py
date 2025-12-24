@@ -7,7 +7,7 @@ from fastapi import Request
 from fastapi.responses import StreamingResponse, Response
 from supabase import Client
 from app.db.client import get_supabase_client
-from app.services.technical_interview_engine import technical_interview_engine
+from app.utils.openai_factory import get_openai_client
 from app.utils.request_validator import validate_request_size
 from app.schemas.interview import SpeechToTextResponse
 from typing import Dict, Any
@@ -21,6 +21,23 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["speech"])
 
+def get_interview_type_from_referer(request: Request) -> str:
+    """
+    Determine interview type based on the Referer header logic.
+    Priority:
+    1. Check Referer header for specific pages
+    2. Default to 'technical'
+    """
+    referer = request.headers.get("referer", "").lower()
+    
+    if "star-interview" in referer:
+        return "star"
+    elif "hr-interview" in referer:
+        return "hr"
+    elif "coding-interview" in referer:
+        return "coding" 
+    else:
+        return "technical"
 
 @router.post("/speech-to-text", response_model=SpeechToTextResponse)
 async def speech_to_text(
@@ -32,9 +49,13 @@ async def speech_to_text(
     Convert speech audio to text using OpenAI Whisper
     """
     try:
+        # Determine interview type for API key selection
+        interview_type = get_interview_type_from_referer(http_request)
+        client = get_openai_client(interview_type)
+        
         # Check if OpenAI is available
-        if not technical_interview_engine.openai_available or technical_interview_engine.client is None:
-            raise HTTPException(status_code=503, detail="Speech-to-text service is not available. OpenAI API key is required.")
+        if client is None:
+            raise HTTPException(status_code=503, detail=f"Speech-to-text service is not available for {interview_type}. OpenAI API key is required.")
         
         # Read audio content into memory
         content = await audio.read()
@@ -50,7 +71,7 @@ async def speech_to_text(
             
             # Transcribe using OpenAI Whisper
             with open(tmp_file_path, "rb") as audio_file:
-                transcript = technical_interview_engine.client.audio.transcriptions.create(
+                transcript = client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
                     language="en"
@@ -93,12 +114,16 @@ async def text_to_speech(
     try:
         text = request_body.get("text", "")
         
+        # Determine interview type for API key selection
+        interview_type = get_interview_type_from_referer(http_request)
+        client = get_openai_client(interview_type)
+        
         # Check if OpenAI is available
-        if not technical_interview_engine.openai_available or technical_interview_engine.client is None:
-            logger.error("[SPEECH][TEXT-TO-SPEECH] TTS service unavailable: OpenAI client not initialized")
+        if client is None:
+            logger.error(f"[SPEECH][TEXT-TO-SPEECH] TTS service unavailable: OpenAI client not initialized for {interview_type}")
             raise HTTPException(
                 status_code=503, 
-                detail="Text-to-speech service is not available. OpenAI API key is required."
+                detail=f"Text-to-speech service is not available for {interview_type}. OpenAI API key is required."
             )
         
         if not text or not text.strip():
@@ -106,11 +131,11 @@ async def text_to_speech(
         
         # Truncate text to reasonable length (OpenAI TTS limit is 4096 chars, but we'll use 2000 for safety)
         text_to_speak = text.strip()[:2000]
-        logger.info(f"[SPEECH][TEXT-TO-SPEECH] Generating TTS audio for text (length: {len(text_to_speak)} chars)")
+        logger.info(f"[SPEECH][TEXT-TO-SPEECH] Generating TTS audio for text (length: {len(text_to_speak)} chars) using {interview_type} key")
         
         # Generate speech using OpenAI TTS
         try:
-            response = technical_interview_engine.client.audio.speech.create(
+            response = client.audio.speech.create(
                 model="tts-1",
                 voice="alloy",  # Options: alloy, echo, fable, onyx, nova, shimmer
                 input=text_to_speak
@@ -161,6 +186,7 @@ async def text_to_speech(
 
 @router.get("/text-to-speech", responses={200: {"content": {"audio/mpeg": {}}}})
 async def text_to_speech_get(
+    request: Request,
     text: str = Query(..., description="Text to convert to speech")
 ):
     """
@@ -168,12 +194,16 @@ async def text_to_speech_get(
     Returns audio file as streaming response
     """
     try:
+        # Determine interview type for API key selection
+        interview_type = get_interview_type_from_referer(request)
+        client = get_openai_client(interview_type)
+
         # Check if OpenAI is available
-        if not technical_interview_engine.openai_available or technical_interview_engine.client is None:
-            logger.error("[SPEECH][TEXT-TO-SPEECH] TTS service unavailable: OpenAI client not initialized")
+        if client is None:
+            logger.error(f"[SPEECH][TEXT-TO-SPEECH] TTS service unavailable: OpenAI client not initialized for {interview_type}")
             raise HTTPException(
                 status_code=503, 
-                detail="Text-to-speech service is not available. OpenAI API key is required."
+                detail=f"Text-to-speech service is not available for {interview_type}. OpenAI API key is required."
             )
         
         if not text or not text.strip():
@@ -192,11 +222,11 @@ async def text_to_speech_get(
         
         # Truncate to reasonable length (OpenAI TTS limit is 4096 chars, but we'll use 2000 for safety)
         text_to_speak = decoded_text[:2000]
-        logger.info(f"[SPEECH][TEXT-TO-SPEECH] Generating TTS audio via GET (length: {len(text_to_speak)} chars)")
+        logger.info(f"[SPEECH][TEXT-TO-SPEECH] Generating TTS audio via GET (length: {len(text_to_speak)} chars) using {interview_type} key")
         
         # Generate speech using OpenAI TTS
         try:
-            response = technical_interview_engine.client.audio.speech.create(
+            response = client.audio.speech.create(
                 model="tts-1",
                 voice="alloy",
                 input=text_to_speak

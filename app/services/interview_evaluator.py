@@ -6,6 +6,7 @@ Analyzes all answers and generates comprehensive feedback report
 from typing import List, Dict, Optional
 from app.schemas.interview import CategoryScore, InterviewEvaluationResponse
 from app.config.settings import settings
+from app.utils.openai_factory import get_langchain_client, get_api_key_for_type
 import json
 from datetime import datetime
 
@@ -36,21 +37,7 @@ class InterviewEvaluator:
     def __init__(self):
         # Try to import langchain components
         _try_import_langchain()
-        self.openai_available = OPENAI_AVAILABLE and bool(settings.openai_api_key)
-        
-        if self.openai_available and ChatOpenAI is not None:
-            try:
-                self.llm = ChatOpenAI(
-                    model_name="gpt-3.5-turbo",
-                    temperature=0.7,
-                    openai_api_key=settings.openai_api_key
-                )
-            except Exception as e:
-                pass  # OpenAI not available, will use fallback
-                self.openai_available = False
-                self.llm = None
-        else:
-            self.llm = None
+        self.openai_available = bool(get_api_key_for_type("technical")) # Check generic technical availability loosely
         
         # Initialize prompt template only if ChatPromptTemplate is available
         if ChatPromptTemplate is not None:
@@ -158,11 +145,15 @@ Provide comprehensive feedback and recommendations as specified.""")
         answered_questions: int,
         category_scores: CategoryScore,
         overall_score: float,
-        question_details: List[Dict]
+        question_details: List[Dict],
+        interview_type: str = "technical"
     ) -> Dict:
         """Generate comprehensive feedback using AI"""
         
-        if not self.openai_available:
+        # Get client for specific interview type
+        llm = get_langchain_client(interview_type)
+        
+        if not llm:
             return self._get_default_feedback(category_scores, overall_score)
         
         try:
@@ -188,7 +179,7 @@ Provide comprehensive feedback and recommendations as specified.""")
             )
             
             # Get feedback from OpenAI
-            response = self.llm.invoke(prompt)
+            response = llm.invoke(prompt)
             content = response.content.strip()
             
             # Try to extract JSON from response
@@ -280,7 +271,8 @@ Provide comprehensive feedback and recommendations as specified.""")
         role: str,
         experience_level: str,
         answers: List[Dict],
-        total_questions: int
+        total_questions: int,
+        interview_type: str = "technical"
     ) -> Dict:
         """Evaluate complete interview session"""
         
@@ -307,7 +299,8 @@ Provide comprehensive feedback and recommendations as specified.""")
             answered_questions=len(answers),
             category_scores=category_scores,
             overall_score=overall_score,
-            question_details=question_details
+            question_details=question_details,
+            interview_type=interview_type
         )
         
         return {

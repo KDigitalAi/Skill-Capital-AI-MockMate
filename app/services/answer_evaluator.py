@@ -6,6 +6,7 @@ Evaluates user answers with scoring on multiple dimensions
 from typing import Dict, Optional
 from app.schemas.interview import AnswerScore
 from app.config.settings import settings
+from app.utils.openai_factory import get_langchain_client, get_api_key_for_type
 import json
 
 # Try to import OpenAI components - lazy import to avoid dependency issues
@@ -35,21 +36,7 @@ class AnswerEvaluator:
     def __init__(self):
         # Try to import langchain components
         _try_import_langchain()
-        self.openai_available = OPENAI_AVAILABLE and bool(settings.openai_api_key)
-        
-        if self.openai_available and ChatOpenAI is not None:
-            try:
-                self.llm = ChatOpenAI(
-                    model_name="gpt-3.5-turbo",
-                    temperature=0.3,  # Lower temperature for more consistent scoring
-                    openai_api_key=settings.openai_api_key
-                )
-            except Exception as e:
-                pass  # OpenAI not available, will use fallback
-                self.openai_available = False
-                self.llm = None
-        else:
-            self.llm = None
+        self.openai_available = bool(get_api_key_for_type("technical")) # Check generic technical availability loosely
         
         # Initialize prompt template only if ChatPromptTemplate is available
         if ChatPromptTemplate is not None:
@@ -98,7 +85,8 @@ Provide scores and feedback as specified. Note the response time in your feedbac
         question_type: str,
         answer: str,
         experience_level: str,
-        response_time: Optional[int] = None
+        response_time: Optional[int] = None,
+        interview_type: str = "technical"
     ) -> AnswerScore:
         """Evaluate an answer and return scores"""
         
@@ -112,8 +100,11 @@ Provide scores and feedback as specified. Note the response time in your feedbac
                 overall=0,
                 feedback="No answer provided."
             )
+            
+        # Get client for specific interview type
+        llm = get_langchain_client(interview_type, temperature=0.3)
         
-        if not self.openai_available:
+        if not llm:
             # Return default scores if OpenAI is not available
             return self._get_default_scores(answer)
         
@@ -131,7 +122,7 @@ Provide scores and feedback as specified. Note the response time in your feedbac
             )
             
             # Get evaluation from OpenAI
-            response = self.llm.invoke(prompt)
+            response = llm.invoke(prompt)
             content = response.content.strip()
             
             # Try to extract JSON from response

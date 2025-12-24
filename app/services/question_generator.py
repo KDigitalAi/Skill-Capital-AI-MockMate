@@ -1,33 +1,22 @@
-"""
-AI Question Generator Service using OpenAI and LangChain
-Generates interview questions based on role, skills, and experience level
-"""
-
 from typing import List, Dict, Optional, Any
 from app.schemas.interview import InterviewQuestion
 from app.config.settings import settings
+from app.utils.openai_factory import get_langchain_client, get_api_key_for_type
 import json
 
 # Try to import OpenAI components, fallback if not available
 # Using lazy imports to avoid dependency issues at module load time
-OPENAI_AVAILABLE = False
-ChatOpenAI = None
 ChatPromptTemplate = None
 
 def _try_import_langchain():
     """Lazy import of langchain components"""
-    global OPENAI_AVAILABLE, ChatOpenAI, ChatPromptTemplate
-    if OPENAI_AVAILABLE:
-        return True
+    global ChatPromptTemplate
     
     try:
         # Use langchain-core for smaller bundle size
-        from langchain_openai import ChatOpenAI
         from langchain_core.prompts import ChatPromptTemplate
-        OPENAI_AVAILABLE = True
         return True
     except (ImportError, TypeError, AttributeError):
-        OPENAI_AVAILABLE = False
         return False
 
 class QuestionGenerator:
@@ -36,21 +25,7 @@ class QuestionGenerator:
     def __init__(self):
         # Try to import langchain components
         _try_import_langchain()
-        self.openai_available = OPENAI_AVAILABLE and bool(settings.openai_api_key)
-        
-        if self.openai_available and ChatOpenAI is not None:
-            try:
-                self.llm = ChatOpenAI(
-                    model_name="gpt-3.5-turbo",
-                    temperature=0.7,
-                    openai_api_key=settings.openai_api_key
-                )
-            except Exception as e:
-                pass  # OpenAI not available, will use fallback
-                self.openai_available = False
-                self.llm = None
-        else:
-            self.llm = None
+        self.openai_available = bool(get_api_key_for_type("technical")) # Check generic technical availability loosely
         
         # Initialize prompt template only if ChatPromptTemplate is available
         if ChatPromptTemplate is not None:
@@ -105,11 +80,15 @@ Return only valid JSON array, no additional text.""")
         role: str,
         experience_level: str,
         skills: List[str],
-        resume_context: Optional[Dict[str, any]] = None
+        resume_context: Optional[Dict[str, any]] = None,
+        interview_type: str = "technical"
     ) -> List[InterviewQuestion]:
         """Generate interview questions using OpenAI with optional resume context"""
         
-        if not self.openai_available:
+        # Get client for specific interview type
+        llm = get_langchain_client(interview_type)
+        
+        if not llm:
             # Use fallback questions if OpenAI is not available
             return self._get_fallback_questions(role, experience_level, skills, resume_context)
         
@@ -152,7 +131,7 @@ Return only valid JSON array, no additional text.""")
             )
             
             # Generate response
-            response = self.llm.invoke(prompt)
+            response = llm.invoke(prompt)
             
             # Parse response
             content = response.content.strip()

@@ -1,13 +1,9 @@
-"""
-Technical Interview Engine
-Handles AI-powered technical interview sessions with voice interaction
-"""
-
 from typing import List, Dict, Optional, Any
 from app.config.settings import settings
 from app.services.resume_parser import resume_parser
 from app.services.question_generator import question_generator
 from app.services.answer_evaluator import answer_evaluator
+from app.utils.openai_factory import get_openai_client, get_api_key_for_type
 import json
 import os
 import logging
@@ -15,40 +11,12 @@ import logging
 # Setup logger
 logger = logging.getLogger(__name__)
 
-# Try to import OpenAI components
-OPENAI_AVAILABLE = False
-OpenAI = None
-
-def _try_import_openai():
-    """Lazy import of OpenAI components"""
-    global OPENAI_AVAILABLE, OpenAI
-    if OPENAI_AVAILABLE:
-        return True
-    
-    try:
-        from openai import OpenAI
-        OPENAI_AVAILABLE = True
-        return True
-    except ImportError:
-        OPENAI_AVAILABLE = False
-        return False
-
 class TechnicalInterviewEngine:
     """Engine for managing technical interview sessions with voice interaction"""
     
     def __init__(self):
-        _try_import_openai()
-        self.openai_available = OPENAI_AVAILABLE and bool(settings.openai_api_key)
-        
-        if self.openai_available and OpenAI is not None:
-            try:
-                self.client = OpenAI(api_key=settings.openai_api_key)
-            except Exception as e:
-                pass  # OpenAI not available, will use fallback
-                self.openai_available = False
-                self.client = None
-        else:
-            self.client = None
+        self.client = get_openai_client("technical")
+        self.openai_available = self.client is not None
     
     def start_interview_session(
         self,
@@ -448,7 +416,8 @@ Return ONLY the question text, nothing else."""
             question_type="Technical",
             answer=answer,
             experience_level="Intermediate",  # Default, can be improved
-            response_time=None
+            response_time=None,
+            interview_type="technical"  # Use technical API key
         )
         
         # Generate AI response using OpenAI if available

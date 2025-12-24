@@ -98,12 +98,13 @@ async def start_star_interview(
                 )
             raise HTTPException(status_code=500, detail=f"Error creating interview session: {error_str}")
         
-        # Generate first STAR question using question generator
+        # Generate behavioral/STAR questions using AI
         questions = question_generator.generate_questions(
-            role="Behavioral Interview",
-            experience_level=profile.get("experience_level", "Intermediate"),
-            skills=resume_context.get("skills", []),
-            resume_context=resume_context
+            role="Behavioral Interview", # Kept original role as `request.role` is not defined
+            experience_level=profile.get("experience_level", "Intermediate"), # Kept original experience_level
+            skills=[],  # STAR is behavioral, fewer technical skills needed
+            resume_context=None, # Changed to None as per instruction
+            interview_type="star"  # Use STAR API key
         )
         
         # Filter for behavioral/STAR questions - InterviewQuestion is a Pydantic model, access attributes directly
@@ -279,7 +280,8 @@ async def submit_star_answer(
                 question_type="STAR",
                 answer=answer,
                 experience_level=experience_level,
-                response_time=response_time
+                response_time=response_time,
+                interview_type="star"
             )
         
         logger.info(f"[STAR][SUBMIT-ANSWER] Answer evaluated - Overall: {scores.overall}")
@@ -290,7 +292,10 @@ async def submit_star_answer(
             ai_response = "Let's continue with the next question."
         else:
             # Use OpenAI to generate STAR-specific feedback
-            if technical_interview_engine.openai_available and technical_interview_engine.client is not None:
+            from app.utils.openai_factory import get_openai_client
+            client = get_openai_client("star")
+            
+            if client is not None:
                 try:
                     system_prompt = """You are an experienced behavioral interviewer providing feedback on STAR method answers.
 Provide brief, encouraging, and constructive feedback (1-2 sentences) that:
@@ -305,7 +310,7 @@ Overall Score: {scores.overall}/100
                     
 Provide brief, encouraging feedback for this STAR interview answer."""
                     
-                    response = technical_interview_engine.client.chat.completions.create(
+                    response = client.chat.completions.create(
                         model="gpt-3.5-turbo",
                         messages=[
                             {"role": "system", "content": system_prompt},
@@ -631,7 +636,8 @@ Return ONLY the question text, nothing else."""
                     role="Behavioral Interview",
                     experience_level=experience_level,
                     skills=skills,
-                    resume_context=resume_context
+                    resume_context=resume_context,
+                    interview_type="star" # Pass interview_type="star"
                 )
                 star_questions = [q for q in questions if q.type.lower() in ["hr", "behavioral", "star"]]
                 if star_questions:
@@ -948,7 +954,14 @@ CONSTRAINTS:
 - Mention clarity, relevance, and communication style where appropriate.
 """
                 
-                response = technical_interview_engine.client.chat.completions.create(
+                # Prefer LLM-based feedback when OpenAI is available
+                from app.utils.openai_factory import get_openai_client
+                client = get_openai_client("star")
+                
+                if client is None:
+                    raise Exception("OpenAI client unavailable")
+
+                response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
                     messages=[
                         {"role": "system", "content": system_prompt.strip()},
