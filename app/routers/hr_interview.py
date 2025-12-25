@@ -162,7 +162,9 @@ async def start_hr_interview(
                 encoded_text = urllib.parse.quote(question_text)
                 # ✅ CRITICAL FIX: Use TECH_BACKEND_URL if set, otherwise use request-based URL detection
                 # This ensures correct domain resolution on Vercel (matches Technical Interview pattern)
-                base_url = settings.tech_backend_url or get_api_base_url(http_request)
+                # ✅ CRITICAL FIX: Use TECH_BACKEND_URL if set, otherwise use relative path (empty string)
+                # This ensures correct behavior on Vercel/Render without absolute localhost URLs
+                base_url = settings.tech_backend_url or ""
                 # Ensure base_url doesn't end with slash
                 base_url = base_url.rstrip('/')
                 audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"
@@ -702,7 +704,9 @@ Return ONLY the question text, nothing else. Make it sound natural and conversat
                 encoded_text = urllib.parse.quote(question_text)
                 # ✅ CRITICAL FIX: Use TECH_BACKEND_URL if set, otherwise use request-based URL detection
                 # This ensures correct domain resolution on Vercel (matches Technical Interview pattern)
-                base_url = settings.tech_backend_url or get_api_base_url(http_request)
+                # ✅ CRITICAL FIX: Use TECH_BACKEND_URL if set, otherwise use relative path (empty string)
+                # This ensures correct domain resolution on Vercel (matches Technical Interview pattern)
+                base_url = settings.tech_backend_url or ""
                 # Ensure base_url doesn't end with slash
                 base_url = base_url.rstrip('/')
                 audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"
@@ -713,7 +717,8 @@ Return ONLY the question text, nothing else. Make it sound natural and conversat
                 logger.debug(f"[HR][DEBUG Q2+] ❌ question_text is empty - using fallback")
                 # Fallback: generate a basic TTS URL even if question_text is empty (shouldn't happen)
                 # ✅ CRITICAL FIX: Use request-based URL detection for fallback too
-                base_url = settings.tech_backend_url or get_api_base_url(http_request)
+                # ✅ CRITICAL FIX: Use request-based URL detection for fallback too
+                base_url = settings.tech_backend_url or ""
                 base_url = base_url.rstrip('/')
                 audio_url = f"{base_url}/api/interview/text-to-speech?text="
                 logger.debug(f"[HR][DEBUG Q2+] Fallback audio_url (empty text): {audio_url}")
@@ -724,7 +729,8 @@ Return ONLY the question text, nothing else. Make it sound natural and conversat
             try:
                 # Fallback: generate basic TTS URL with request-based URL detection
                 # ✅ CRITICAL FIX: Use request-based URL detection for fallback too
-                base_url = settings.tech_backend_url or get_api_base_url(http_request)
+                # ✅ CRITICAL FIX: Use request-based URL detection for fallback too
+                base_url = settings.tech_backend_url or ""
                 base_url = base_url.rstrip('/')
                 if question_text:
                     encoded_text = urllib.parse.quote(question_text)

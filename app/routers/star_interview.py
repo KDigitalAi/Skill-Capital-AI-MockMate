@@ -148,7 +148,9 @@ async def start_star_interview(
         try:
             if question_text:
                 encoded_text = urllib.parse.quote(question_text)
-                base_url = get_api_base_url()
+                # Use explicitly configured URL or relative path (empty string)
+                base_url = settings.tech_backend_url or ""
+                base_url = base_url.rstrip('/')
                 audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"
                 logger.info(f"[STAR][INTERVIEW] ✅ Generated audio_url: {audio_url}")
             else:
@@ -335,7 +337,9 @@ Provide brief, encouraging feedback for this STAR interview answer."""
         if ai_response:
             try:
                 encoded_text = urllib.parse.quote(ai_response)
-                base_url = get_api_base_url()
+                # Use explicitly configured URL or relative path (empty string)
+                base_url = settings.tech_backend_url or ""
+                base_url = base_url.rstrip('/')
                 ai_response_audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"
                 logger.info(f"[STAR][SUBMIT-ANSWER] Generated AI response audio URL")
             except Exception as e:
@@ -695,13 +699,18 @@ Return ONLY the question text, nothing else."""
         try:
             if question_text:
                 encoded_text = urllib.parse.quote(question_text)
-                base_url = get_api_base_url()
+                encoded_text = urllib.parse.quote(question_text)
+                # Use explicitly configured URL or relative path (empty string)
+                base_url = settings.tech_backend_url or ""
+                base_url = base_url.rstrip('/')
                 audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"
                 logger.info(f"[STAR][NEXT-QUESTION] ✅ Generated audio_url for question {next_question_number}")
         except Exception as e:
             logger.error(f"[STAR][NEXT-QUESTION] ❌ Could not generate audio URL: {str(e)}", exc_info=True)
             try:
-                base_url = get_api_base_url()
+                # Use explicitly configured URL or relative path (empty string)
+                base_url = settings.tech_backend_url or ""
+                base_url = base_url.rstrip('/')
                 if question_text:
                     encoded_text = urllib.parse.quote(question_text)
                     audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"

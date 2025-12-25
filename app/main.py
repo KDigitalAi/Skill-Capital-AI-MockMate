@@ -194,7 +194,8 @@ async def get_frontend_config(request: Request):
              api_base_url = f"http://127.0.0.1:{settings.backend_port}"
         else:
              # For production (Render), rely on TECH_BACKEND_URL or external URL
-             api_base_url = settings.tech_backend_url or f"http://0.0.0.0:{settings.backend_port}"
+             # If not set, default to relative path behavior (empty string)
+             api_base_url = settings.tech_backend_url or ""
 
     
     # Check if values are actually set (not just empty strings)

@@ -51,6 +51,12 @@ def get_api_base_url(request: Optional[object] = None) -> str:
         except Exception:
             pass
     
-    # Priority 5: Fallback to localhost (development only)
-    return f"http://127.0.0.1:{settings.backend_port}"
+    # Priority 5: Fallback (development only)
+    # CRITICAL: Do NOT return localhost for production builds
+    if settings.environment == "development":
+        return f"http://127.0.0.1:{settings.backend_port}"
+        
+    # For production, if we can't determine the URL, return empty string
+    # This allows the frontend to use relative paths like /api/...
+    return ""
 

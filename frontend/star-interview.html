@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>STAR Interview - Skill Capital AI MockMate</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <style>
         .interview-page-container {
@@ -85,8 +88,15 @@
         }
 
         @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.1);
+            }
         }
 
         .voice-status {
@@ -114,8 +124,15 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .message.ai {
@@ -602,7 +619,9 @@
         }
 
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         .error-message {
@@ -730,6 +749,7 @@
             from {
                 opacity: 0;
             }
+
             to {
                 opacity: 1;
             }
@@ -753,6 +773,7 @@
                 transform: translateY(20px);
                 opacity: 0;
             }
+
             to {
                 transform: translateY(0);
                 opacity: 1;
@@ -913,6 +934,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="app-container">
         <!-- Header -->
@@ -938,10 +960,10 @@
 
                 <!-- Interview Interface (Chat-Based Flow) -->
                 <div id="interviewInterface" class="hidden">
-                <!-- Interview Status -->
-                <div class="interview-header">
-                    <div class="interview-status" id="interviewStatus">Ready to Start</div>
-                </div>
+                    <!-- Interview Status -->
+                    <div class="interview-header">
+                        <div class="interview-status" id="interviewStatus">Ready to Start</div>
+                    </div>
 
                     <!-- Conversation Display (Chat-Based) -->
                     <div class="conversation-container" id="conversationContainer">
@@ -975,7 +997,8 @@
                         <div class="feedback-content-wrapper">
                             <!-- Personal Welcome Message -->
                             <div class="welcome-message">
-                                <p id="welcomeText">Great job completing your STAR interview! Here's your personalized performance report.</p>
+                                <p id="welcomeText">Great job completing your STAR interview! Here's your personalized
+                                    performance report.</p>
                             </div>
 
                             <!-- Score Section - Centered, Modern Card -->
@@ -984,7 +1007,8 @@
                                 <div class="score-value" id="overallScore">0</div>
                                 <div class="score-out-of">out of 100</div>
                                 <div class="score-badge" id="scoreBadge">⭐ Beginner</div>
-                                <div class="score-message" id="scoreMessage">Keep practicing to improve your STAR responses!</div>
+                                <div class="score-message" id="scoreMessage">Keep practicing to improve your STAR
+                                    responses!</div>
                             </div>
 
                             <!-- Interview Participation Section -->
@@ -1004,7 +1028,8 @@
                                             <div class="stat-label">Participation Rate</div>
                                         </div>
                                     </div>
-                                    <p class="participation-note" id="participationNote">You actively engaged throughout the interview.</p>
+                                    <p class="participation-note" id="participationNote">You actively engaged throughout
+                                        the interview.</p>
                                 </div>
                             </div>
 
@@ -1015,7 +1040,8 @@
                                     <h3 class="feedback-card-title">How Well You Answered</h3>
                                 </div>
                                 <div class="feedback-card-content">
-                                    <p class="performance-intro">Here's how you performed across different STAR components:</p>
+                                    <p class="performance-intro">Here's how you performed across different STAR
+                                        components:</p>
                                     <div class="performance-breakdown">
                                         <div class="performance-item">
                                             <div class="performance-label">
@@ -1024,7 +1050,8 @@
                                             </div>
                                             <div class="performance-bar-container">
                                                 <div class="performance-bar" id="situationBar">
-                                                    <div class="performance-bar-fill" id="situationFill" style="width: 0%"></div>
+                                                    <div class="performance-bar-fill" id="situationFill"
+                                                        style="width: 0%"></div>
                                                 </div>
                                                 <span class="performance-score" id="situationScore">0</span>
                                             </div>
@@ -1036,7 +1063,8 @@
                                             </div>
                                             <div class="performance-bar-container">
                                                 <div class="performance-bar" id="taskBar">
-                                                    <div class="performance-bar-fill" id="taskFill" style="width: 0%"></div>
+                                                    <div class="performance-bar-fill" id="taskFill" style="width: 0%">
+                                                    </div>
                                                 </div>
                                                 <span class="performance-score" id="taskScore">0</span>
                                             </div>
@@ -1048,7 +1076,8 @@
                                             </div>
                                             <div class="performance-bar-container">
                                                 <div class="performance-bar" id="actionBar">
-                                                    <div class="performance-bar-fill" id="actionFill" style="width: 0%"></div>
+                                                    <div class="performance-bar-fill" id="actionFill" style="width: 0%">
+                                                    </div>
                                                 </div>
                                                 <span class="performance-score" id="actionScore">0</span>
                                             </div>
@@ -1060,7 +1089,8 @@
                                             </div>
                                             <div class="performance-bar-container">
                                                 <div class="performance-bar" id="resultBar">
-                                                    <div class="performance-bar-fill" id="resultFill" style="width: 0%"></div>
+                                                    <div class="performance-bar-fill" id="resultFill" style="width: 0%">
+                                                    </div>
                                                 </div>
                                                 <span class="performance-score" id="resultScore">0</span>
                                             </div>
@@ -1072,7 +1102,8 @@
                                             </div>
                                             <div class="performance-bar-container">
                                                 <div class="performance-bar" id="structureBar">
-                                                    <div class="performance-bar-fill" id="structureFill" style="width: 0%"></div>
+                                                    <div class="performance-bar-fill" id="structureFill"
+                                                        style="width: 0%"></div>
                                                 </div>
                                                 <span class="performance-score" id="structureScore">0</span>
                                             </div>
@@ -1132,7 +1163,8 @@
 
                             <!-- Action Buttons -->
                             <div class="interview-actions" style="margin-top: 40px;">
-                                <button class="btn btn-primary" onclick="window.location.href='index.html'">Back to Dashboard</button>
+                                <button class="btn btn-primary" onclick="window.location.href='index.html'">Back to
+                                    Dashboard</button>
                                 <button class="btn btn-secondary" id="restartInterviewBtn">Start New Interview</button>
                             </div>
                         </div>
@@ -1178,13 +1210,13 @@
         let interviewActive = false;
         let currentAudio = null;
         let isAudioPlaying = false;
-        
+
         // Loading state management
         let isLoading = {
             submitAnswer: false,
             getNextQuestion: false
         };
-        
+
         // Stop and destroy any currently playing audio
         function stopCurrentAudio() {
             if (currentAudio) {
@@ -1211,34 +1243,34 @@
         // Get current user
         async function getCurrentUser() {
             try {
-                const storedUserId = localStorage.getItem('user_id') || 
-                                    sessionStorage.getItem('resume_user_id') || 
-                                    window.CURRENT_USER_ID;
+                const storedUserId = localStorage.getItem('user_id') ||
+                    sessionStorage.getItem('resume_user_id') ||
+                    window.CURRENT_USER_ID;
                 if (storedUserId) {
                     currentUserId = storedUserId;
                     window.CURRENT_USER_ID = storedUserId;
                     return { user_id: storedUserId };
                 }
-                
+
                 const res = await fetch(`${getApiBase()}/api/profile/current`);
                 if (!res.ok) {
                     throw new Error(`Failed to get current user: ${res.status}`);
                 }
                 const user = await res.json();
                 currentUserId = user.user_id;
-                
+
                 if (currentUserId) {
                     localStorage.setItem('user_id', currentUserId);
                     sessionStorage.setItem('resume_user_id', currentUserId);
                     window.CURRENT_USER_ID = currentUserId;
                 }
-                
+
                 return user;
             } catch (e) {
                 console.error('Error getting current user:', e);
-                const fallbackUserId = localStorage.getItem('user_id') || 
-                                       sessionStorage.getItem('resume_user_id') || 
-                                       window.CURRENT_USER_ID;
+                const fallbackUserId = localStorage.getItem('user_id') ||
+                    sessionStorage.getItem('resume_user_id') ||
+                    window.CURRENT_USER_ID;
                 if (fallbackUserId) {
                     currentUserId = fallbackUserId;
                     window.CURRENT_USER_ID = fallbackUserId;
@@ -1257,7 +1289,7 @@
             try {
                 // Get current user first
                 await getCurrentUser();
-                
+
                 // Setup event listeners
                 setupEventListeners();
 
@@ -1286,12 +1318,12 @@
                 if (!currentUserId) {
                     await getCurrentUser();
                 }
-                
+
                 // Validate userId is available
                 if (!currentUserId) {
                     throw new Error('userId is not defined. Please ensure you have uploaded a resume and have a valid user profile.');
                 }
-                
+
                 const response = await fetch(`${getApiBase()}/api/interview/star/start`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1304,7 +1336,7 @@
                 }
 
                 const data = await response.json();
-                
+
                 interviewSessionId = data.session_id;
                 interviewActive = true;
                 conversationHistory = [];  // Start with empty history (like HR/STAR)
@@ -1336,7 +1368,7 @@
                     });
                     // Display question with audio URL
                     displayMessage('ai', data.question, data.audio_url);
-                    
+
                     // Play audio if available
                     if (data.audio_url) {
                         setTimeout(() => {
@@ -1445,7 +1477,7 @@
 
                 const sttData = await sttResponse.json();
                 const rawUserAnswer = sttData.text || '';
-                
+
                 const noAnswerCheck = detectNoAnswer(rawUserAnswer);
                 let userAnswer;
                 if (noAnswerCheck.isNoAnswer) {
@@ -1483,7 +1515,7 @@
 
             try {
                 setLoadingState('submitAnswer', true);
-                
+
                 const response = await fetch(`${getApiBase()}/api/interview/star/${interviewSessionId}/submit-answer`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1500,7 +1532,7 @@
                 }
 
                 const data = await response.json();
-                
+
                 conversationHistory.push({
                     role: 'user',
                     content: answer
@@ -1514,7 +1546,7 @@
                         audio_url: data.audio_url
                     });
                     displayMessage('ai', data.ai_response, data.audio_url);
-                    
+
                     if (data.audio_url) {
                         await playAudio(data.audio_url).catch(err => {
                             console.warn('[TECHNICAL INTERVIEW] Audio playback failed for feedback:', err);
@@ -1557,17 +1589,17 @@
 
             try {
                 setLoadingState('getNextQuestion', true);
-                
+
                 const loadingMsg = document.getElementById('loadingMessage');
                 if (loadingMsg) {
                     loadingMsg.classList.add('hidden');
                 }
-                
+
                 const requestBody = {};
                 if (userAnswer) {
                     requestBody.user_answer = userAnswer;
                 }
-                
+
                 const response = await fetch(`${getApiBase()}/api/interview/star/${interviewSessionId}/next-question`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1580,28 +1612,28 @@
                 }
 
                 const data = await response.json();
-                
+
                 if (data.interview_completed) {
                     await completeInterview();
                     return;
                 }
-                
+
                 const nextQuestion = data.question;
                 const audioUrl = data.audio_url || data.audioUrl;
-                
+
                 if (!nextQuestion) {
                     throw new Error('No question received from backend');
                 }
-                
+
                 currentQuestion = nextQuestion;
                 conversationHistory.push({
                     role: 'ai',
                     content: nextQuestion,
                     audio_url: audioUrl
                 });
-                
+
                 displayMessage('ai', nextQuestion, audioUrl);
-                
+
                 await new Promise(resolve => setTimeout(resolve, 100));
                 if (audioUrl && audioUrl.trim()) {
                     await playAudio(audioUrl).catch(err => {
@@ -1665,12 +1697,12 @@
                 { key: 'result_score', id: 'result', label: 'Result' },
                 { key: 'star_structure_score', id: 'structure', label: 'STAR Structure' }
             ];
-            
+
             components.forEach(component => {
                 const score = Math.round(feedback[component.key] || 0);
                 const scoreEl = document.getElementById(component.id + 'Score');
                 const fillEl = document.getElementById(component.id + 'Fill');
-                
+
                 if (scoreEl) scoreEl.textContent = score;
                 if (fillEl) {
                     setTimeout(() => {
@@ -1693,7 +1725,7 @@
 
             try {
                 setLoadingState('generateFeedback', true);
-                
+
                 const response = await fetch(`${getApiBase()}/api/interview/star/${interviewSessionId}/feedback`, {
                     method: 'GET'
                 });
@@ -1710,12 +1742,12 @@
                     return;
                 }
 
-                
+
                 const overallScore = Math.round(feedback.overall_score || 0);
                 document.getElementById('overallScore').textContent = overallScore;
                 setScoreBadge(overallScore);
                 setScoreMessage(overallScore);
-                
+
                 const welcomeTextEl = document.getElementById('welcomeText');
                 if (welcomeTextEl) {
                     if (overallScore >= 80) {
@@ -1726,18 +1758,18 @@
                         welcomeTextEl.textContent = 'Thank you for completing your STAR interview! Here\'s your personalized feedback to help you improve.';
                     }
                 }
-                
+
                 const questionCount = feedback.question_count || 0;
                 const userMessages = conversationHistory.filter(m => m.role === 'user');
                 const answeredCount = userMessages.length;
                 const participationRate = questionCount > 0 ? Math.round((answeredCount / questionCount) * 100) : 0;
-                
+
                 const questionsAnsweredEl = document.getElementById('questionsAnswered');
                 if (questionsAnsweredEl) questionsAnsweredEl.textContent = answeredCount;
-                
+
                 const participationRateEl = document.getElementById('participationRate');
                 if (participationRateEl) participationRateEl.textContent = participationRate + '%';
-                
+
                 const participationNoteEl = document.getElementById('participationNote');
                 if (participationNoteEl) {
                     if (participationRate >= 80) {
@@ -1748,13 +1780,13 @@
                         participationNoteEl.textContent = 'Try to answer more questions in your next interview to get better feedback.';
                     }
                 }
-                
+
                 displayPerformanceBreakdown(feedback);
-                
+
                 const strengthsList = document.getElementById('strengthsList');
                 if (strengthsList) {
                     const strengths = feedback.strengths || [];
-                    strengthsList.innerHTML = strengths.length > 0 
+                    strengthsList.innerHTML = strengths.length > 0
                         ? strengths.map(s => `<li>${s}</li>`).join('')
                         : '<li>Keep practicing to build your strengths!</li>';
                 }
@@ -1854,7 +1886,7 @@
             document.getElementById('overallScore').textContent = String(score);
             setScoreBadge(score);
             setScoreMessage(score);
-            
+
             const questionsAnsweredEl = document.getElementById('questionsAnswered');
             if (questionsAnsweredEl) questionsAnsweredEl.textContent = validAnswerCount;
             const participationRateEl = document.getElementById('participationRate');
@@ -1862,12 +1894,12 @@
                 const rate = answerCount > 0 ? Math.round((validAnswerCount / answerCount) * 100) : 0;
                 participationRateEl.textContent = rate + '%';
             }
-            
+
             displayPerformanceBreakdown({
                 situation_score: score, task_score: score, action_score: score,
                 result_score: score, star_structure_score: score
             });
-            
+
             document.getElementById('strengthsList').innerHTML = strengths.map(s => `<li>${s}</li>`).join('');
             document.getElementById('improvementsList').innerHTML = improvements.map(a => `<li>${a}</li>`).join('');
             document.getElementById('recommendationsList').innerHTML = recommendations.map(r => `<li>${r}</li>`).join('');
@@ -1880,7 +1912,7 @@
         function displayMessage(role, content, audioUrl = null) {
             const container = document.getElementById('conversationContainer');
             if (!container) return;
-            
+
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${role}`;
             const header = role === 'ai' ? 'AI Interviewer' : 'You';
@@ -1898,76 +1930,77 @@
             if (!textOrUrl) {
                 return;
             }
-            
+
             // Stop any currently playing audio before starting a new one
             stopCurrentAudio();
-            
+
             try {
                 let text = textOrUrl;
-                
-                // If it's a URL, extract text from it or use it directly
-                if (textOrUrl.startsWith('http')) {
-                    // Try to extract text from query parameter
+
+                // If it's a URL (absolute or relative), parse it and try to play
+                if (textOrUrl.startsWith('http') || textOrUrl.startsWith('/')) {
                     try {
-                        const url = new URL(textOrUrl);
-                        
-                        // Detect localhost/127.0.0.1 URLs and regenerate audio
-                        const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+                        const url = new URL(textOrUrl, window.location.origin);
+
+                        // Extract text parameter for fallback
                         const textParam = url.searchParams.get('text');
-                        
-                        if (isLocalhost && textParam) {
-                            // Backend returned localhost URL - extract text and regenerate using correct endpoint
-                            console.warn('[TTS] Detected localhost URL from backend, regenerating audio with correct endpoint:', textOrUrl);
+                        if (textParam) {
                             text = decodeURIComponent(textParam);
-                            // Fall through to TTS generation below
-                        } else if (textParam) {
-                            // Valid URL with text parameter - extract text
-                            text = decodeURIComponent(textParam);
-                        } else {
-                            // If it's a direct audio URL (not localhost), try to play it
-                            if (!isLocalhost) {
-                                const audio = new Audio(textOrUrl);
-                                currentAudio = audio;
-                                isAudioPlaying = true;
-                                
-                                // Wait for audio to finish playing before returning
-                                const audioPlayPromise = new Promise((resolve, reject) => {
-                                    audio.onended = () => {
-                                        document.getElementById('voiceStatus').textContent = 'Click the microphone to start recording';
-                                        currentAudio = null;
-                                        isAudioPlaying = false;
-                                        resolve();
-                                    };
-                                    audio.onerror = (e) => {
-                                        console.error('[TTS] Direct audio URL playback failed:', e);
-                                        currentAudio = null;
-                                        isAudioPlaying = false;
-                                        reject(e);
-                                    };
-                                });
-                                
-                                await audio.play();
-                                await audioPlayPromise;
-                                return;
-                            }
+                        }
+
+                        // Try to play the audio directly
+                        const audio = new Audio(textOrUrl);
+                        currentAudio = audio;
+                        isAudioPlaying = true;
+
+                        const audioPlayPromise = new Promise((resolve, reject) => {
+                            audio.onended = () => {
+                                document.getElementById('voiceStatus').textContent = 'Click the microphone to start recording';
+                                currentAudio = null;
+                                isAudioPlaying = false;
+                                resolve();
+                            };
+                            audio.onerror = (e) => {
+                                console.error('[TTS] Direct audio URL playback failed:', e);
+                                // If direct URL fails, fall back to regenerating using extracted text
+                                if (textParam) {
+                                    resolve(); // Allow fall-through to generation
+                                } else {
+                                    document.getElementById('voiceStatus').textContent = 'Audio playback failed. Question is displayed above.';
+                                    currentAudio = null;
+                                    isAudioPlaying = false;
+                                    reject(e);
+                                }
+                            };
+                        });
+
+                        try {
+                            await audio.play();
+                            document.getElementById('voiceStatus').textContent = 'AI is speaking the question...';
+                            await audioPlayPromise;
+                            return; // Success, exit function
+                        } catch (playError) {
+                            console.warn('[TTS] Direct audio play failed, regenerating:', playError);
+                            // Fall through to TTS generation logic below
                         }
                     } catch (e) {
                         // Not a valid URL, treat as text
+                        console.warn('[TTS] URL handling failed, treating as text:', e);
                         text = textOrUrl;
                     }
                 }
-                
+
                 if (!text || text.trim().length === 0) {
                     return;
                 }
-                
+
                 // Show loading indicator
                 document.getElementById('voiceStatus').textContent = 'Generating audio...';
-                
+
                 // Use TECH_BACKEND_URL for audio generation (supports separate backend deployment)
                 const techBackendUrl = typeof getTechBackendUrl !== 'undefined' ? getTechBackendUrl() : getApiBase();
                 const audioApiUrl = `${techBackendUrl}/api/interview/generate-audio`;
-                
+
                 const response = await fetch(audioApiUrl, {
                     method: 'POST',
                     headers: {
@@ -1975,32 +2008,32 @@
                     },
                     body: JSON.stringify({ text: text.trim() })
                 });
-                
+
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('[TTS] API error:', response.status, errorText);
-                    
+
                     // Retry on server errors (5xx) or service unavailable (503)
                     if ((response.status >= 500 || response.status === 503) && retryCount < MAX_RETRIES) {
                         await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
                         return playAudio(textOrUrl, retryCount + 1);
                     }
-                    
+
                     throw new Error(`TTS failed: ${response.status} - ${errorText}`);
                 }
-                
+
                 // Get audio blob
                 const audioBlob = await response.blob();
-                
+
                 if (audioBlob.size === 0) {
                     throw new Error('Empty audio blob received from server');
                 }
-                
+
                 const audioUrl_obj = URL.createObjectURL(audioBlob);
                 const audio = new Audio(audioUrl_obj);
                 currentAudio = audio;
                 isAudioPlaying = true;
-                
+
                 // Set up event handlers before playing
                 const audioPlayPromise = new Promise((resolve, reject) => {
                     audio.onended = () => {
@@ -2010,7 +2043,7 @@
                         isAudioPlaying = false;
                         resolve();
                     };
-                    
+
                     audio.onerror = (error) => {
                         console.error('[TTS] Audio playback error:', error);
                         URL.revokeObjectURL(audioUrl_obj);
@@ -2020,15 +2053,15 @@
                         reject(error);
                     };
                 });
-                
+
                 audio.onloadstart = () => {
                     document.getElementById('voiceStatus').textContent = 'Loading audio...';
                 };
-                
+
                 audio.oncanplay = () => {
                     document.getElementById('voiceStatus').textContent = 'AI is speaking the question...';
                 };
-                
+
                 // Play audio
                 try {
                     await audio.play();
@@ -2050,19 +2083,19 @@
                         throw playError;
                     }
                 }
-                
+
             } catch (error) {
                 console.error('[TTS] Error in playAudio:', error);
-                
+
                 currentAudio = null;
                 isAudioPlaying = false;
-                
+
                 // Retry on network errors
                 if (retryCount < MAX_RETRIES && (error.message.includes('fetch') || error.message.includes('network'))) {
                     await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
                     return playAudio(textOrUrl, retryCount + 1);
                 }
-                
+
                 document.getElementById('voiceStatus').textContent = 'Audio playback unavailable. Question is displayed above.';
             }
         }
@@ -2116,7 +2149,7 @@
                 confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
                 const newCancelBtn = cancelBtn.cloneNode(true);
                 cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
-                
+
                 const finalConfirmBtn = document.getElementById('modalConfirmBtn');
                 const finalCancelBtn = document.getElementById('modalCancelBtn');
                 finalConfirmBtn.addEventListener('click', handleConfirm, { once: true });
@@ -2129,7 +2162,7 @@
                 'End STAR Interview?',
                 'Are you sure you want to end your STAR Interview? Your progress will be saved.'
             );
-            
+
             if (confirmed) {
                 interviewActive = false;
                 if (isRecording) {
@@ -2154,4 +2187,5 @@
         }
     </script>
 </body>
+
 </html>

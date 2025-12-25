@@ -218,7 +218,8 @@ async def start_interview_page(
                 encoded_text = urllib.parse.quote(question_text)
                 # Use TECH_BACKEND_URL if set, otherwise use request-based URL detection
                 from app.config.settings import settings
-                base_url = settings.tech_backend_url or get_api_base_url(http_request)
+                # Use explicitly configured URL or relative path (empty string)
+                base_url = settings.tech_backend_url or ""
                 # Ensure base_url doesn't end with slash
                 base_url = base_url.rstrip('/')
                 audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"
@@ -630,7 +631,8 @@ Return ONLY the question text, nothing else. Make it sound natural and conversat
                 encoded_text = urllib.parse.quote(question_text)
                 # Use TECH_BACKEND_URL if set, otherwise use request-based URL detection
                 from app.config.settings import settings
-                base_url = settings.tech_backend_url or get_api_base_url(http_request)
+                # Use explicitly configured URL or relative path (empty string)
+                base_url = settings.tech_backend_url or ""
                 # Ensure base_url doesn't end with slash
                 base_url = base_url.rstrip('/')
                 audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"
@@ -785,7 +787,8 @@ Provide brief, encouraging feedback for this technical interview answer."""
                 encoded_text = urllib.parse.quote(ai_response)
                 # Use TECH_BACKEND_URL if set, otherwise use request-based URL detection
                 from app.config.settings import settings
-                base_url = settings.tech_backend_url or get_api_base_url(http_request)
+                # Use explicitly configured URL or relative path (empty string)
+                base_url = settings.tech_backend_url or ""
                 # Ensure base_url doesn't end with slash
                 base_url = base_url.rstrip('/')
                 ai_response_audio_url = f"{base_url}/api/interview/text-to-speech?text={encoded_text}"
