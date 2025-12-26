@@ -6,7 +6,7 @@
 [![OpenAI](https://img.shields.io/badge/OpenAI-GPT--3.5--turbo-purple.svg)](https://openai.com/)
 [![Vercel](https://img.shields.io/badge/Vercel-Serverless-black.svg)](https://vercel.com/)
 
-> **An AI-Powered Interview Preparation Platform** - Practice mock interviews with personalized questions, get real-time AI feedback, and track your performance over time. Supports Technical, Coding, HR, and STAR behavioral interviews with voice interaction and comprehensive analytics.
+> **Backend API Service for AI-Powered Interview Preparation Platform** - RESTful API that provides personalized mock interviews, real-time AI feedback, and performance analytics. Supports Technical, Coding, HR, and STAR behavioral interviews with voice interaction. Frontend is decoupled and hosted separately.
 
 ---
 
@@ -31,7 +31,9 @@
 
 ## 🎯 Overview
 
-**Skill Capital AI MockMate** is a full-stack interview preparation platform that uses AI to provide personalized mock interviews. The system analyzes user resumes, generates context-aware interview questions, and provides detailed feedback on answers.
+**Skill Capital AI MockMate** is a **backend-only REST API service** for an AI-powered interview preparation platform. This service provides APIs that can be consumed by any frontend application (React, Vue, Angular, mobile apps, etc.). The system analyzes user resumes, generates context-aware interview questions, and provides detailed feedback on answers.
+
+**Note**: This repository contains **only the backend API**. Frontend applications should be developed separately and consume these APIs.
 
 ### Key Capabilities
 
@@ -49,7 +51,7 @@
 ### Core Features
 
 - ✅ **FastAPI Backend** - RESTful API with automatic OpenAPI documentation (Swagger/ReDoc)
-- ✅ **Unified Frontend/Backend** - FastAPI serves both API and static frontend files
+- ✅ **Backend-Only Service** - Pure API service, frontend decoupled and hosted separately
 - ✅ **Supabase Integration** - PostgreSQL database with Row Level Security (RLS) and storage
 - ✅ **Resume Upload & Parsing** - Support for PDF and DOCX files with text extraction
 - ✅ **AI-Powered Question Generation** - Context-aware questions using OpenAI GPT models via LangChain
@@ -131,14 +133,15 @@
 The system follows a clean architecture with clear separation of concerns:
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Frontend Client (Browser)                 │
-│              HTML/CSS/JavaScript + Chart.js                 │
+│              Frontend Client (Any Framework)                 │
+│    React / Vue / Angular / Mobile / HTML/JS               │
+│              (Hosted Separately)                            │
 └───────────────────────┬─────────────────────────────────────┘
                         │
                         │ HTTP/REST API
                         │
 ┌────────────────────────▼─────────────────────────────────────┐
-│                    FastAPI Backend                           │
+│                    FastAPI Backend API Service              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
 │  │ Profile Router│  │Interview Router│ │Dashboard Router│   │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
@@ -387,12 +390,13 @@ For detailed workflow diagrams, see [`project-workflow-documentation.md`](projec
 - **Row Level Security (RLS)** - Data access control
 - **Supabase Storage** - File storage for resumes
 
-### Frontend
+### API Client (Frontend)
 
-- **HTML5/CSS3** - Structure and styling
-- **Vanilla JavaScript (ES6+)** - Application logic
-- **Chart.js** - Performance visualization
-- **Web Speech API** - Voice interaction
+This backend API can be consumed by any frontend framework:
+- **React, Vue, Angular** - Modern JavaScript frameworks
+- **Mobile Apps** - React Native, Flutter, native iOS/Android
+- **HTML/JavaScript** - Vanilla JavaScript clients
+- **Any HTTP Client** - RESTful API compatible with all HTTP clients
 
 ### PDF Processing
 
@@ -483,21 +487,24 @@ CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:8000
 
    The application will:
    - Start the FastAPI server at `http://127.0.0.1:8000`
-   - Serve the frontend at `http://127.0.0.1:8000/`
-   - Auto-open your browser (development mode only)
    - API documentation available at `http://127.0.0.1:8000/docs`
+   - OpenAPI schema at `http://127.0.0.1:8000/openapi.json`
+   - Root endpoint returns API information at `http://127.0.0.1:8000/`
 
-### Frontend Setup
+### Frontend Development
 
-The frontend is automatically served by FastAPI. No separate setup is required!
+**This repository contains only the backend API.** To build a frontend:
 
-- **Main Dashboard**: `http://127.0.0.1:8000/` or `http://127.0.0.1:8000/index.html`
-- **Resume Analysis**: `http://127.0.0.1:8000/resume-analysis.html`
-- **Technical Interview**: `http://127.0.0.1:8000/interview.html` or `http://127.0.0.1:8000/technical-interview.html`
-- **Coding Interview**: `http://127.0.0.1:8000/coding-interview.html`
-- **Coding Results**: `http://127.0.0.1:8000/coding-result.html`
-- **HR Interview**: `http://127.0.0.1:8000/hr-interview.html`
-- **STAR Interview**: `http://127.0.0.1:8000/star-interview.html`
+1. **Choose a frontend framework** (React, Vue, Angular, etc.)
+2. **Set API base URL** to `http://127.0.0.1:8000/api` (development) or your production API URL
+3. **Use the API endpoints** documented at `/docs` or `/redoc`
+4. **Configure CORS** if needed (see Configuration section)
+
+Example API calls:
+- `GET http://127.0.0.1:8000/api/health` - Health check
+- `GET http://127.0.0.1:8000/api/config` - Get API configuration
+- `POST http://127.0.0.1:8000/api/profile/upload-resume` - Upload resume
+- `GET http://127.0.0.1:8000/api/dashboard/performance/{user_id}` - Get dashboard data
 
 ---
 
@@ -517,7 +524,8 @@ All configuration is done through environment variables in the `.env` file:
 | `ENVIRONMENT` | Environment (development/production) | No | development |
 | `CORS_ORIGINS` | Comma-separated CORS origins | No | Auto-detected |
 | `VERCEL_URL` | Vercel deployment URL (auto-set by Vercel) | No | - |
-| `FRONTEND_URL` | Frontend URL (for CORS) | No | - |
+| `FRONTEND_URL` | Frontend URL (for CORS configuration) | No | - |
+| `TECH_BACKEND_URL` | Backend URL for technical interview audio generation | No | - |
 | `LANGCHAIN_TRACING_V2` | Enable LangChain tracing | No | false |
 | `LANGCHAIN_PROJECT` | LangChain project name | No | - |
 
@@ -583,7 +591,7 @@ All configuration is done through environment variables in the `.env` file:
 
 - `GET /api/health` - Health check endpoint
 - `GET /api/health/database` - Database connection health check
-- `GET /api/config` - Get frontend configuration (Supabase credentials)
+- `GET /api/config` - Get API configuration (Supabase credentials and API base URL)
 
 ### Profile Management
 
@@ -763,20 +771,6 @@ Skill-Capital-AI-MockMate/
 │       ├── rate_limiter.py       # Rate limiting utilities
 │       ├── request_validator.py   # Request validation
 │       └── url_utils.py          # URL utilities
-├── frontend/                     # Frontend files (served by FastAPI)
-│   ├── index.html                # Main dashboard page
-│   ├── resume-analysis.html      # Resume analysis page
-│   ├── interview.html            # Technical interview page
-│   ├── coding-interview.html     # Coding interview page
-│   ├── coding-result.html         # Coding results page
-│   ├── hr-interview.html         # HR interview page
-│   ├── star-interview.html       # STAR interview page
-│   ├── styles.css                # CSS styles
-│   ├── app.js                    # Main JavaScript
-│   ├── hr-interview.js           # HR interview JavaScript
-│   ├── star-interview.js         # STAR interview JavaScript
-│   ├── api-config.js             # API configuration
-│   └── logo.png                  # Logo image
 ├── venv/                         # Python virtual environment (gitignored)
 ├── .env                          # Environment variables (create this, gitignored)
 ├── requirements.txt             # Python dependencies (root level)
@@ -832,13 +826,20 @@ Skill-Capital-AI-MockMate/
 3. Set environment variables in Railway dashboard
 4. Deploy!
 
-### Render
+### Render (Recommended for Backend API)
 
-1. Create a new Web Service on Render
-2. Connect your repository
-3. Render will use `render.yaml` for configuration
-4. Set environment variables in Render dashboard
-5. Deploy!
+1. **Create a new Web Service** on Render
+2. **Connect your repository**
+3. **Configure Build & Deploy**:
+   - Build Command: `pip install -r requirements.txt`
+   - Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+4. **Set environment variables** in Render dashboard:
+   - `OPENAI_API_KEY`
+   - `SUPABASE_URL`
+   - `SUPABASE_KEY`
+   - `SUPABASE_SERVICE_KEY`
+   - `ENVIRONMENT=production`
+5. **Deploy!** Your API will be available at `https://your-app.onrender.com`
 
 ### Vercel (Recommended for Serverless)
 
@@ -877,7 +878,7 @@ Skill-Capital-AI-MockMate/
 **Important Notes for Vercel**:
 - Code execution uses Piston API fallback (no local compilers)
 - All API routes are serverless functions
-- Frontend is served through FastAPI static file serving
+- This is a backend-only service - frontend must be deployed separately
 
 ### Manual Deployment
 
@@ -898,45 +899,65 @@ uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 4
 
 ---
 
-## 📖 Usage Guide
+## 📖 API Usage Guide
 
-### Getting Started
+### Getting Started with the API
 
-1. **Upload Your Resume**:
-   - Navigate to Resume Analysis page
-   - Upload PDF or DOCX resume
-   - Wait for analysis to complete
-   - Review extracted skills and experience level
+1. **Start the Backend Server**:
+   ```bash
+   uvicorn app.main:app --reload
+   ```
 
-2. **Start an Interview**:
-   - Choose interview type: Technical, Coding, HR, or STAR
-   - Select your role and experience level
-   - Begin answering questions
+2. **Access API Documentation**:
+   - Swagger UI: `http://127.0.0.1:8000/docs`
+   - ReDoc: `http://127.0.0.1:8000/redoc`
+   - OpenAPI Schema: `http://127.0.0.1:8000/openapi.json`
 
-3. **During Interview**:
-   - **Technical/HR**: Use voice recording or type answers
-   - **Coding**: Write code in the editor, test with sample inputs
-   - **STAR**: Structure answers using Situation, Task, Action, Result format
-   - Receive immediate feedback after each answer
+3. **Make API Calls**:
+   - Use any HTTP client (Postman, curl, axios, fetch, etc.)
+   - Base URL: `http://127.0.0.1:8000/api`
+   - All endpoints return JSON responses
 
-4. **View Results**:
-   - Check performance dashboard for analytics
-   - Review detailed feedback and recommendations
-   - Track progress over time
+### Example API Workflow
 
-### Interview Types
+1. **Upload Resume**:
+   ```bash
+   POST /api/profile/upload-resume
+   Content-Type: multipart/form-data
+   Body: { file: resume.pdf, user_id: "user123" }
+   ```
 
-- **Technical Interview**: Conversational AI interview with voice support
-- **Coding Interview**: Solve coding problems in Python, Java, C, or C++
-- **HR Interview**: Behavioral questions with voice interaction
-- **STAR Interview**: Structured behavioral interviews using STAR method
+2. **Start Technical Interview**:
+   ```bash
+   POST /api/interview/technical/start
+   Body: { user_id: "user123", role: "Software Engineer", experience_level: "mid" }
+   ```
 
-### Best Practices
+3. **Submit Answer**:
+   ```bash
+   POST /api/interview/technical/{session_id}/submit-answer
+   Body: { user_answer: "My answer text...", question_number: 1 }
+   ```
 
-- Upload an updated resume for better question personalization
-- Speak clearly when using voice recording
-- Review feedback after each answer to improve
-- Practice regularly to track improvement over time
+4. **Get Dashboard Data**:
+   ```bash
+   GET /api/dashboard/performance/{user_id}
+   ```
+
+### API Response Format
+
+All API responses follow standard JSON format:
+- **Success**: `{ "data": {...}, "status": "success" }`
+- **Error**: `{ "error": "Error message", "status": "error" }`
+
+### CORS Configuration
+
+For frontend applications, configure CORS origins in `.env`:
+```bash
+CORS_ORIGINS=http://localhost:3000,http://localhost:5173,https://your-frontend.com
+```
+
+Or allow all origins in development (default behavior).
 
 ---
 
@@ -1044,7 +1065,7 @@ For issues and questions, please open an issue on the repository.
 
 **Current Version**: 1.0.0  
 **Completion**: ~95%  
-**Status**: Production-ready for deployment
+**Status**: Production-ready backend API service
 
 ### Completed Features ✅
 - All interview types (Technical, Coding, HR, STAR)
@@ -1060,5 +1081,15 @@ For issues and questions, please open an issue on the repository.
 - In-memory rate limiting (resets on server restart)
 
 ---
+
+---
+
+## ⚠️ Important Notes
+
+- **Backend-Only Repository**: This repository contains only the backend API service. Frontend applications must be developed and hosted separately.
+- **API-First Design**: All APIs are designed to be consumed by any frontend framework or mobile application.
+- **CORS Enabled**: CORS is configured to allow frontend applications from different origins.
+- **OpenAPI Documentation**: Complete API documentation is available at `/docs` endpoint.
+- **No Frontend Code**: Frontend code has been removed from this repository. Frontend should be built separately using the APIs documented here.
 
 *Last Updated: December 2025*

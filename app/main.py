@@ -7,7 +7,7 @@ Optimized for:
 - Efficient CORS handling
 - Proper error handling
 - Scalable structure
-- Static file serving for frontend
+- RESTful API service
 """
 
 import os
@@ -15,12 +15,10 @@ import sys
 import logging
 import webbrowser
 from pathlib import Path
-from datetime import datetime
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 
 # Configure logging
@@ -46,10 +44,6 @@ from app.routers.speech import router as speech_router
 
 # Import configuration
 from app.config.settings import get_cors_origins, settings
-
-# FRONTEND_DIR is already defined above (line 31 uses PROJECT_ROOT which is resolved)
-# Ensure FRONTEND_DIR uses resolved path for consistency in Vercel serverless environment
-FRONTEND_DIR = PROJECT_ROOT / "frontend"
 
 # Lifespan event handler (replaces deprecated @app.on_event)
 @asynccontextmanager
@@ -171,8 +165,8 @@ app.include_router(speech_router, prefix="/api/interview", tags=["speech"])
 async def get_frontend_config(request: Request):
     from app.utils.url_utils import get_api_base_url
     """
-    Get frontend configuration (Supabase public credentials)
-    This endpoint exposes only public-safe credentials to the frontend
+    Get API configuration (Supabase public credentials)
+    This endpoint exposes only public-safe credentials for client applications
     Time Complexity: O(1)
     Space Complexity: O(1)
     """
@@ -217,295 +211,21 @@ async def get_frontend_config(request: Request):
         "tech_backend_url": settings.tech_backend_url or api_base_url
     }
 
-# Serve static files from frontend directory
-if FRONTEND_DIR.exists():
-    # Serve root - return index.html (must be after API routes)
-    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-    async def serve_index():
-        """Serve frontend index.html at root"""
-        index_path = FRONTEND_DIR / "index.html"
-        if index_path.exists():
-            return FileResponse(index_path, media_type="text/html")
-        else:
-            return HTMLResponse(
-                content="<h1>Frontend Not Found</h1><p>index.html not found in frontend directory.</p>",
-                status_code=404
-            )
-    
-    # Serve resume analysis page
-    @app.get("/resume-analysis.html", response_class=HTMLResponse, include_in_schema=False)
-    async def serve_resume_analysis():
-        """Serve resume analysis page"""
-        analysis_path = FRONTEND_DIR / "resume-analysis.html"
-        if analysis_path.exists():
-            return FileResponse(analysis_path, media_type="text/html")
-        else:
-            return HTMLResponse(
-                content="<h1>Resume Analysis Page Not Found</h1><p>resume-analysis.html not found in frontend directory.</p>",
-                status_code=404
-            )
-    
-    # Serve technical interview page
-    @app.get("/technical-interview.html", response_class=HTMLResponse, include_in_schema=False)
-    async def serve_technical_interview():
-        """Serve technical interview page"""
-        interview_path = FRONTEND_DIR / "technical-interview.html"
-        if interview_path.exists():
-            return FileResponse(interview_path, media_type="text/html")
-        else:
-            return HTMLResponse(
-                content="<h1>Technical Interview Page Not Found</h1><p>technical-interview.html not found in frontend directory.</p>",
-                status_code=404
-            )
-    
-    # Serve STAR interview page (CRITICAL: Register BEFORE catch-all to ensure Vercel routing)
-    @app.get("/star-interview.html", response_class=HTMLResponse, include_in_schema=False)
-    async def serve_star_interview():
-        """Serve STAR interview page"""
-        star_path = FRONTEND_DIR / "star-interview.html"
-        if star_path.exists():
-            # CRITICAL: Explicit Content-Type with charset to prevent raw JS rendering on Vercel
-            return FileResponse(
-                star_path, 
-                media_type="text/html",
-                headers={
-                    "Content-Type": "text/html; charset=utf-8",
-                    "Cache-Control": "no-store, no-cache, must-revalidate",
-                    "Pragma": "no-cache",
-                    "Expires": "0"
-                }
-            )
-        else:
-            return HTMLResponse(
-                content="<h1>STAR Interview Page Not Found</h1><p>star-interview.html not found in frontend directory.</p>",
-                status_code=404
-            )
-    
-    # Serve STAR interview guidelines page
-    @app.get("/star-guidelines.html", response_class=HTMLResponse, include_in_schema=False)
-    async def serve_star_guidelines():
-        """Serve STAR interview guidelines page"""
-        guidelines_path = FRONTEND_DIR / "star-guidelines.html"
-        if guidelines_path.exists():
-            return FileResponse(
-                guidelines_path, 
-                media_type="text/html",
-                headers={
-                    "Content-Type": "text/html; charset=utf-8",
-                    "Cache-Control": "no-store, no-cache, must-revalidate",
-                    "Pragma": "no-cache",
-                    "Expires": "0"
-                }
-            )
-        else:
-            return HTMLResponse(
-                content="<h1>STAR Guidelines Page Not Found</h1><p>star-guidelines.html not found in frontend directory.</p>",
-                status_code=404
-            )
-    
-    # Serve interview page
-    @app.get("/interview.html", response_class=HTMLResponse, include_in_schema=False)
-    async def serve_interview():
-        """Serve interview page"""
-        interview_path = FRONTEND_DIR / "interview.html"
-        if interview_path.exists():
-            # Explicitly set Content-Type header to ensure HTML parsing
-            return FileResponse(
-                interview_path, 
-                media_type="text/html",
-                headers={
-                    "Content-Type": "text/html; charset=utf-8",
-                    "Cache-Control": "no-cache"
-                }
-            )
-        else:
-            return HTMLResponse(
-                content="<h1>Interview Page Not Found</h1><p>interview.html not found in frontend directory.</p>",
-                status_code=404
-            )
-    
-    # Serve coding interview page
-    @app.get("/coding-interview.html", response_class=HTMLResponse, include_in_schema=False)
-    async def serve_coding_interview():
-        """Serve coding interview page"""
-        coding_path = FRONTEND_DIR / "coding-interview.html"
-        if coding_path.exists():
-            return FileResponse(coding_path, media_type="text/html")
-        else:
-            return HTMLResponse(
-                content="<h1>Coding Interview Page Not Found</h1><p>coding-interview.html not found in frontend directory.</p>",
-                status_code=404
-            )
-
-    @app.get("/coding-result.html", response_class=HTMLResponse, include_in_schema=False)
-    async def serve_coding_result():
-        """Serve coding result page"""
-        result_path = FRONTEND_DIR / "coding-result.html"
-        if result_path.exists():
-            return FileResponse(result_path, media_type="text/html")
-        else:
-            return HTMLResponse(
-                content="<h1>Coding Result Page Not Found</h1><p>coding-result.html not found in frontend directory.</p>",
-                status_code=404
-            )
-    
-    # Serve HR interview page
-    @app.get("/hr-interview.html", response_class=HTMLResponse, include_in_schema=False)
-    async def serve_hr_interview():
-        """Serve HR interview page"""
-        hr_path = FRONTEND_DIR / "hr-interview.html"
-        if hr_path.exists():
-            return FileResponse(hr_path, media_type="text/html")
-        else:
-            return HTMLResponse(
-                content="<h1>HR Interview Page Not Found</h1><p>hr-interview.html not found in frontend directory.</p>",
-                status_code=404
-            )
-    
-    # Serve static files (CSS, JS, etc.) - catch-all for frontend files
-    # Note: FastAPI matches routes in order, and API routes from routers above
-    # will be matched before this catch-all route
-    @app.get("/{file_path:path}", include_in_schema=False)
-    async def serve_static_files(request: Request, file_path: str):
-        """
-        Serve static frontend files (CSS, JS, etc.)
-        API routes are handled by routers above and take precedence
-        Time Complexity: O(1)
-        Space Complexity: O(1)
-        """
-        # FastAPI should match API routes first, but add explicit check for safety
-        # IMPORTANT: This catch-all route should NEVER catch API routes if they're properly registered
-        # If we reach here for an API route, it means the route wasn't registered correctly
-        path = request.url.path
-        
-        # Skip API routes - they should be handled by routers/endpoints defined above
-        if path.startswith("/api/"):
-            # This should not happen - API routes are registered before this catch-all
-            # Return 404 with helpful message
-            from fastapi import HTTPException
-            raise HTTPException(
-                status_code=404, 
-                detail=f"API endpoint not found: {path}. Available endpoints: /api/test, /api/health, /api/health/database, /api/config, /api/profile/*, /api/interview/*, /api/dashboard/*"
-            )
-        
-        # Skip FastAPI docs routes
-        if (path.startswith("/docs") or
-            path.startswith("/redoc") or
-            path == "/openapi.json"):
-            # These should be handled by FastAPI automatically
-            from fastapi import HTTPException
-            raise HTTPException(status_code=404, detail="Not Found")
-        
-        # SAFETY: Explicitly prevent catch-all from serving pages with dedicated routes
-        # This ensures star-interview.html is always served by its specific route
-        dedicated_routes = [
-            "/star-interview.html",
-            "/star-guidelines.html",
-            "/interview.html",
-            "/technical-interview.html",
-            "/coding-interview.html",
-            "/hr-interview.html",
-            "/resume-analysis.html",
-            "/coding-result.html"
-        ]
-        if path in dedicated_routes:
-            # This should not happen - dedicated routes should match first
-            # Return 404 to force proper route matching
-            from fastapi import HTTPException
-            raise HTTPException(
-                status_code=404,
-                detail=f"Route {path} should be handled by dedicated route handler, not catch-all"
-            )
-        
-        # Build file path
-        file_path_clean = file_path.lstrip("/")
-        full_path = FRONTEND_DIR / file_path_clean
-        
-        # Security: Ensure file is within frontend directory
-        try:
-            full_path.resolve().relative_to(FRONTEND_DIR.resolve())
-        except ValueError:
-            # Path outside frontend directory - return 404
-            return HTMLResponse(content="<h1>404 Not Found</h1>", status_code=404)
-        
-        # Check if file exists
-        if full_path.exists() and full_path.is_file():
-            # Determine content type based on extension
-            # Explicitly set Content-Type headers to ensure correct MIME type
-            if file_path_clean.endswith(".html"):
-                return FileResponse(
-                    full_path, 
-                    media_type="text/html",
-                    headers={
-                        "Content-Type": "text/html; charset=utf-8",
-                        "Cache-Control": "no-cache"
-                    }
-                )
-            elif file_path_clean.endswith(".css"):
-                return FileResponse(
-                    full_path, 
-                    media_type="text/css",
-                    headers={"Cache-Control": "public, max-age=3600"}
-                )
-            elif file_path_clean.endswith(".js"):
-                # CRITICAL: Ensure JavaScript files are served with correct Content-Type
-                # This prevents browsers from trying to execute HTML/text as JavaScript
-                return FileResponse(
-                    full_path, 
-                    media_type="application/javascript",
-                    headers={
-                        "Content-Type": "application/javascript; charset=utf-8",
-                        "Cache-Control": "public, max-age=3600"
-                    }
-                )
-            elif file_path_clean.endswith(".json"):
-                return FileResponse(full_path, media_type="application/json")
-            elif file_path_clean.endswith(".png"):
-                return FileResponse(full_path, media_type="image/png")
-            elif file_path_clean.endswith(".jpg") or file_path_clean.endswith(".jpeg"):
-                return FileResponse(full_path, media_type="image/jpeg")
-            elif file_path_clean.endswith(".svg"):
-                return FileResponse(full_path, media_type="image/svg+xml")
-            else:
-                return FileResponse(full_path)
-        else:
-            # File not found
-            # For JavaScript/CSS files, return proper 404 with text/plain content-type
-            # This prevents HTML from being served as JavaScript/CSS (which causes syntax errors)
-            # Using text/plain instead of HTML makes it clearer in browser console that file is missing
-            if file_path_clean.endswith(".js"):
-                return HTMLResponse(
-                    content=f"// 404 Not Found: {file_path_clean}\n// File not found in deployment bundle.\n// Check Vercel deployment logs and ensure file is included in vercel.json includeFiles.",
-                    status_code=404,
-                    media_type="application/javascript"
-                )
-            elif file_path_clean.endswith(".css"):
-                return HTMLResponse(
-                    content=f"/* 404 Not Found: {file_path_clean} */\n/* File not found in deployment bundle. */",
-                    status_code=404,
-                    media_type="text/css"
-                )
-            # For SPA routing (HTML files), serve index.html as fallback
-            index_path = FRONTEND_DIR / "index.html"
-            if index_path.exists():
-                return FileResponse(index_path, media_type="text/html")
-            else:
-                return HTMLResponse(content="<h1>404 Not Found</h1>", status_code=404)
-else:
-    # Fallback if frontend directory doesn't exist
-    @app.get("/")
-    async def root():
-        """
-        Root endpoint - API information (fallback when frontend not found)
-        Time Complexity: O(1)
-        Space Complexity: O(1)
-        """
-        return {
-            "message": "Skill Capital AI MockMate API",
-            "status": "running",
-            "version": "1.0.0",
-            "docs": "/docs",
-            "note": "Frontend directory not found. Please ensure frontend/ directory exists."
+# Root endpoint - API information
+@app.get("/")
+async def root():
+    """
+    Root endpoint - API information
+    Time Complexity: O(1)
+    Space Complexity: O(1)
+    """
+    return {
+        "message": "Skill Capital AI MockMate API",
+        "status": "running",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "api_base": "/api",
+        "note": "This is a backend-only API service. Frontend is hosted separately."
     }
 
 
@@ -515,16 +235,17 @@ if __name__ == "__main__":
     import time
     from app.utils.url_utils import get_api_base_url
     
-    # Auto-open browser after a short delay (only in development)
+    # Auto-open browser to API docs after a short delay (only in development)
     def open_browser():
-        """Open browser after server starts (development only)"""
+        """Open browser to API docs after server starts (development only)"""
         if settings.environment == "development":
             time.sleep(1.5)  # Wait for server to start
             # Use dynamic URL instead of hardcoded localhost
             base_url = get_api_base_url()
-            logger.info(f"🌐 Opening browser at {base_url}")
+            docs_url = f"{base_url}/docs"
+            logger.info(f"🌐 Opening browser at {docs_url}")
             try:
-                webbrowser.open(base_url)
+                webbrowser.open(docs_url)
             except Exception as e:
                 logger.warning(f"Could not open browser: {str(e)}")
     
@@ -535,10 +256,10 @@ if __name__ == "__main__":
     
     # Use dynamic URL for logging
     base_url = get_api_base_url()
-    logger.info(f"🚀 Starting Skill Capital AI MockMate...")
+    logger.info(f"🚀 Starting Skill Capital AI MockMate Backend...")
     logger.info(f"📡 Backend API: {base_url}")
     logger.info(f"📚 API Docs: {base_url}/docs")
-    logger.info(f"🌐 Frontend: {base_url}/")
+    logger.info(f"🔗 OpenAPI Schema: {base_url}/openapi.json")
     logger.info("Press CTRL+C to stop the server")
     
     # Determine host based on environment
