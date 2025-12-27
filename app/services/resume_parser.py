@@ -327,7 +327,9 @@ class ResumeParser:
         ]
         
         for keyword in tech_keywords:
-            pattern = rf'\b{re.escape(keyword.replace(".", "\\."))}\b'
+            # Fix: Extract replace outside f-string (backslashes not allowed in f-string expressions)
+            escaped_keyword = keyword.replace(".", "\\.")
+            pattern = rf'\b{re.escape(escaped_keyword)}\b'
             if re.search(pattern, text_lower, re.IGNORECASE):
                 formatted = keyword.title() if '.' not in keyword else keyword
                 if formatted not in keywords["technologies"]:
