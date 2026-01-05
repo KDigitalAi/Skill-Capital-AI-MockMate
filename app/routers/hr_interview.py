@@ -362,6 +362,10 @@ async def get_next_hr_question(
                     
             # ✅ FIX: Reject empty answers - NO random/auto-answers allowed
             if user_answer and user_answer.strip():
+                # Check for "No Answer" specifically for logging
+                if user_answer.strip() == "No Answer":
+                    logger.info("[HR][NEXT-QUESTION] Received 'No Answer' (silence). Accepting as empty response.")
+
                 # The answer is valid and non-empty. Proceed with saving and processing.
                 # FIX 13 & 17: Save answer before building conversation history (transaction pattern)
                 try:
@@ -1314,9 +1318,9 @@ async def get_hr_interview_feedback(
             answer_text = answer_text.strip()
             if answer_text == "" or answer_text == "No Answer":
                 return False
-            # Count meaningful words (exclude very short words like "a", "an", "the", "I", "is", etc.)
-            words = [w for w in answer_text.split() if len(w) > 2]
-            return len(words) >= 3
+            # Count meaningful words (exclude very short words)
+            words = [w for w in answer_text.split() if len(w) >= 2]
+            return len(words) >= 2
         
         # Check if ALL answers are empty/No Answer/too short
         valid_answers = []

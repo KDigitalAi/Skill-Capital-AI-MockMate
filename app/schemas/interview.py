@@ -373,6 +373,7 @@ class SpeechToTextResponse(BaseModel):
     """Schema for speech-to-text response"""
     text: str
     language: str
+    is_silent: Optional[bool] = False
 
 
 # Response models for feedback endpoints

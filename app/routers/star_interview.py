@@ -796,8 +796,8 @@ async def get_star_interview_feedback(
             answer_text = answer_text.strip()
             if answer_text == "" or answer_text == "No Answer":
                 return False
-            words = [w for w in answer_text.split() if len(w) > 2]
-            return len(words) >= 3
+            words = [w for w in answer_text.split() if len(w) >= 2]
+            return len(words) >= 2
         
         valid_answers = []
         empty_answers = []

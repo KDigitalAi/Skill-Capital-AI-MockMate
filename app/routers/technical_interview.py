@@ -348,37 +348,41 @@ async def get_next_technical_question(
                 except Exception:
                     user_answer = None
             
-            # ✅ Reject empty answers - NO random/auto-answers allowed
-            if user_answer and user_answer.strip():
-                try:
-                    # Get the last question for this session to update with the answer
-                    last_question_response = supabase.table("technical_round").select("*").eq("session_id", session_id).order("question_number", desc=True).limit(1).execute()
-                    
-                    if last_question_response.data and len(last_question_response.data) > 0:
-                        last_question = last_question_response.data[0]
-                        question_number = last_question.get("question_number")
-                        
-                        # Update the last question with the user's answer
-                        update_data = {
-                            "user_answer": user_answer
-                        }
-                        
-                        supabase.table("technical_round").update(update_data).eq("session_id", session_id).eq("question_number", question_number).execute()
-                        logger.info(f"[TECHNICAL][NEXT-QUESTION] ✅ Saved user answer for question {question_number}")
-                    else:
-                        logger.warning("[TECHNICAL][NEXT-QUESTION] No question found to update with answer")
-                except Exception as e:
-                    logger.error(f"[TECHNICAL][NEXT-QUESTION] Failed to save user answer: {str(e)}", exc_info=True)
-                    raise HTTPException(
-                        status_code=500,
-                        detail="Failed to save interview data. Please try again."
-                    )
-            else:
+            # Check for silent/no answer
+            if user_answer.strip() == "No Answer":
+                logger.info("[TECHNICAL][NEXT-QUESTION] Received 'No Answer' (silence). Accepting as empty response.")
+                # We save "No Answer" to the DB so the transcript shows silence occurred
+            # ✅ Reject truly empty answers (if something went wrong with frontend)
+            elif not user_answer.strip():
                 # ✅ Reject empty answers - do NOT allow unanswered questions to move forward
                 logger.warning("[TECHNICAL][NEXT-QUESTION] Empty answer provided - rejecting request")
                 raise HTTPException(
                     status_code=400,
                     detail="I could not hear your answer. Please speak again."
+                )
+
+            try:
+                # Get the last question for this session to update with the answer
+                last_question_response = supabase.table("technical_round").select("*").eq("session_id", session_id).order("question_number", desc=True).limit(1).execute()
+                
+                if last_question_response.data and len(last_question_response.data) > 0:
+                    last_question = last_question_response.data[0]
+                    question_number = last_question.get("question_number")
+                    
+                    # Update the last question with the user's answer
+                    update_data = {
+                        "user_answer": user_answer
+                    }
+                    
+                    supabase.table("technical_round").update(update_data).eq("session_id", session_id).eq("question_number", question_number).execute()
+                    logger.info(f"[TECHNICAL][NEXT-QUESTION] ✅ Saved user answer for question {question_number}")
+                else:
+                    logger.warning("[TECHNICAL][NEXT-QUESTION] No question found to update with answer")
+            except Exception as e:
+                logger.error(f"[TECHNICAL][NEXT-QUESTION] Failed to save user answer: {str(e)}", exc_info=True)
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to save interview data. Please try again."
                 )
         
         # Step 2: Retrieve full conversation history from technical_round table AFTER saving answer
@@ -727,23 +731,35 @@ async def submit_technical_answer(
             "answers_received": answers_received_list
         }
         
-        # Evaluate answer (get scores only, feedback will be generated separately)
-        evaluation = technical_interview_engine.evaluate_answer(
-            question=question,
-            answer=answer,
-            session_data=session_data,
-            conversation_history=conversation_history
-        )
-        
-        # Get scores from evaluation
-        scores = evaluation.get("scores", {})
+        if answer == "No Answer":
+            logger.info(f"[TECHNICAL][SUBMIT-ANSWER] Received 'No Answer'. Skipping AI evaluation.")
+            # Default scores for no answer
+            scores = {
+                "relevance": 0,
+                "technical_accuracy": 0,
+                "communication": 0,
+                "overall": 0,
+                "feedback": "No answer provided."
+            }
+            evaluation = {"scores": scores}
+        else:
+            # Evaluate answer (get scores only, feedback will be generated separately)
+            evaluation = technical_interview_engine.evaluate_answer(
+                question=question,
+                answer=answer,
+                session_data=session_data,
+                conversation_history=conversation_history
+            )
+            scores = evaluation.get("scores", {})
         
         # Generate AI feedback response (same style as HR interview)
         # This replaces the follow-up question approach with proper feedback
         ai_response = None
         question_text = current_question_db.get("question_text", question)
         
-        if technical_interview_engine.openai_available and technical_interview_engine.client is not None:
+        if answer == "No Answer":
+            ai_response = "Let's move on to the next question."
+        elif technical_interview_engine.openai_available and technical_interview_engine.client is not None:
             try:
                 system_prompt = """You are an experienced technical interviewer providing feedback on candidate answers.
 Provide brief, encouraging, and constructive feedback (1-2 sentences) that:

@@ -88,7 +88,8 @@
 - ✅ **Real-time Evaluation** - AI evaluates answers and provides immediate feedback
 - ✅ **Session Management** - Track conversation history and scores
 - ✅ **Audio Queue Management** - Prevents audio overlap, sequential playback
-- ✅ **No Answer Detection** - Handles empty recordings gracefully
+- ✅ **Audio Queue Management** - Prevents audio overlap, sequential playback
+- ✅ **Robust Silence Handling** - Filters hallucinations and standardizes "No Answer" logic
 
 ### Coding Interview
 
@@ -105,7 +106,8 @@
 - ✅ **Behavioral Questions** - HR-focused interview questions
 - ✅ **Voice Interaction** - Speech-to-text and text-to-speech support
 - ✅ **Real-time Feedback** - Immediate AI feedback after each answer
-- ✅ **No Answer Detection** - Handles empty recordings gracefully
+- ✅ **Real-time Feedback** - Immediate AI feedback after each answer
+- ✅ **Robust Silence Handling** - Filters hallucinations and standardizes "No Answer" logic
 - ✅ **Session Tracking** - Complete interview history and evaluation
 
 ### STAR Interview
@@ -133,8 +135,8 @@
 The system follows a clean architecture with clear separation of concerns:
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              Frontend Client (Any Framework)                 │
-│    React / Vue / Angular / Mobile / HTML/JS               │
+│              Frontend Client (Any Framework)                │
+│    React / Vue / Angular / Mobile / HTML/JS                 │
 │              (Hosted Separately)                            │
 └───────────────────────┬─────────────────────────────────────┘
                         │
@@ -209,8 +211,11 @@ User Records Answer (Web Speech API)
         ↓
 POST /api/interview/technical/{session_id}/submit-answer
 ├─> Convert speech to text (OpenAI Whisper)
+│   ├─> Sanity Check: Reject <1KB files (Silence)
+│   └─> Hallucination Filter: Reject "Thank you", "You" etc.
 ├─> Evaluate answer with AI (OpenAI GPT)
 │   └─> Returns: score (0-100), feedback, next question
+│   └─> If Silence: Score 0, Feedback "No answer provided"
 ├─> Store in database
 └─> Convert feedback to speech (TTS)
         ↓
@@ -347,9 +352,13 @@ User speaks → Record audio blob
         ↓
 POST /api/interview/speech-to-text + audio file
         ↓
+Audio Sanity Check (<1KB = Silence)
+        ↓
 OpenAI Whisper API → Text transcription
         ↓
-Process as normal text answer
+Hallucination Filter (Reject "Thank you", "Bye" etc.)
+        ↓
+Process as normal text answer (or "No Answer" if silent)
 ```
 
 ### Code Execution Flow
