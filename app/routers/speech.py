@@ -95,40 +95,18 @@ async def speech_to_text(
                 return {"text": "No Answer", "language": "en", "is_silent": True}
             
             # 2. WHISPER OUTPUT SANITIZATION (POST-WHISPER)
-            if not text:
-                return {"text": "No Answer", "language": "en", "is_silent": True}
-                
-            # Normalize text for checking
-            normalized_text = text.strip().lower()
             
-            # Known Whisper hallucinations list
-            hallucinations = [
-                "thank you", "thanks", "thank you.", "thanks.", 
-                "you", "you.", "bye", "bye.",
-                "subtitles by", "subtitles by...",
-                "(silence)", "[silence]",
-                "copyright", "copyright...",
-                "continue", "continue.",
-                "amara.org"
-            ]
+            # Check for hallucination using shared utility
+            from app.utils.audio_utils import is_hallucination
             
-            # Check for exact matches or very short garbage
-            is_hallucination = False
-            
-            # Check if text is in known hallucinations list
-            if any(h in normalized_text for h in hallucinations) and len(normalized_text.split()) <= 5:
-                is_hallucination = True
-                
-            # Check length - extremly short answers (1 word) that aren't Yes/No are suspicious
-            word_count = len(normalized_text.split())
-            if word_count < 2 and normalized_text not in ["yes", "no", "yes.", "no.", "yeah", "nope"]:
-                # Be careful with valid short answers, but for interview context, single words like "the" or "a" are noise
-                if len(normalized_text) < 4: # Very short single words
-                    is_hallucination = True
-            
-            if is_hallucination:
+            if is_hallucination(text):
                 logger.warning(f"[SPEECH] Hallucination detected: '{text}'. Returning 'No Answer'.")
                 return {"text": "No Answer", "language": "en", "is_silent": True}
+
+            if not text:
+               return {"text": "No Answer", "language": "en", "is_silent": True}
+               
+            return {"text": text.strip(), "language": "en", "is_silent": False}
 
             return {"text": text.strip(), "language": "en", "is_silent": False}
             
